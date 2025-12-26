@@ -54,10 +54,10 @@ import br.com.redesurftank.havalshisuku.listeners.IDataChanged;
 import br.com.redesurftank.havalshisuku.listeners.IServiceManagerEvent;
 import br.com.redesurftank.havalshisuku.models.CarConstants;
 import br.com.redesurftank.havalshisuku.models.CarInfo;
+import br.com.redesurftank.havalshisuku.models.MainUiManager;
 import br.com.redesurftank.havalshisuku.models.ServiceManagerEventType;
 import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys;
 import br.com.redesurftank.havalshisuku.models.SteeringWheelCustomActionType;
-import br.com.redesurftank.havalshisuku.models.MainUiManager;
 import br.com.redesurftank.havalshisuku.models.screens.Screen;
 import br.com.redesurftank.havalshisuku.utils.FridaUtils;
 import br.com.redesurftank.havalshisuku.utils.ShizukuUtils;
@@ -164,6 +164,7 @@ public class ServiceManager {
             CarConstants.CAR_INTELLIGENT_DRIVING_SETTING_SRAS_RCW_STATE,
             CarConstants.CAR_INTELLIGENT_DRIVING_SETTING_SRAS_RSA_RSB_STATE,
             CarConstants.CAR_INTELLIGENT_DRIVING_SETTING_SRAS_RSA_RSB_WARNING_STATE,
+            CarConstants.CAR_EV_SETTING_CHARGE_SOC_TARGET_CONFIG,
     };
     private static ServiceManager instance;
     private final List<IDataChanged> dataChangedListeners;
@@ -386,15 +387,33 @@ public class ServiceManager {
                         if (clusterCardView == 1) {
                             Screen.Key key = null;
                             switch (keyEvent.getKeyCode()) {
-                                case 1024: key = Screen.Key.UP; break;
-                                case 1025: key = Screen.Key.DOWN; break;
-                                case 1028: key = Screen.Key.ENTER; break;
-                                case 1029: key = Screen.Key.HOME; break;
-                                case 1030: key = Screen.Key.BACK; break;
-                                case 1033: key = Screen.Key.UP_LONG; break;
-                                case 1034: key = Screen.Key.DOWN_LONG; break;
-                                case 1037: key = Screen.Key.ENTER_LONG; break;
-                                case 1039: key = Screen.Key.BACK_LONG; break;
+                                case 1024:
+                                    key = Screen.Key.UP;
+                                    break;
+                                case 1025:
+                                    key = Screen.Key.DOWN;
+                                    break;
+                                case 1028:
+                                    key = Screen.Key.ENTER;
+                                    break;
+                                case 1029:
+                                    key = Screen.Key.HOME;
+                                    break;
+                                case 1030:
+                                    key = Screen.Key.BACK;
+                                    break;
+                                case 1033:
+                                    key = Screen.Key.UP_LONG;
+                                    break;
+                                case 1034:
+                                    key = Screen.Key.DOWN_LONG;
+                                    break;
+                                case 1037:
+                                    key = Screen.Key.ENTER_LONG;
+                                    break;
+                                case 1039:
+                                    key = Screen.Key.BACK_LONG;
+                                    break;
                             }
                             if (key != null) MainUiManager.getInstance().handleGeneralKeyEvents(key);
                         }
@@ -1184,20 +1203,20 @@ public class ServiceManager {
                 updateData(CarConstants.CAR_HVAC_AC_ENABLE.getValue(), "1");
 
                 isMaxAcActive = true;
-                
+
                 int timeoutMinutes = sharedPreferences.getInt(SharedPreferencesKeys.MAX_AC_TIMEOUT.getKey(), 0);
-                 if (timeoutMinutes > 0) {
+                if (timeoutMinutes > 0) {
                     if (maxAcTimeoutRunnable != null) {
                         backgroundHandler.removeCallbacks(maxAcTimeoutRunnable);
                     }
                     maxAcTimeoutRunnable = () -> {
-                         Log.w(TAG, "Max AC timeout reached, aborting");
-                         cancelMaxAcMode();
+                        Log.w(TAG, "Max AC timeout reached, aborting");
+                        cancelMaxAcMode();
                     };
                     backgroundHandler.postDelayed(maxAcTimeoutRunnable, timeoutMinutes * 60 * 1000L);
                     Log.w(TAG, "Max AC timeout scheduled for " + timeoutMinutes + " minutes");
                 }
-                
+
                 Log.w(TAG, "Max AC activated power on and high temp: " + currentTemp);
             }
         } catch (Exception e) {
@@ -1268,17 +1287,15 @@ public class ServiceManager {
         }
         executeWithServicesRunning(() -> {
             var currentUser = sharedPreferences.getString(SharedPreferencesKeys.CURRENT_USER.getKey(), "");
-            if (currentUser.equals(userId)) {
-                Log.w(TAG, "Current user is already: " + userId);
-                return;
-            }
 
             Log.w(TAG, "Switching user to: " + userId);
 
-            try {
-                saveCarSettingsForUser(currentUser);
-            } catch (Exception e) {
-                Log.e(TAG, "Error saving settings for user: " + currentUser, e);
+            if (!currentUser.equals(userId)) {
+                try {
+                    saveCarSettingsForUser(currentUser);
+                } catch (Exception e) {
+                    Log.e(TAG, "Error saving settings for user: " + currentUser, e);
+                }
             }
 
             try {
@@ -1330,7 +1347,7 @@ public class ServiceManager {
         }
     }
 
-    private void saveCarSettingsForUser(String userId) {
+    public void saveCarSettingsForUser(String userId) {
         Map<String, String> settingsToSave = new HashMap<>();
 
         for (CarConstants key : KEYS_TO_SAVE) {
