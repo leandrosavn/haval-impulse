@@ -43,9 +43,11 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -99,6 +101,7 @@ public class ServiceManager {
             CarConstants.CAR_HVAC_POWER_MODE,
             CarConstants.CAR_HVAC_SYNC_ENABLE,
             CarConstants.CAR_HVAC_AUTO_ENABLE,
+            CarConstants.CAR_HVAC_SETTING_COMFORT_CURVE,
             CarConstants.CAR_IPK_SETTING_BRIGHTNESS_CONFIG,
             CarConstants.SYS_AVM_AUTO_PREVIEW_ENABLE,
             CarConstants.SYS_AVM_PREVIEW_STATUS,
@@ -116,6 +119,9 @@ public class ServiceManager {
             CarConstants.CAR_EV_INFO_CYCLE_FUEL_CONSUME_INFO,
             CarConstants.CAR_CONFIGURE_PEDAL_CONTROL_ENABLE,
             CarConstants.CAR_BASIC_INSTANT_FUEL_CONSUMPTION,
+            CarConstants.CAR_EV_INFO_CUR_CHARGE_CURRENT,
+            CarConstants.CAR_EV_INFO_POWER_BATTERY_VOLTAGE
+
     };
 
     private static final CarConstants[] KEYS_TO_SAVE = {
@@ -384,7 +390,7 @@ public class ServiceManager {
                         }
                     }
                     if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_CUSTOM_MENU.getKey(), false)) {
-                        if (clusterCardView == 1) {
+                        if (clusterCardView == 1 || clusterCardView == 3) {
                             Screen.Key key = null;
                             switch (keyEvent.getKeyCode()) {
                                 case 1024:
@@ -997,21 +1003,27 @@ public class ServiceManager {
                     if (disableHotspotOnPowerOff) {
                         disableWifiTether();
                     }
+                    if (isMaxAcActive) {
+                        cancelMaxAcMode();
+                    }
                 } else {
                     boolean disableBluetoothOnPowerOff = sharedPreferences.getBoolean(SharedPreferencesKeys.DISABLE_BLUETOOTH_ON_POWER_OFF.getKey(), false);
                     boolean bluetoothStateOnPowerOff = sharedPreferences.getBoolean(SharedPreferencesKeys.BLUETOOTH_STATE_ON_POWER_OFF.getKey(), false);
                     if (disableBluetoothOnPowerOff && bluetoothStateOnPowerOff && !currentBluetoothState()) {
                         enableBluetooth();
                     }
-                    if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_MAX_AC_ON_UNLOCK.getKey(), true)) {
+                    if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_MAX_AC_ON_UNLOCK.getKey(), false)) {
                         if (!isMaxAcActive) enableMaxAcOn();
+                    }
+                    if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_OPEN_SUNROOF_CURTAIN_ON_START.getKey(), false)) {
+                        autoOpenSunroofCurtain();
                     }
                 }
             } else if (key.equals(CarConstants.CAR_HVAC_POWER_MODE.getValue()) && value.equals("1") && sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_SEAT_VENTILATION_ON_AC_ON.getKey(), false)) {
                 updateData(CarConstants.CAR_COMFORT_SETTING_DRIVER_SEAT_VENTILATION_LEVEL.getValue(), "3");
             } else if (key.equals(CarConstants.CAR_HVAC_POWER_MODE.getValue()) && value.equals("0") && sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_SEAT_VENTILATION_ON_AC_ON.getKey(), false)) {
                 updateData(CarConstants.CAR_COMFORT_SETTING_DRIVER_SEAT_VENTILATION_LEVEL.getValue(), "0");
-            } else if (key.equals(CarConstants.CAR_BASIC_INSIDE_TEMP.getValue()) && sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_MAX_AC_ON_UNLOCK.getKey(), true)) {
+            } else if (key.equals(CarConstants.CAR_BASIC_INSIDE_TEMP.getValue()) && sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_MAX_AC_ON_UNLOCK.getKey(), false)) {
                 if (isMaxAcActive) updateMaxAcSmoothing();
             }
         } catch (Exception e) {
@@ -1056,6 +1068,66 @@ public class ServiceManager {
             }
         } catch (Exception e) {
             Log.e(TAG, "Error closing shade screens", e);
+        }
+    }
+
+    public void openSunRoofShade() {
+        try {
+            var sunRoofBlockStatus = vehicle.getShadeScreensLevel(0);
+            if (sunRoofBlockStatus != 100) {
+                vehicle.setShadeScreensLevel(100);
+                Log.w(TAG, "Opening sunroof curtain");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error opening shade screens", e);
+        }
+    }
+
+    private void autoOpenSunroofCurtain() {
+        Calendar now = Calendar.getInstance();
+        float outsideTemp = 99;
+        int currentHour = now.get(Calendar.HOUR_OF_DAY);
+        int currentMinute = now.get(Calendar.MINUTE);
+        int currentTime = currentHour * 60 + currentMinute;
+
+        int startHour = sharedPreferences.getInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_START_HOUR.getKey(), 18);
+        int startMinute = sharedPreferences.getInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_START_MINUTE.getKey(), 0);
+        int startTime = startHour * 60 + startMinute;
+
+        int endHour = sharedPreferences.getInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_END_HOUR.getKey(), 9);
+        int endMinute = sharedPreferences.getInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_END_MINUTE.getKey(), 0);
+        int endTime = endHour * 60 + endMinute;
+
+        boolean isTimeInRange = false;
+        if (startTime < endTime) {
+            isTimeInRange = currentTime >= startTime && currentTime < endTime;
+        } else {
+            // Wraps around midnight
+            isTimeInRange = currentTime >= startTime || currentTime < endTime;
+        }
+
+        float maxTemp = sharedPreferences.getFloat(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_MAX_TEMP.getKey(), -1f);
+        if (maxTemp != -1f) {
+            String outsideTempStr = getUpdatedData(CarConstants.CAR_BASIC_OUTSIDE_TEMP.getValue());
+            if (outsideTempStr != null) {
+                try {
+                    outsideTemp = Float.parseFloat(outsideTempStr);
+                } catch (NumberFormatException e) {
+                    Log.e(TAG, "Error parsing outside temp for curtain check. Aborting curtain opening. ", e);
+                    return;
+                }
+            }
+        }
+
+        if ((isTimeInRange) || (outsideTemp <= maxTemp)) {
+            // Delay slightly to ensure services are fully ready or just triggering command
+            backgroundHandler.postDelayed(this::openSunRoofShade, 2000);
+        } else {
+            if (!isTimeInRange) {
+                Log.d(TAG, "Current time " + currentHour + ":" + currentMinute + " not in range for opening curtain");
+            } else if (outsideTemp > maxTemp) {
+                Log.w(TAG, "Outside temp " + outsideTemp + " > max configured " + maxTemp + ", not opening curtain");
+            }
         }
     }
 
@@ -1146,18 +1218,24 @@ public class ServiceManager {
     public void cancelMaxAcMode() {
 
         if (!isMaxAcActive) return;
+        isMaxAcActive = false;
+        if (maxAcTimeoutRunnable != null) {
+            backgroundHandler.removeCallbacks(maxAcTimeoutRunnable);
+            maxAcTimeoutRunnable = null;
+        }
 
+        // Force POWER as 1 (ON) to ensure it stays ON after MAX AC finishes
+        updateData(CarConstants.CAR_HVAC_POWER_MODE.getValue(), "1");
+        updateData(CarConstants.CAR_HVAC_AC_ENABLE.getValue(), "1");
+
+        // Restores previous AC state
         for (Map.Entry<String, String> entry : previousAcState.entrySet()) {
             if (entry.getValue() != null) {
                 updateData(entry.getKey(), entry.getValue());
             }
         }
-        isMaxAcActive = false;
         previousAcState.clear();
-        if (maxAcTimeoutRunnable != null) {
-            backgroundHandler.removeCallbacks(maxAcTimeoutRunnable);
-            maxAcTimeoutRunnable = null;
-        }
+        clearPersistedMaxAcState();
         dispatchServiceManagerEvent(ServiceManagerEventType.MAX_AUTO_AC_STATUS_CHANGED, 0);
 
     }
@@ -1172,27 +1250,31 @@ public class ServiceManager {
             if (tempStr == null) return;
             float currentTemp = Float.parseFloat(tempStr);
             float threshold = sharedPreferences.getFloat(SharedPreferencesKeys.MAX_AC_ON_UNLOCK_THRESHOLD.getKey(), 35.0f);
-
             if (currentTemp >= threshold && !isMaxAcActive) {
-                String prevPower = getUpdatedData(CarConstants.CAR_HVAC_POWER_MODE.getValue());
-                String prevEnabled = getUpdatedData(CarConstants.CAR_HVAC_AC_ENABLE.getValue());
-                String prevFan = getUpdatedData(CarConstants.CAR_HVAC_FAN_SPEED.getValue());
-                String prevDriverTemp = getUpdatedData(CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.getValue());
-                String prevPassTemp = getUpdatedData(CarConstants.CAR_HVAC_PASS_TEMPERATURE.getValue());
-                String prevAuto = getUpdatedData(CarConstants.CAR_HVAC_AUTO_ENABLE.getValue());
-                String prevAnion = getUpdatedData(CarConstants.CAR_HVAC_ANION_ENABLE.getValue());
-                String prevAQS = getUpdatedData(CarConstants.CAR_HVAC_AQS_ENABLE.getValue());
-                String prevSync = getUpdatedData(CarConstants.CAR_HVAC_SYNC_ENABLE.getValue());
 
-                previousAcState.put(CarConstants.CAR_HVAC_POWER_MODE.getValue(), prevPower);
-                previousAcState.put(CarConstants.CAR_HVAC_AC_ENABLE.getValue(), prevEnabled);
-                previousAcState.put(CarConstants.CAR_HVAC_FAN_SPEED.getValue(), prevFan);
-                previousAcState.put(CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.getValue(), prevDriverTemp);
-                previousAcState.put(CarConstants.CAR_HVAC_PASS_TEMPERATURE.getValue(), prevPassTemp);
-                previousAcState.put(CarConstants.CAR_HVAC_AUTO_ENABLE.getValue(), prevAuto);
-                previousAcState.put(CarConstants.CAR_HVAC_ANION_ENABLE.getValue(), prevAnion);
-                previousAcState.put(CarConstants.CAR_HVAC_AQS_ENABLE.getValue(), prevAQS);
-                previousAcState.put(CarConstants.CAR_HVAC_SYNC_ENABLE.getValue(), prevSync);
+                tryRestoreMaxAcState();
+                if (previousAcState.isEmpty()) {
+                    String prevFan = getUpdatedData(CarConstants.CAR_HVAC_FAN_SPEED.getValue());
+                    String prevDriverTemp = getUpdatedData(CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.getValue());
+                    String prevPassTemp = getUpdatedData(CarConstants.CAR_HVAC_PASS_TEMPERATURE.getValue());
+                    String prevAuto = getUpdatedData(CarConstants.CAR_HVAC_AUTO_ENABLE.getValue());
+                    String prevAnion = getUpdatedData(CarConstants.CAR_HVAC_ANION_ENABLE.getValue());
+                    String prevAQS = getUpdatedData(CarConstants.CAR_HVAC_AQS_ENABLE.getValue());
+                    String prevSync = getUpdatedData(CarConstants.CAR_HVAC_SYNC_ENABLE.getValue());
+                    String prevComfortCurve = getUpdatedData(CarConstants.CAR_HVAC_SETTING_COMFORT_CURVE.getValue());
+                    String prevCycleMode = getUpdatedData(CarConstants.CAR_HVAC_CYCLE_MODE.getValue());
+
+                    previousAcState.put(CarConstants.CAR_HVAC_FAN_SPEED.getValue(), prevFan);
+                    previousAcState.put(CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.getValue(), prevDriverTemp);
+                    previousAcState.put(CarConstants.CAR_HVAC_PASS_TEMPERATURE.getValue(), prevPassTemp);
+                    previousAcState.put(CarConstants.CAR_HVAC_AUTO_ENABLE.getValue(), prevAuto);
+                    previousAcState.put(CarConstants.CAR_HVAC_ANION_ENABLE.getValue(), prevAnion);
+                    previousAcState.put(CarConstants.CAR_HVAC_AQS_ENABLE.getValue(), prevAQS);
+                    previousAcState.put(CarConstants.CAR_HVAC_SYNC_ENABLE.getValue(), prevSync);
+                    previousAcState.put(CarConstants.CAR_HVAC_SETTING_COMFORT_CURVE.getValue(), prevComfortCurve);
+                    previousAcState.put(CarConstants.CAR_HVAC_CYCLE_MODE.getValue(), prevCycleMode);
+                    persistMaxAcState();
+                }
 
                 updateData(CarConstants.CAR_HVAC_POWER_MODE.getValue(), "1");
                 updateData(CarConstants.CAR_HVAC_AUTO_ENABLE.getValue(), "0");
@@ -1200,8 +1282,7 @@ public class ServiceManager {
                 updateData(CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.getValue(), "16.0");
                 updateData(CarConstants.CAR_HVAC_PASS_TEMPERATURE.getValue(), "16.0");
                 updateData(CarConstants.CAR_HVAC_SYNC_ENABLE.getValue(), "1");
-                updateData(CarConstants.CAR_HVAC_AC_ENABLE.getValue(), "1");
-
+                updateData(CarConstants.CAR_HVAC_SETTING_COMFORT_CURVE.getValue(), "2"); // Max Cold
                 isMaxAcActive = true;
 
                 int timeoutMinutes = sharedPreferences.getInt(SharedPreferencesKeys.MAX_AC_TIMEOUT.getKey(), 0);
@@ -1224,12 +1305,28 @@ public class ServiceManager {
         }
     }
 
+    private void setOptimalAcCycleMode() {
+        try {
+            String inTempStr = getUpdatedData(CarConstants.CAR_BASIC_INSIDE_TEMP.getValue());
+            String outTempStr = getUpdatedData(CarConstants.CAR_BASIC_OUTSIDE_TEMP.getValue());
+            if (inTempStr == null || outTempStr == null) return;
+            float inTemp = Float.parseFloat(inTempStr);
+            float outTemp = Float.parseFloat(outTempStr);
+            String desiredMode = (inTemp < outTemp) ? "1" : "0";
+            updateData(CarConstants.CAR_HVAC_CYCLE_MODE.getValue(), desiredMode);
+        } catch (Exception e) {
+            Log.d(TAG, "Error trying to set optimal cycle mode: " + e.getMessage());
+        }
+
+    }
+
     private void updateMaxAcSmoothing() {
         if (!isMaxAcActive) return;
         try {
             String tempStr = getUpdatedData(CarConstants.CAR_BASIC_INSIDE_TEMP.getValue());
             if (tempStr == null) return;
             float currentTemp = Float.parseFloat(tempStr);
+
             float targetTemp = sharedPreferences.getFloat(SharedPreferencesKeys.MAX_AC_TARGET_TEMP.getKey(), 28.0f);
             float smoothingRange = 2.0f;
             float startSmoothingTemp = targetTemp + smoothingRange;
@@ -1248,18 +1345,81 @@ public class ServiceManager {
                 newFan = Math.max(3, newFan);
 
                 String prevDriverKey = CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.getValue();
+                String prevPassKey = CarConstants.CAR_HVAC_PASS_TEMPERATURE.getValue();
                 float minTemp = 16.0f;
                 float prevDriverTemp = (previousAcState.get(prevDriverKey) != null) ? Float.parseFloat(previousAcState.get(prevDriverKey)) : 22.0f;
+                float prevPassTemp = (previousAcState.get(prevPassKey) != null) ? Float.parseFloat(previousAcState.get(prevPassKey)) : 22.0f;
+                
                 float newDriverTemp = prevDriverTemp - ((prevDriverTemp - minTemp) * factor);
                 newDriverTemp = Math.min(20, newDriverTemp);
+                
+                float newPassTemp = prevPassTemp - ((prevPassTemp - minTemp) * factor);
+                newPassTemp = Math.min(20, newPassTemp);
 
                 updateData(CarConstants.CAR_HVAC_FAN_SPEED.getValue(), String.valueOf(newFan));
-                updateData(prevDriverKey, String.format(java.util.Locale.US, "%.1f", newDriverTemp));
+                updateData(prevDriverKey, String.format(Locale.US, "%.1f", newDriverTemp));
+                updateData(prevPassKey, String.format(Locale.US, "%.1f", newPassTemp));
+                
+                // Enforce Power and AC Enable to ensure they stay ON during the process
+                updateData(CarConstants.CAR_HVAC_POWER_MODE.getValue(), "1");
+                updateData(CarConstants.CAR_HVAC_AC_ENABLE.getValue(), "1");
+
+                setOptimalAcCycleMode();
 
                 Log.d(TAG, "Max AC Smoothing: Temp=" + currentTemp + ", Factor=" + factor + ", Fan=" + newFan + ", DriverTemp=" + newDriverTemp);
             }
         } catch (Exception e) {
             Log.e(TAG, "Error in Max AC Smoothing logic", e);
+        }
+    }
+
+    private void persistMaxAcState() {
+        try {
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+            editor.putBoolean("MAX_AC_ACTIVE_PERSISTED", true);
+            JsonObject jsonObject = new JsonObject();
+            for (Map.Entry<String, String> entry : previousAcState.entrySet()) {
+                if (entry.getValue() != null) {
+                    jsonObject.addProperty(entry.getKey(), entry.getValue());
+                }
+            }
+            editor.putString("MAX_AC_PREVIOUS_STATE", jsonObject.toString());
+            editor.apply();
+            Log.w(TAG, "Persisted AC MAX state");
+        } catch (Exception e) {
+            Log.e(TAG, "Error persisting AC MAX state", e);
+        }
+    }
+
+    private void clearPersistedMaxAcState() {
+        try {
+            sharedPreferences.edit()
+                    .remove("MAX_AC_ACTIVE_PERSISTED")
+                    .remove("MAX_AC_PREVIOUS_STATE")
+                    .apply();
+            Log.w(TAG, "Cleared persisted AC MAX state");
+        } catch (Exception e) {
+            Log.e(TAG, "Error clearing persisted AC MAX state", e);
+        }
+    }
+
+    private void tryRestoreMaxAcState() {
+        try {
+            if (sharedPreferences.getBoolean("MAX_AC_ACTIVE_PERSISTED", false)) {
+                String jsonStr = sharedPreferences.getString("MAX_AC_PREVIOUS_STATE", null);
+                if (jsonStr != null) {
+                    JsonObject jsonObject = new Gson().fromJson(jsonStr, JsonObject.class);
+                    previousAcState.clear();
+                    for (Map.Entry<String, JsonElement> entry : jsonObject.entrySet()) {
+                        previousAcState.put(entry.getKey(), entry.getValue().getAsString());
+                    }
+                    isMaxAcActive = true;
+                    Log.w(TAG, "Restored AC MAX state from persistence");
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error restoring AC MAX state", e);
+            clearPersistedMaxAcState(); // Clear corrupted state
         }
     }
 
@@ -1361,7 +1521,7 @@ public class ServiceManager {
         }
 
         Gson gson = new Gson();
-        JsonObject jsonObject = new com.google.gson.JsonObject();
+        JsonObject jsonObject = new JsonObject();
         for (Map.Entry<String, String> entry : settingsToSave.entrySet()) {
             jsonObject.addProperty(entry.getKey(), entry.getValue());
         }

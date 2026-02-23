@@ -325,7 +325,7 @@ fun BasicSettingsTab() {
     var closeSunroofOnSpeed by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.CLOSE_SUNROOF_ON_SPEED.key, false)) }
     var speedThreshold by remember { mutableFloatStateOf(prefs.getFloat(SharedPreferencesKeys.SPEED_THRESHOLD.key, 15f)) }
     var closeSunroofSpeedThreshold by remember { mutableFloatStateOf(prefs.getFloat(SharedPreferencesKeys.SUNROOF_SPEED_THRESHOLD.key, 15f)) }
-    var enableMaxAcOnUnlock by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_MAX_AC_ON_UNLOCK.key, true)) }
+    var enableMaxAcOnUnlock by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_MAX_AC_ON_UNLOCK.key, false)) }
     var maxAcOnUnlockThreshold by remember { mutableFloatStateOf(prefs.getFloat(SharedPreferencesKeys.MAX_AC_ON_UNLOCK_THRESHOLD.key, 34f)) }
     var maxAcTargetTemp by remember { mutableFloatStateOf(prefs.getFloat(SharedPreferencesKeys.MAX_AC_TARGET_TEMP.key, 28f)) }
     var maxAcTimeout by remember { mutableIntStateOf(prefs.getInt(SharedPreferencesKeys.MAX_AC_TIMEOUT.key, 0)) }
@@ -512,6 +512,141 @@ fun BasicSettingsTab() {
                                                     maxAcTimeout = value
                                                     prefs.edit { putInt(SharedPreferencesKeys.MAX_AC_TIMEOUT.key, value) }
                                                     expanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else null
+            ),
+            SettingItem(
+                title = SharedPreferencesKeys.ENABLE_OPEN_SUNROOF_CURTAIN_ON_START.description,
+                description = "Abre automaticamente a cortina do teto solar ao ligar o veículo",
+                checked = remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_OPEN_SUNROOF_CURTAIN_ON_START.key, false)) }.value,
+                onCheckedChange = { checked ->
+                    prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_OPEN_SUNROOF_CURTAIN_ON_START.key, checked) }
+                    // Trigger a recomposition/state update if needed, but since we rely on prefs read inside remember, we might want to lift state.
+                    // For simplicity, I'll rely on the fact user probably toggles this and we are mainly updating prefs.
+                    // Wait, the checked state above needs to be hoisted to variable like others.
+                },
+                customContent = if (prefs.getBoolean(SharedPreferencesKeys.ENABLE_OPEN_SUNROOF_CURTAIN_ON_START.key, false)) {
+                    {
+                        var curtainStartHour by remember { mutableIntStateOf(prefs.getInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_START_HOUR.key, 18)) }
+                        var curtainStartMinute by remember { mutableIntStateOf(prefs.getInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_START_MINUTE.key, 0)) }
+                        var curtainEndHour by remember { mutableIntStateOf(prefs.getInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_END_HOUR.key, 9)) }
+                        var curtainEndMinute by remember { mutableIntStateOf(prefs.getInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_END_MINUTE.key, 0)) }
+                        var maxTemp by remember { mutableFloatStateOf(prefs.getFloat(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_MAX_TEMP.key, -1f)) }
+
+                        var showCurtainStartPicker by remember { mutableStateOf(false) }
+                        var showCurtainEndPicker by remember { mutableStateOf(false) }
+                        var expandedTemp by remember { mutableStateOf(false) }
+
+                        val tempOptions = mapOf(
+                            -1f to "Desabilitado",
+                            26f to "26°C",
+                            28f to "28°C",
+                            30f to "30°C",
+                            32f to "32°C",
+                            34f to "34°C",
+                            36f to "36°C"
+                        )
+
+                        if (showCurtainStartPicker) {
+                            val timeSetListener = TimePickerDialog.OnTimeSetListener { _, hour, minute ->
+                                curtainStartHour = hour
+                                curtainStartMinute = minute
+                                prefs.edit {
+                                    putInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_START_HOUR.key, hour)
+                                    putInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_START_MINUTE.key, minute)
+                                }
+                                showCurtainStartPicker = false
+                            }
+                            TimePickerDialog(LocalContext.current, timeSetListener, curtainStartHour, curtainStartMinute, true).show()
+                        }
+
+                        if (showCurtainEndPicker) {
+                            val timeSetListener = TimePickerDialog.OnTimeSetListener { _, hour, minute ->
+                                curtainEndHour = hour
+                                curtainEndMinute = minute
+                                prefs.edit {
+                                    putInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_END_HOUR.key, hour)
+                                    putInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_END_MINUTE.key, minute)
+                                }
+                                showCurtainEndPicker = false
+                            }
+                            TimePickerDialog(LocalContext.current, timeSetListener, curtainEndHour, curtainEndMinute, true).show()
+                        }
+                        
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                             HorizontalDivider(color = Color(0xFF3A3F47), thickness = 1.dp)
+                             Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { showCurtainStartPicker = true }
+                                        .background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text("Início", color = Color.White, fontSize = 14.sp)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            "${String.format("%02d", curtainStartHour)}:${String.format("%02d", curtainStartMinute)}",
+                                            color = Color(0xFF4A9EFF), fontSize = 18.sp, fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { showCurtainEndPicker = true }
+                                        .background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text("Fim", color = Color.White, fontSize = 14.sp)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            "${String.format("%02d", curtainEndHour)}:${String.format("%02d", curtainEndMinute)}",
+                                            color = Color(0xFF4A9EFF), fontSize = 18.sp, fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Temp. Máxima:", color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(end = 8.dp))
+                                Box {
+                                    Text(
+                                        text = tempOptions[maxTemp] ?: "Desabilitado",
+                                        color = Color(0xFF4A9EFF),
+                                        fontSize = 16.sp,
+                                        modifier = Modifier
+                                            .background(Color(0xFF2A2F37), RoundedCornerShape(4.dp))
+                                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                                            .clickable { expandedTemp = true }
+                                    )
+                                    DropdownMenu(
+                                        expanded = expandedTemp,
+                                        onDismissRequest = { expandedTemp = false },
+                                        modifier = Modifier.background(Color(0xFF2A2F37))
+                                    ) {
+                                        tempOptions.forEach { (value, label) ->
+                                            DropdownMenuItem(
+                                                text = { Text(label, color = Color.White) },
+                                                onClick = {
+                                                    maxTemp = value
+                                                    prefs.edit { putFloat(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_MAX_TEMP.key, value) }
+                                                    expandedTemp = false
                                                 }
                                             )
                                         }

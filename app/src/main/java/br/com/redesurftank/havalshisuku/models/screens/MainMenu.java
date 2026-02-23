@@ -162,7 +162,11 @@ public class MainMenu implements Screen {
         String lastScreenKey = ServiceManager.getInstance().getSharedPreferences().getString(SharedPreferencesKeys.LAST_CLUSTER_SCREEN.getKey(), "main_menu");
         Screen lastScreen = this;
         if (!lastScreenKey.equals("main_menu")) {
-            lastScreen = ((MenuAction.NavigateTo)menuItems.get(currentMenuItemIndex).getAction()).getScreen();
+            try {
+                lastScreen = ((MenuAction.NavigateTo)menuItems.get(currentMenuItemIndex).getAction()).getScreen();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
             uiManager.updateScreen(lastScreen);
 }
         return lastScreen;

@@ -5,10 +5,16 @@ import { updateProgressRings } from './mainAcControl.js'
 
 export function createTemperatureElement() {
 
+    function getTempDisplayValue(temp) {
+        if (temp == 16) return 'Low';
+        if (temp == 32) return 'High';
+        return temp + '°C';
+    }
+
     var tempDisplay = div({
         className: 'temp-display-label font-bold',
         children: [
-            stateManager.get('temp') + '°C',
+            getTempDisplayValue(stateManager.get('temp')),
         ],
     });
     var focusArea = createFocusElementWithChildren({
@@ -27,7 +33,7 @@ export function createTemperatureElement() {
         ]
     });
 
-    var unsubscribeFocus = subscribe('focusArea', function(newFocusArea) {
+    var unsubscribeFocus = subscribe('focusArea', function (newFocusArea) {
         var isFocused = newFocusArea === 'temp';
 
         // Apply base styles with browser prefixes
@@ -42,19 +48,13 @@ export function createTemperatureElement() {
         }
     });
 
-    var unsubscribeTemp = subscribe('temp', function(newTemp) {
-        if (newTemp == 16) {
-            tempDisplay.textContent = 'Low';
-        } else if (newTemp == 32) {
-            tempDisplay.textContent = 'High';
-        } else {
-            tempDisplay.textContent = newTemp + '°C';
-        }
+    var unsubscribeTemp = subscribe('temp', function (newTemp) {
+        tempDisplay.textContent = getTempDisplayValue(newTemp);
         updateProgressRings();
     });
 
     // Add cleanup method to the element
-    focusArea.cleanup = function() {
+    focusArea.cleanup = function () {
         unsubscribeFocus();
         unsubscribeTemp();
     };

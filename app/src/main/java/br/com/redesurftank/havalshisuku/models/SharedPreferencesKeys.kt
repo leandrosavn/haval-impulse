@@ -54,6 +54,12 @@ enum class SharedPreferencesKeys(val key: String, val description: String) {
     MAX_AC_ON_UNLOCK_THRESHOLD("maxAcOnUnlockThreshold", "Temperatura limite para ativar Max AC ao destravar"),
     MAX_AC_TARGET_TEMP("maxAcTargetTemp", "Temperatura alvo para o Max AC"),
     MAX_AC_TIMEOUT("maxAcTimeout", "Tempo limite para desativar o Max AC (em minutos)"),
+    ENABLE_OPEN_SUNROOF_CURTAIN_ON_START("enableOpenSunroofCurtainOnStart", "Habilitar abertura da cortina do teto solar ao ligar"),
+    OPEN_SUNROOF_CURTAIN_START_HOUR("openSunroofCurtainStartHour", "Hora de início para abrir cortina"),
+    OPEN_SUNROOF_CURTAIN_START_MINUTE("openSunroofCurtainStartMinute", "Minuto de início para abrir cortina"),
+    OPEN_SUNROOF_CURTAIN_END_HOUR("openSunroofCurtainEndHour", "Hora fim para abrir cortina"),
+    OPEN_SUNROOF_CURTAIN_END_MINUTE("openSunroofCurtainEndMinute", "Minuto fim para abrir cortina"),
+    OPEN_SUNROOF_CURTAIN_MAX_TEMP("openSunroofCurtainMaxTemp", "Temperatura externa máxima para abrir cortina"),
     PENDING_RESET_TARGET_VERSION("pendingResetTargetVersion", "Versão alvo para resetar dados ao voltar para canal estável"),
     SHOW_BETA_UPDATES("showBetaUpdates", "Mostrar atualizações do canal beta")
 

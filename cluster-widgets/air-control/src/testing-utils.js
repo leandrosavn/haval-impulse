@@ -52,6 +52,11 @@ document.addEventListener('keydown', (e) => {
                 const newMode = modes[nextIndex];
                 setState('drivingMode', newMode);
             } else if (currentState.focusedMenuItem === 'option_4') {
+                setState('fan', 1);
+                setState('temp', 21.0);
+                setState('outside_temp', 28.5);
+                setState('inside_temp', 23.0);
+                setState('targetTemp', 21.0);
                 window.showScreen('aircon');
             } else if (currentState.focusedMenuItem === 'option_5') {
                 const modes = ['Normal', 'Conforto', 'Esportiva'];
@@ -74,18 +79,28 @@ document.addEventListener('keydown', (e) => {
         const focusedArea = currentState.focusArea;
 
         if (e.key === 'Enter') {
-            const controls = focusableAreas.ac_control;
-            const currentIndex = controls.indexOf(focusedArea);
-            const nextIndex = (currentIndex + 1) % controls.length;
-            window.focus(controls[nextIndex]);
+            if (currentState.impulseauto == 1) {
+                window.focus('temp');
+            } else {
+                const controls = focusableAreas.ac_control;
+                const currentIndex = controls.indexOf(focusedArea);
+                const nextIndex = (currentIndex + 1) % controls.length;
+                window.focus(controls[nextIndex]);
+            }
         } else if (e.key === ' ') {
             e.preventDefault();
             const newAutoModeState = (currentState.auto == 0 ? 1 : 0);
             setState('auto', newAutoModeState);
         } else if (e.key === 'a') {
+            /* TODO: for future use with impulseauto. For now it triggers maxauto mode
+                        e.preventDefault();
+                        const newModeState = (currentState.impulseauto == 0 ? 1 : 0);
+                        setState('impulseauto', newModeState);
+                        window.focus('temp');
+            */
             e.preventDefault();
-            const newMaxModeState = (currentState.maxauto == 0 ? 1 : 0);
-            setState('maxauto', newMaxModeState);
+            const newModeState = (currentState.maxauto == 0 ? 1 : 0);
+            setState('maxauto', newModeState);
         }
 
         switch (focusedArea) {
@@ -99,11 +114,20 @@ document.addEventListener('keydown', (e) => {
                 break;
 
             case 'temp':
-                const currentTemp = parseFloat(currentState.temp) || 21.0;
-                if (e.key === 'ArrowUp' && currentTemp < 32.0) {
-                    window.control('temp', (currentTemp + 0.5).toFixed(1));
-                } else if (e.key === 'ArrowDown' && currentTemp > 16.0) {
-                    window.control('temp', (currentTemp - 0.5).toFixed(1));
+                if (currentState.impulseauto == 1) {
+                    const currentTargetTemp = parseFloat(currentState.targetTemp) || 21.0;
+                    if (e.key === 'ArrowUp' && currentTargetTemp < 32.0) {
+                        window.control('targetTemp', (currentTargetTemp + 0.5).toFixed(1));
+                    } else if (e.key === 'ArrowDown' && currentTargetTemp > 16.0) {
+                        window.control('targetTemp', (currentTargetTemp - 0.5).toFixed(1));
+                    }
+                } else {
+                    const currentTemp = parseFloat(currentState.temp) || 21.0;
+                    if (e.key === 'ArrowUp' && currentTemp < 32.0) {
+                        window.control('temp', (currentTemp + 0.5).toFixed(1));
+                    } else if (e.key === 'ArrowDown' && currentTemp > 16.0) {
+                        window.control('temp', (currentTemp - 0.5).toFixed(1));
+                    }
                 }
                 break;
 
@@ -227,14 +251,25 @@ window.simulationInterval = setInterval(() => {
     const currentMode = stateManager.getState().gasConsumptionMode;
 
     if (currentMode === 'Running') {
-        setState('gasConsumption', Math.round(lastValue) / 3);
+        const gasV = Math.round(lastValue) / 3;
+        setState('gasConsumption', gasV);
         setState('gasConsumptionIdle', 0);
+        // Simulate RPM: if running, it should be between 800 and 7000
+        // We can base it on car speed and some randomness
+        const simulatedRPM = currentSpeed > 0 ? 1000 + (currentSpeed * 40) + (Math.random() * 500) : 800;
+        setState('engineRPM', Math.min(Math.max(simulatedRPM, 0), 7000));
     } else {
         setState('gasConsumption', 0);
         setState('gasConsumptionIdle', Math.round(lastValue) / 20);
+        // If idle, RPM is usually around 800
+        setState('engineRPM', 800);
     }
 
-    setState('evConsumption', Math.round(lastValue) - 50);
+    // Simulate EV power factor: -100 to +100 % (for power ring)
+    const powerFactor = Math.round(lastValue * 2) - 100;
+    setState('evPowerFactor', powerFactor);
+    // Simulate EV power in kW: ±120 kW range (for graph)
+    setState('evPowerKw', Math.round(powerFactor * 1.2));
     setState('lastRegenValue', Math.round(lastValue));
 
 }, SIMULATION_INTERVAL);

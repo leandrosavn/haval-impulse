@@ -427,6 +427,24 @@ button {
   color: #3bf676;
 }
 
+.impulse-auto-icon-container {
+  z-index: 3;
+  justify-content: space-between;
+  align-items: center;
+  font-family: Khand, sans-serif;
+  font-weight: 300;
+  display: -webkit-box;
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translate(-50%, 365px);
+  font-size: 36px;
+  color: #9ac2ff;
+  max-width: 120px;
+  line-height: 36px;
+  text-align: center;
+}
+
 .temp-info-container {
   position: absolute;
   bottom: 150px;
@@ -579,6 +597,11 @@ button {
   line-height: 0.9;
 }
 
+.impulse-auto-value-display {
+  font-size: 40px;
+  line-height: 0.9;
+}
+
 .ac-fan-control-area {
   position: absolute;
   top: 0;
@@ -595,16 +618,108 @@ button {
 
 .ac-temp-control-area {
   position: absolute;
-  bottom: 0;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, 10px);
   display: flex;
-  transform: translateY(-88px);
   font-size: 80px;
   font-weight: 500;
   color: white;
   z-index: 3;
   border-radius: 20%;
   padding: 5px;
-  transition: box-shadow 0.3s ease, color 0.3s ease;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.impulse-auto-active .ac-temp-control-area {
+  transform: translate(-50%, -50%);
+  height: 135px;
+}
+
+.impulse-auto-active .ac-temp-control-area .temp-display-label {
+  font-size: 80px;
+  transition: font-size 0.5s ease;
+  transform: translateY(16px);
+}
+
+.impulse-auto-active .ac-fan-control-area {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.impulse-auto-active .ac-divider-line {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.impulse-auto-active .ac-labels-container {
+  opacity: 1;
+}
+
+.impulse-auto-active .impulse-auto-icon-container {
+  transform: translate(-50%, 320px);
+  transition: all 0.5s ease;
+}
+
+.impulse-auto-divider-top {
+  position: absolute;
+  width: 300px;
+  height: 2px;
+  background-color: #4d97ff6b;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -80px);
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.impulse-auto-divider-bottom {
+  position: absolute;
+  width: 300px;
+  height: 2px;
+  background-color: #4d97ff6b;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, 80px);
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.impulse-auto-active .impulse-auto-divider-top,
+.impulse-auto-active .impulse-auto-divider-bottom {
+  opacity: 1;
+}
+
+.impulse-auto-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.impulse-auto-active .impulse-auto-container {
+  opacity: 1;
+}
+
+.impulse-auto-ac-fan {
+  position: absolute;
+  top: 105px;
+  right: 95px;
+  opacity: 0.5;
+}
+
+.impulse-auto-ac-temp {
+  position: absolute;
+  top: 105px;
+  left: 95px;
+  opacity: 0.5;
 }
 
 .progress-ring {
@@ -983,6 +1098,88 @@ canvas.regen-chart {
   z-index: 5;
 }
 
+.graph-power-rpm-ring {
+  position: absolute;
+  width: 440px;
+  height: 440px;
+  border-radius: 50%;
+  z-index: 6;
+  pointer-events: none;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.graph-power-rpm-ring::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg,
+      transparent 0deg,
+      transparent var(--p-start, 0deg),
+      #4a90e2 var(--p-start, 0deg),
+      #4a90e2 var(--p-end, 0deg),
+      #ff8c00 var(--r-start, 0deg),
+      #ff8c00 var(--r-end, 0deg),
+      transparent var(--r-end, 0deg),
+      transparent 360deg);
+
+  -webkit-mask: radial-gradient(circle at center, transparent 0, transparent 216px, white 217px, white 219px, transparent 220px);
+  mask: radial-gradient(circle at center, transparent 0, transparent 216px, white 217px, white 219px, transparent 220px);
+}
+
+.graph-curved-labels {
+  pointer-events: none;
+  z-index: 10;
+  overflow: visible;
+  transition: opacity 0.3s ease;
+}
+
+.graph-curved-labels text {
+  fill-opacity: 1;
+}
+
+.curved-label-rpm {
+  fill: #ff5500;
+  font-family: 'Khand', sans-serif;
+  font-size: 24px;
+  font-weight: 300;
+  dominant-baseline: hanging;
+}
+
+#graph-rpm-bar-svg {
+  stroke: #ff5500;
+}
+
+.curved-label-power {
+  fill: #00c3ff;
+  font-family: 'Khand', sans-serif;
+  font-size: 34px;
+  font-weight: 500;
+  dominant-baseline: hanging;
+}
+
+#graph-power-bar-svg {
+  stroke: #00c3ff;
+  transition: stroke 0.3s ease;
+}
+
+#graph-power-path {
+  fill: #00c3ff;
+  transition: fill 0.3s ease; }
+
+#graph-power-bar-svg.regen-active {
+  stroke: #00ff88;
+}
+
+#graph-power-path.regen-active {
+  fill: #00ff88;
+}
+
 .graph-inner-ring {
   position: absolute;
   width: 392px;
@@ -1090,8 +1287,12 @@ canvas.regen-chart {
   font-family: 'Khand', sans-serif;
   font-weight: 100;
   pointer-events: none;
-  text-align: center;
+  text-align: left;
   white-space: nowrap;
+}
+
+.dynamic-tooltip.primary .tooltip-unity {
+  text-align: center;
 }
 
 .warp-tunnel-canvas {
@@ -1116,21 +1317,19 @@ canvas.regen-chart {
 
 
 .dynamic-tooltip.secondary .tooltip-value {
-  top: 57px;
-  left: 45px;
+  top: 54px;
+  left: 53px;
   text-align: right;
-  font-size: 40px;
-  font-weight: 300;
   color: #9affb5;
-  font-size: 32px;
+  font-size: 36px;
   font-weight: 300;
 }
 
 .dynamic-tooltip.secondary .tooltip-unity {
   top: 62px;
-  left: 226px;
+  left: 255px;
   color: #9affb5;
-  font-size: 18px;
+  font-size: 16px;
   opacity: 0.8;
 }
 

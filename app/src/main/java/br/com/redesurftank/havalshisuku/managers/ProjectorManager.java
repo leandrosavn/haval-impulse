@@ -79,7 +79,7 @@ public class ProjectorManager {
 
             ServiceManager.getInstance().addDataChangedListener((key, value) -> {
                 if (key.equals(CarConstants.CAR_BASIC_ENGINE_STATE.getValue())) {
-                    if (value.equals("-1") || value.equals("15")) {
+                    if (value.equals("-1") || value.equals("15") || value.equals("14") || value.equals("10")) {
                         if (instrumentProjector != null) {
                             instrumentProjector.carMainScreenOff();
                         }

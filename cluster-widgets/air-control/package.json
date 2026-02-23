@@ -1,7 +1,14 @@
 {
   "name": "cluster-air-ui",
   "private": true,
-  "version": "0.0.3",
+  "version": "0.0.4",
+  "browserslist": [
+    "> 0.5%",
+    "last 5 versions",
+    "not dead",
+    "chrome 50",
+    "android 4.4"
+  ],
   "scripts": {
     "dev-controls": "parcel index.html",
     "dev": "parcel app-night.html",
@@ -13,6 +20,7 @@
     "prerelease": "bun run build && cp dist/app-night.html ../app/src/main/res/raw/app-night.html && cp dist/app-light.html ../app/src/main/res/raw/app-light.html"
   },
   "devDependencies": {
+    "baseline-browser-mapping": "^2.9.14",
     "bun": "^1.3.0",
     "parcel": "^2.15.4",
     "rimraf": "^6.0.1"
