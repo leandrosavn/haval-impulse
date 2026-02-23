@@ -1,3 +1,5 @@
+@file:Suppress("KotlinConstantConditions")
+
 package br.com.redesurftank.havalshisuku
 
 import android.app.DatePickerDialog
@@ -59,6 +61,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Switch
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -113,7 +116,9 @@ import br.com.redesurftank.havalshisuku.managers.AutoBrightnessManager
 import br.com.redesurftank.havalshisuku.managers.ServiceManager
 import br.com.redesurftank.havalshisuku.models.AppInfo
 import br.com.redesurftank.havalshisuku.models.CarConstants
+import br.com.redesurftank.havalshisuku.models.ReleaseInfo
 import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys
+import br.com.redesurftank.havalshisuku.models.UpdateCheckResult
 import br.com.redesurftank.havalshisuku.models.SteeringWheelCustomActionType
 import br.com.redesurftank.havalshisuku.ui.components.AppColors
 import br.com.redesurftank.havalshisuku.ui.components.AppDimensions
@@ -1496,8 +1501,10 @@ fun InstallAppsTab() {
 
     fun compareVersions(v1: String?, v2: String): Int {
         if (v1 == null) return -1
-        val parts1 = v1.split(".").map { it.toIntOrNull() ?: 0 }
-        val parts2 = v2.split(".").map { it.toIntOrNull() ?: 0 }
+        val clean1 = v1.removeSuffix("-preview")
+        val clean2 = v2.removeSuffix("-preview")
+        val parts1 = clean1.split(".").map { it.toIntOrNull() ?: 0 }
+        val parts2 = clean2.split(".").map { it.toIntOrNull() ?: 0 }
         for (i in 0 until min(parts1.size, parts2.size)) {
             if (parts1[i] > parts2[i]) return 1
             if (parts1[i] < parts2[i]) return -1
@@ -1904,13 +1911,14 @@ fun InformacoesTab() {
     var showAdvancedDialog by remember { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
     var updateMessage by remember { mutableStateOf("") }
-    var updateAvailable by remember { mutableStateOf(false) }
-    var latestVersion by remember { mutableStateOf("") }
-    var downloadUrl by remember { mutableStateOf("") }
     var isDownloading by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableFloatStateOf(0f) }
     var downloadError by remember { mutableStateOf<String?>(null) }
     var downloadJob by remember { mutableStateOf<Job?>(null) }
+    var showUpdateCheckDialog by remember { mutableStateOf(false) }
+    var updateCheckResult by remember { mutableStateOf<UpdateCheckResult?>(null) }
+    var isCheckingUpdates by remember { mutableStateOf(false) }
+    var showBetaUpdates by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.SHOW_BETA_UPDATES.key, false)) }
     val scope = rememberCoroutineScope()
     val requestPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -1960,39 +1968,59 @@ fun InformacoesTab() {
         }
     }
 
-    suspend fun getLatestReleaseInfo(): Pair<String?, String?> {
+    suspend fun getAllReleaseInfo(): UpdateCheckResult {
         return withContext(Dispatchers.IO) {
             try {
-                val url = URL("https://api.github.com/repos/bobaoapae/haval-app-tool-multimidia/releases/latest")
+                val url = URL("https://api.github.com/repos/bobaoapae/haval-app-tool-multimidia/releases")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.requestMethod = "GET"
                 conn.setRequestProperty("Accept", "application/vnd.github.v3+json")
                 if (conn.responseCode == 200) {
                     val reader = BufferedReader(InputStreamReader(conn.inputStream))
                     val response = reader.use { it.readText() }
-                    val json = JSONObject(response)
-                    val tag = json.getString("tag_name")
-                    val assets = json.getJSONArray("assets")
-                    var dlUrl: String? = null
-                    for (i in 0 until assets.length()) {
-                        val asset = assets.getJSONObject(i)
-                        if (asset.getString("name").endsWith(".apk")) {
-                            dlUrl = asset.getString("browser_download_url")
-                            break
+                    val releases = JSONArray(response)
+
+                    var latestRelease: ReleaseInfo? = null
+                    var latestPreview: ReleaseInfo? = null
+
+                    for (i in 0 until releases.length()) {
+                        val release = releases.getJSONObject(i)
+                        val isPrerelease = release.getBoolean("prerelease")
+                        val tag = release.getString("tag_name")
+                        val assets = release.getJSONArray("assets")
+                        var dlUrl: String? = null
+                        for (j in 0 until assets.length()) {
+                            val asset = assets.getJSONObject(j)
+                            if (asset.getString("name").endsWith(".apk")) {
+                                dlUrl = asset.getString("browser_download_url")
+                                break
+                            }
                         }
+                        if (dlUrl != null) {
+                            val info = ReleaseInfo(tag, dlUrl, isPrerelease)
+                            if (isPrerelease && latestPreview == null) {
+                                latestPreview = info
+                            } else if (!isPrerelease && latestRelease == null) {
+                                latestRelease = info
+                            }
+                        }
+                        if (latestRelease != null && latestPreview != null) break
                     }
-                    tag to dlUrl
-                } else null to null
+
+                    UpdateCheckResult(latestRelease, latestPreview)
+                } else UpdateCheckResult(null, null)
             } catch (e: Exception) {
-                Log.w(TAG, "Error fetching latest release info", e)
-                null to null
+                Log.w(TAG, "Error fetching release info", e)
+                UpdateCheckResult(null, null)
             }
         }
     }
 
     fun compareVersions(v1: String, v2: String): Int {
-        val parts1 = v1.split(".").map { it.toIntOrNull() ?: 0 }
-        val parts2 = v2.split(".").map { it.toIntOrNull() ?: 0 }
+        val clean1 = v1.removeSuffix("-preview")
+        val clean2 = v2.removeSuffix("-preview")
+        val parts1 = clean1.split(".").map { it.toIntOrNull() ?: 0 }
+        val parts2 = clean2.split(".").map { it.toIntOrNull() ?: 0 }
         for (i in 0 until min(parts1.size, parts2.size)) {
             if (parts1[i] > parts2[i]) return 1
             if (parts1[i] < parts2[i]) return -1
@@ -2000,15 +2028,15 @@ fun InformacoesTab() {
         return parts1.size.compareTo(parts2.size)
     }
 
-    fun startDownload() {
+    fun startDownload(url: String, resetTargetVersion: String? = null) {
         isDownloading = true
         downloadProgress = 0f
         downloadJob = scope.launch(Dispatchers.IO) {
             try {
                 val file = File(context.getExternalFilesDir(null), "update.apk")
                 withContext(Dispatchers.IO) {
-                    val url = URL(downloadUrl)
-                    val conn = url.openConnection() as HttpURLConnection
+                    val dlUrl = URL(url)
+                    val conn = dlUrl.openConnection() as HttpURLConnection
                     val length = conn.contentLength
                     val input = BufferedInputStream(conn.inputStream)
                     val output = FileOutputStream(file)
@@ -2024,6 +2052,11 @@ fun InformacoesTab() {
                     input.close()
                 }
                 isDownloading = false
+
+                if (resetTargetVersion != null) {
+                    prefs.edit().putString(SharedPreferencesKeys.PENDING_RESET_TARGET_VERSION.key, resetTargetVersion).apply()
+                }
+
                 withContext(Dispatchers.Main) {
                     if (!context.packageManager.canRequestPackageInstalls()) {
                         showPermissionDialog = true
@@ -2150,24 +2183,12 @@ fun InformacoesTab() {
 
                     Button(
                         onClick = {
+                            isCheckingUpdates = true
                             scope.launch {
-                                val (latest, dlUrl) = getLatestReleaseInfo()
-                                if (latest != null && dlUrl != null) {
-                                    val currentClean = version.removePrefix("v")
-                                    val latestClean = latest.removePrefix("v")
-                                    // Se a versão atual for 99.99, sempre permitir instalação da versão mais recente
-                                    if (currentClean == "99.99" || compareVersions(latestClean, currentClean) > 0) {
-                                        latestVersion = latest
-                                        downloadUrl = dlUrl
-                                        updateAvailable = true
-                                    } else {
-                                        updateMessage = "Você está na versão mais recente"
-                                        showUpdateDialog = true
-                                    }
-                                } else {
-                                    updateMessage = "Erro ao verificar atualizações"
-                                    showUpdateDialog = true
-                                }
+                                val result = getAllReleaseInfo()
+                                updateCheckResult = result
+                                isCheckingUpdates = false
+                                showUpdateCheckDialog = true
                             }
                         },
                         modifier = Modifier.height(48.dp),
@@ -2311,22 +2332,229 @@ fun InformacoesTab() {
         )
     }
 
-    if (updateAvailable) {
+    if (isCheckingUpdates) {
         AlertDialog(
-            onDismissRequest = { updateAvailable = false },
-            title = { Text("Atualização disponível: $latestVersion") },
-            text = { Text("Deseja baixar?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    updateAvailable = false
-                    startDownload()
-                }) {
-                    Text("Sim")
+            onDismissRequest = {},
+            title = { Text("Verificando atualizações...") },
+            text = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    Text("Buscando versões disponíveis...")
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { updateAvailable = false }) {
-                    Text("Não")
+            confirmButton = {}
+        )
+    }
+
+    if (showUpdateCheckDialog && updateCheckResult != null) {
+        val result = updateCheckResult!!
+        val isPreviewChannel = version.contains("-preview")
+        val currentChannel = if (isPreviewChannel) "Beta" else "Estável"
+        val currentClean = version.removePrefix("v")
+
+        AlertDialog(
+            onDismissRequest = { showUpdateCheckDialog = false },
+            title = { Text("Atualizações") },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // Canal atual
+                    Text(
+                        "Canal atual: $currentChannel ($version)",
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp
+                    )
+
+                    if (isPreviewChannel) {
+                        // --- Usuário está em Preview ---
+                        val hasPreviewUpdate = result.latestPreview != null &&
+                            compareVersions(result.latestPreview.tag.removePrefix("v"), currentClean) > 0
+                        val hasReleaseUpgrade = result.latestRelease != null &&
+                            compareVersions(result.latestRelease.tag.removePrefix("v"), currentClean) > 0
+
+                        // Preview mais nova?
+                        if (hasPreviewUpdate) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1D24))
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        "Nova beta: ${result.latestPreview!!.tag}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(
+                                        onClick = {
+                                            showUpdateCheckDialog = false
+                                            startDownload(result.latestPreview.downloadUrl)
+                                        },
+                                        modifier = Modifier.align(Alignment.End),
+                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Primary),
+                                        shape = RoundedCornerShape(AppDimensions.ButtonCornerRadius)
+                                    ) {
+                                        Text("Atualizar")
+                                    }
+                                }
+                            }
+                        }
+
+                        // Release disponível para voltar ao estável (só se build number maior — Intent não permite downgrade)
+                        if (hasReleaseUpgrade) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1D24))
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        "Estável: ${result.latestRelease!!.tag}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        "Os dados do app serão resetados ao voltar para estável.",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFFFF9800)
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(
+                                        onClick = {
+                                            showUpdateCheckDialog = false
+                                            startDownload(
+                                                url = result.latestRelease.downloadUrl,
+                                                resetTargetVersion = result.latestRelease.tag.removePrefix("v")
+                                            )
+                                        },
+                                        modifier = Modifier.align(Alignment.End),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800)),
+                                        shape = RoundedCornerShape(AppDimensions.ButtonCornerRadius)
+                                    ) {
+                                        Text("Voltar para Estável")
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!hasPreviewUpdate && !hasReleaseUpgrade) {
+                            Text(
+                                "Você está na versão mais recente",
+                                fontSize = 14.sp,
+                                color = Color(0xFF4ADE80)
+                            )
+                        }
+                    } else {
+                        // --- Usuário está em Release (Estável) ---
+                        val hasReleaseUpdate = result.latestRelease != null &&
+                            compareVersions(result.latestRelease.tag.removePrefix("v"), currentClean) > 0
+                        val hasPreviewAvailable = showBetaUpdates && result.latestPreview != null &&
+                            compareVersions(result.latestPreview.tag.removePrefix("v"), currentClean) > 0
+
+                        // Update estável disponível?
+                        if (hasReleaseUpdate) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1D24))
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        "Nova versão: ${result.latestRelease.tag}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(
+                                        onClick = {
+                                            showUpdateCheckDialog = false
+                                            startDownload(result.latestRelease.downloadUrl)
+                                        },
+                                        modifier = Modifier.align(Alignment.End),
+                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Primary),
+                                        shape = RoundedCornerShape(AppDimensions.ButtonCornerRadius)
+                                    ) {
+                                        Text("Atualizar")
+                                    }
+                                }
+                            }
+                        }
+
+                        // Toggle beta
+                        HorizontalDivider(color = Color(0xFF1D2430))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Mostrar versões Beta", fontSize = 14.sp)
+                            Switch(
+                                checked = showBetaUpdates,
+                                onCheckedChange = {
+                                    showBetaUpdates = it
+                                    prefs.edit().putBoolean(SharedPreferencesKeys.SHOW_BETA_UPDATES.key, it).apply()
+                                }
+                            )
+                        }
+
+                        // Preview disponível (só aparece se toggle ativo)
+                        if (hasPreviewAvailable) {
+                            Text(
+                                "Versões beta são para entusiastas e usuários com conhecimento técnico. Podem conter bugs, instabilidades e funcionalidades incompletas. Use por sua conta e risco.",
+                                fontSize = 11.sp,
+                                color = Color(0xFFFF9800),
+                                lineHeight = 14.sp
+                            )
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1D24))
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        "Beta: ${result.latestPreview!!.tag}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = Color(0xFFFF9800)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        "Versão experimental. Pode conter bugs e instabilidades.",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFFB0B8C4)
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(
+                                        onClick = {
+                                            showUpdateCheckDialog = false
+                                            startDownload(result.latestPreview.downloadUrl)
+                                        },
+                                        modifier = Modifier.align(Alignment.End),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800)),
+                                        shape = RoundedCornerShape(AppDimensions.ButtonCornerRadius)
+                                    ) {
+                                        Text("Instalar Beta")
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!hasReleaseUpdate && !hasPreviewAvailable) {
+                            Text(
+                                "Você está na versão mais recente",
+                                fontSize = 14.sp,
+                                color = Color(0xFF4ADE80)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showUpdateCheckDialog = false }) {
+                    Text("Fechar")
                 }
             }
         )
@@ -2361,9 +2589,8 @@ fun InformacoesTab() {
             confirmButton = {
                 TextButton(onClick = {
                     downloadError = null
-                    startDownload()
                 }) {
-                    Text("Tentar novamente")
+                    Text("OK")
                 }
             },
             dismissButton = {

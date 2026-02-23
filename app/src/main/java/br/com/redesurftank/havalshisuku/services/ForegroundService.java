@@ -74,6 +74,27 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
 
             var sharedPreferences = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE);
 
+            // Checar se precisa resetar dados (rollback preview→estável)
+            var pendingResetTarget = sharedPreferences.getString(SharedPreferencesKeys.PENDING_RESET_TARGET_VERSION.getKey(), "");
+            if (pendingResetTarget != null && !pendingResetTarget.isEmpty()) {
+                try {
+                    var currentVersion = context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionName;
+                    if (currentVersion != null && currentVersion.equals(pendingResetTarget)) {
+                        // Versão atual bate com o alvo — install deu certo, resetar dados
+                        Log.w(TAG, "Pending data reset confirmed (current=" + currentVersion + " matches target=" + pendingResetTarget + "), clearing all SharedPreferences...");
+                        sharedPreferences.edit().clear().apply();
+                        Log.w(TAG, "SharedPreferences cleared successfully, app will behave as first run.");
+                    } else {
+                        // Install falhou ou versão diferente — limpar a flag sem resetar dados
+                        Log.w(TAG, "Pending data reset skipped (current=" + currentVersion + " != target=" + pendingResetTarget + "), removing flag.");
+                        sharedPreferences.edit().remove(SharedPreferencesKeys.PENDING_RESET_TARGET_VERSION.getKey()).apply();
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error checking pending data reset: " + e.getMessage(), e);
+                    sharedPreferences.edit().remove(SharedPreferencesKeys.PENDING_RESET_TARGET_VERSION.getKey()).apply();
+                }
+            }
+
             if (!sharedPreferences.getBoolean(SharedPreferencesKeys.SELF_INSTALLATION_INTEGRITY_CHECK.getKey(), false) && !sharedPreferences.getBoolean(SharedPreferencesKeys.BYPASS_SELF_INSTALLATION_INTEGRITY_CHECK.getKey(), false)) {
                 try {
                     var selfPackageInfo = context.getPackageManager().getApplicationInfo(context.getPackageName(), 0);
