@@ -49,6 +49,8 @@ export const graphList = [
             {
                 label: 'Potência EV',
                 dataKey: 'evPowerKw',
+                smooth: true,
+                smoothFactor: 100, // Join data close by 100ms
                 unity: 'kWatts',
                 yAxisID: 'y',
                 lineColor: '#ffffff',
@@ -60,6 +62,7 @@ export const graphList = [
                 dataKey: 'evPowerKw',
                 type: 'average',
                 avgConfig: { seconds: 30 },
+                smooth: true,
                 unity: 'kWavg',
                 yAxisID: 'y1',
                 lineColor: '#00c3ff'
@@ -85,8 +88,8 @@ export const graphList = [
             {
                 label: 'Consumo Elétrico',
                 dataKey: 'instantEVConsumption',
-                type: 'average',
-                avgConfig: { samples: 3 },
+                smooth: true,
+                smoothFactor: 100, // Join data close by 100ms
                 unity: 'KWh/100km',
                 yAxisID: 'y',
                 lineColor: '#ffffff',
@@ -94,7 +97,8 @@ export const graphList = [
             },
             {
                 label: 'Consumo Instantâneo',
-                dataKey: 'gasConsumptionSmoothed',
+                dataKey: 'gasConsumption',
+                smooth: true,
                 unity: 'Km/L',
                 yAxisID: 'y1',
                 idleKey: 'gasConsumptionIdle',
@@ -107,6 +111,7 @@ export const graphList = [
                 dataKey: 'instantEVConsumption',
                 type: 'average',
                 avgConfig: { seconds: 30 },
+                smooth: true,
                 unity: 'KWh/100km',
                 yAxisID: 'y2',
                 followAxis: 'y',
@@ -134,13 +139,15 @@ export const graphList = [
             {
                 label: 'Velocidade',
                 dataKey: 'carSpeed',
+                smooth: true,
                 unity: 'km/h',
                 yAxisID: 'y',
                 lineColor: '#ffffff'
             },
             {
                 label: 'Consumo',
-                dataKey: 'gasConsumptionSmoothed',
+                dataKey: 'gasConsumption',
+                smooth: true,
                 unity: 'km/L',
                 yAxisID: 'y1',
                 lineColor: '#ff5500'
@@ -151,26 +158,32 @@ export const graphList = [
 
 const historicalData = {};
 
-const addDataPoint = (dataKey, value) => {
+const addDataPoint = (dataKey, value, datasetConfig = {}) => {
     if (value === undefined || value === null) return;
     const now = Date.now();
     if (!historicalData[dataKey]) historicalData[dataKey] = [];
 
     const data = historicalData[dataKey];
+    const smoothFactor = datasetConfig.smoothFactor || 0;
 
-    // Gap bridging: Avoid diagonal gaps by inserting square transitions
     if (data.length > 0) {
         const lastPoint = data[data.length - 1];
-        const gap = now - lastPoint.x;
+        const timeGap = now - lastPoint.x;
 
-        if (gap > 100) {
-            if (value !== 0 && lastPoint.y === 0) {
-                // Leaving 0: add a dot at 0 right before jumping
-                data.push({ x: now - 100, y: 0 });
-            } else if (value === 0 && lastPoint.y !== 0) {
-                // Entering 0: add a dot at last value right before dropping
-                data.push({ x: now - 100, y: lastPoint.y });
-            }
+
+        // Data Thinning
+        if (value !== 0 && lastPoint.y !== 0 && timeGap < smoothFactor) {
+            lastPoint.y = (lastPoint.y + value) / 2;
+            lastPoint.x = now;
+            return;
+        }
+
+        // Bridge Logic for 0 value
+        if (lastPoint.y === 0 && Math.abs(value) > 0 && timeGap > 500) {
+            data.push({ x: now - 50, y: 0 });
+        }
+        else if (Math.abs(lastPoint.y) > 0 && value === 0 && timeGap > 500) {
+            data.push({ x: now - 50, y: lastPoint.y });
         }
     }
 
@@ -217,6 +230,9 @@ const filtersToTrack = []; // List of { sourceKey, targetKey, filterType }
 function startGlobalDataCollector() {
     initializeGlobalDataStore();
 
+    const allDatasets = [];
+    graphList.forEach(g => allDatasets.push(...g.datasets));
+
     graphList.forEach(graph => {
         graph.datasets.forEach(dataset => {
             if (dataset.dataKey) {
@@ -241,14 +257,15 @@ function startGlobalDataCollector() {
         });
     });
 
-    // Add other relevant keys
-    dataKeys.add('evPowerFactor');
-    dataKeys.add('engineRPM');
-    dataKeys.add('gasConsumptionSmoothed');
-
     dataKeys.forEach(dataKey => {
         subscribe(dataKey, (value) => {
-            addDataPoint(dataKey, value);
+            const datasetCfg = allDatasets.find(d =>
+                d.dataKey === dataKey ||
+                d.filterInternalKey === dataKey ||
+                d.avgInternalKey === dataKey
+            ) || {};
+
+            addDataPoint(dataKey, value, datasetCfg);
 
             // Handle Filters
             filtersToTrack.forEach(filter => {
@@ -256,10 +273,14 @@ function startGlobalDataCollector() {
                     let passes = true;
                     if (filter.filterType === 'positive') passes = value >= 0;
                     else if (filter.filterType === 'negative') passes = value <= 0;
+                    const currentFilterCfg = allDatasets.find(d => d.filterInternalKey === filter.targetKey) || {};
 
                     if (passes) {
-                        addDataPoint(filter.targetKey, value);
+                        addDataPoint(filter.targetKey, value, currentFilterCfg);
                         setState(filter.targetKey, value);
+                    } else {
+                        addDataPoint(filter.targetKey, 0, currentFilterCfg);
+                        setState(filter.targetKey, 0);
                     }
                 }
             });
@@ -273,6 +294,7 @@ function startGlobalDataCollector() {
                     // If it matches either raw or the specific filtered key we just updated
                     if (avg.sourceKey === activeKey) {
                         const sourceData = historicalData[activeKey];
+
                         if (sourceData && sourceData.length > 0) {
                             let filteredData = sourceData;
 
@@ -288,7 +310,8 @@ function startGlobalDataCollector() {
                                 const sum = filteredData.reduce((acc, point) => acc + point.y, 0);
                                 const denominator = avg.config.samples || filteredData.length;
                                 const avgVal = sum / denominator;
-                                addDataPoint(avg.targetKey, avgVal);
+                                const avgCfg = allDatasets.find(d => d.avgInternalKey === avg.targetKey) || {};
+                                addDataPoint(avg.targetKey, avgVal, avgCfg);
                                 setState(avg.targetKey, avgVal);
                             }
                         }
@@ -300,19 +323,42 @@ function startGlobalDataCollector() {
 
 
     // Pulse timer for smoothing logic that depends on time/samples
-    let gasConsumptionSamples = 0;
+    const smoothingStates = new Map();
+
+    graphList.forEach(graph => {
+        graph.datasets.forEach(dataset => {
+            if (dataset.smooth && dataset.dataKey) {
+                const rawKey = dataset.dataKey;
+                const smoothedKey = `${rawKey}_smoothed`;
+
+                dataset.dataKey = smoothedKey;
+
+                if (!smoothingStates.has(rawKey)) {
+                    smoothingStates.set(rawKey, {
+                        samples: 0,
+                        targetKey: smoothedKey
+                    });
+                    dataKeys.add(rawKey);
+                }
+            }
+        });
+    });
+
     setInterval(() => {
-        const rawGas = getState('gasConsumption');
-        if (rawGas > 0) {
-            gasConsumptionSamples = Math.min(gasConsumptionSamples + 1, 10);
-        } else {
-            gasConsumptionSamples = 0;
-        }
+        smoothingStates.forEach((state, rawKey) => {
+            const rawValue = getState(rawKey) || 0;
 
-        const multiplier = gasConsumptionSamples / 10;
-        const smoothedGas = rawGas * multiplier;
+            if (Math.abs(rawValue) > 0.1) {
+                state.samples = Math.min(state.samples + 1, 10);
+            } else {
+                state.samples = 0;
+            }
+            const multiplier = state.samples / 10;
+            const smoothedValue = rawValue * multiplier;
 
-        setState('gasConsumptionSmoothed', smoothedGas);
+            setState(state.targetKey, smoothedValue);
+            addDataPoint(state.targetKey, smoothedValue);
+        });
     }, 200);
 }
 
@@ -428,7 +474,8 @@ const graphController = {
                         borderWidth: 2,
                         pointRadius: 0,
                         fill: true,
-                        tension: 0.3,
+                        cubicInterpolationMode: 'monotone',
+                        tension: 0.4,
                         shadowColor: 'rgba(0, 195, 255, 0.5)',
                         shadowBlur: 10,
                         segment: {
@@ -443,7 +490,8 @@ const graphController = {
                         borderWidth: 2,
                         pointRadius: 0,
                         fill: true,
-                        tension: 0.3,
+                        cubicInterpolationMode: 'monotone',
+                        tension: 0.4,
                         shadowColor: 'rgba(0, 195, 255, 0.5)',
                         shadowBlur: 10,
                     }]
@@ -884,7 +932,8 @@ const graphController = {
                     borderWidth: 2,
                     pointRadius: 0,
                     fill: datasetInfo.fill !== undefined ? datasetInfo.fill : (datasetInfo.yAxisID === 'y' || datasetInfo.yAxisID === 'y1'),
-                    tension: 0.3,
+                    cubicInterpolationMode: 'monotone',
+                    tension: 0.4,
                 };
 
                 // Add any other properties from config directly

@@ -124,12 +124,12 @@ const updateInstantConsumption = () => {
         consumption = (power * 100) / speed;
     }
 
-    if (getState('instantEVConsumption') !== consumption) {
-        setState('instantEVConsumption', consumption);
-    }
+    setState('instantEVConsumption', consumption);
+    console.log('Instant consumption:', consumption, 'kWh/100km')
+    console.log('Speed:', speed, 'km/h')
 };
 
 subscribe('evPowerKw', updateInstantConsumption);
-//subscribe('carSpeed', updateInstantConsumption);
+subscribe('carSpeed', updateInstantConsumption);
 
 export { stateManager, getState, setState, subscribe, state };
