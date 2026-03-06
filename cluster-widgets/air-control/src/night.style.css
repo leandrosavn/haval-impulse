@@ -1037,7 +1037,7 @@ canvas.regen-chart {
   font-family: 'Khand', sans-serif;
   font-weight: 100;
   font-size: 32px;
-  color: #c2e3ffcc;
+  color: #ffffff;
   white-space: nowrap;
   letter-spacing: 2px;
   text-shadow: 0 0 8px rgba(0, 0, 0, 1);
@@ -1098,12 +1098,25 @@ canvas.regen-chart {
   z-index: 5;
 }
 
+.graph-inner-border {
+  position: absolute;
+  width: 424px;
+  height: 424px;
+  border: 2px solid #0074ff44;
+  border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  pointer-events: none;
+}
+
 .graph-power-rpm-ring {
   position: absolute;
   width: 440px;
   height: 440px;
   border-radius: 50%;
-  z-index: 6;
+  z-index: 1;
   pointer-events: none;
   top: 50%;
   left: 50%;
@@ -1123,8 +1136,8 @@ canvas.regen-chart {
       transparent var(--p-start, 0deg),
       #4a90e2 var(--p-start, 0deg),
       #4a90e2 var(--p-end, 0deg),
-      #ff8c00 var(--r-start, 0deg),
-      #ff8c00 var(--r-end, 0deg),
+      #ff0000 var(--r-start, 0deg),
+      #ff0000 var(--r-end, 0deg),
       transparent var(--r-end, 0deg),
       transparent 360deg);
 
@@ -1134,58 +1147,115 @@ canvas.regen-chart {
 
 .graph-curved-labels {
   pointer-events: none;
-  z-index: 10;
+  z-index: 1;
   overflow: visible;
   transition: opacity 0.3s ease;
 }
 
-.graph-curved-labels text {
-  fill-opacity: 1;
+.graph-vertical-labels-wrapper {
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 100;
+  width: 120px;
 }
 
-.curved-label-rpm {
-  fill: #ff5500;
+.graph-vertical-label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 1px 1px;
+  background-color: rgba(0, 0, 0, 0.7);
+  border-radius: 12px;
+  box-shadow: 0 4px 4px rgba(0, 0, 0, 0.5);
+  transform-origin: center;
+  transition: transform 1s cubic-bezier(0.2, 1, 0.3, 1), opacity 0.5s ease, color 0.3s ease;
   font-family: 'Khand', sans-serif;
-  font-size: 24px;
-  font-weight: 300;
-  dominant-baseline: hanging;
+  opacity: 0;
+  white-space: nowrap;
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.8), 0 0 3px currentColor;
 }
+
+.graph-vertical-label .unit {
+  font-size: 16px;
+  font-weight: 300;
+  margin-bottom: -8px;
+  opacity: 0.8;
+}
+
+.graph-vertical-label.power {
+  position: absolute;
+  font-size: 36px;
+  font-weight: 500;
+  color: #00c3ff;
+  transform: translateY(0);
+  line-height: 1;
+}
+
+.graph-vertical-label.power.regen {
+  color: #00ff88;
+}
+
+.graph-vertical-label.power .symbol {
+  font-size: 16px;
+  font-weight: 300;
+  margin-top: 0px;
+}
+
+.graph-vertical-label.rpm {
+  position: absolute;
+  font-size: 36px;
+  font-weight: 300;
+  color: #ffffff;
+  transform: translateY(0);
+  margin-left: 25px;
+  margin-top: 20px;
+}
+
+.graph-vertical-labels-wrapper.has-rpm .graph-vertical-label.power {
+  transform: translate(5px, 25px);
+}
+
+.graph-vertical-labels-wrapper.has-rpm .graph-vertical-label.rpm {
+  opacity: 1;
+  transform: translateY(-25px);
+}
+
 
 #graph-rpm-bar-svg {
-  stroke: #ff5500;
-}
-
-.curved-label-power {
-  fill: #00c3ff;
-  font-family: 'Khand', sans-serif;
-  font-size: 34px;
-  font-weight: 500;
-  dominant-baseline: hanging;
+  stroke: #ffffff;
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 1px #ffffff) drop-shadow(0 0 8px #ffffff);
 }
 
 #graph-power-bar-svg {
-  stroke: #00c3ff;
+  stroke: #00b7ff;
   transition: stroke 0.3s ease;
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 1px #00c3ff) drop-shadow(0 0 8px #00aeff85);
 }
-
-#graph-power-path {
-  fill: #00c3ff;
-  transition: fill 0.3s ease; }
 
 #graph-power-bar-svg.regen-active {
   stroke: #00ff88;
-}
-
-#graph-power-path.regen-active {
-  fill: #00ff88;
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 1px #00ff88) drop-shadow(0 0 8px #00ff8885);
 }
 
 .graph-inner-ring {
   position: absolute;
-  width: 392px;
-  height: 392px;
+  width: 424px;
+  height: 424px;
   border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   background: transparent;
+  box-shadow: inset 0 0 30px rgba(0, 195, 255, 0.2);
   overflow: hidden;
   z-index: 2;
 }
@@ -1193,8 +1263,11 @@ canvas.regen-chart {
 .graph-inner-ring-shadow {
   box-shadow: 0 0 12px 5px rgb(0 0 0 / 50%);
   position: absolute;
-  width: 392px;
-  height: 392px;
+  width: 424px;
+  height: 424px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   border-radius: 50%;
   z-index: 1;
 }
@@ -1251,22 +1324,19 @@ canvas.regen-chart {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 200px;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
   opacity: 0;
   transition: all 0.4s ease-in-out;
   z-index: 12;
   font-family: 'Khand', sans-serif;
   color: #ffffff;
-  top: 250px;
-  left: 45px;
+  top: 155px;
+  left: 0;
 }
 
 .tooltip-value {
-  top: 50px;
-  left: 50px;
-  width: 200px;
-  position: absolute;
   color: #ffffff;
   font-size: 60px;
   font-family: 'Khand', sans-serif;
@@ -1274,25 +1344,68 @@ canvas.regen-chart {
   pointer-events: none;
   text-align: center;
   white-space: nowrap;
+  transform: translateY(0px);
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 1), 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.tooltip-value.negative {
+  color: #00ff88 !important;
 }
 
 .tooltip-unity {
-  top: 115px;
-  left: 110px;
   min-width: 80px;
-  position: absolute;
-  gap: 4px;
   color: #ffffff;
-  font-size: 20px;
+  font-size: 24px;
   font-family: 'Khand', sans-serif;
-  font-weight: 100;
+  font-weight: 500;
   pointer-events: none;
-  text-align: left;
+  text-align: center;
   white-space: nowrap;
+  transform: translateY(-25px);
+  text-shadow: 0 4px 8px rgba(0, 0, 0, 1), 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.dynamic-tooltip.secondary {
+  flex-direction: column;
+  height: auto;
+  width: auto;
+  font-weight: 700;
+  gap: 0px;
+  top: 312px;
+  left: 275px;
+  justify-content: right;
+  align-items: right;
+}
+
+.dynamic-tooltip.secondary .tooltip-value {
+  font-size: 40px;
+  color: #ff5500;
+  font-weight: 00;
+  transform: translateY(0);
+}
+
+.dynamic-tooltip.secondary .tooltip-unity {
+  font-size: 16px;
+  color: #ff5500;
+  opacity: 0.8;
+  font-weight: 500;
+  transform: translateY(-16px);
 }
 
 .dynamic-tooltip.primary .tooltip-unity {
   text-align: center;
+}
+
+.graph-tooltip-mask {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 200px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.8) 40%, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0) 100%);
+  pointer-events: none;
+  z-index: 10;
+  border-radius: 0 0 212px 212px;
 }
 
 .warp-tunnel-canvas {
@@ -1315,29 +1428,10 @@ canvas.regen-chart {
 }
 
 
-
-.dynamic-tooltip.secondary .tooltip-value {
-  top: 54px;
-  left: 53px;
-  text-align: right;
-  color: #9affb5;
-  font-size: 36px;
-  font-weight: 300;
-}
-
-.dynamic-tooltip.secondary .tooltip-unity {
-  top: 62px;
-  left: 255px;
-  color: #9affb5;
-  font-size: 16px;
-  opacity: 0.8;
-}
-
 .dynamic-tooltip-line {
   position: absolute;
   left: 38px;
-  height: 1px;
-  opacity: 0;
+  height: 0px;
   transition: top 0.3s ease, opacity 0.3s ease, width 0.4s ease-in-out, background-color 0.3s ease;
   z-index: 11;
 }

@@ -1,4 +1,3 @@
-// Create a reactive state manager
 function StateManager(initialState) {
     this._state = {};
     for (var key in initialState) {
@@ -59,7 +58,6 @@ StateManager.prototype._notifyListeners = function (key, value) {
     }
 };
 
-// Create the state instance
 var stateManager = new StateManager({
     // Main Menu state
     screen: 'main_menu',
@@ -92,6 +90,7 @@ var stateManager = new StateManager({
     currentGraph: 'evConsumption',
     evPowerFactor: 0,
     evPowerKw: 0,
+    instantEVConsumption: 0,
     gasConsumption: 0.0,
     gasConsumptionMetric: 'Km/l',
     gasConsumptionIdle: 0.0,
@@ -102,12 +101,10 @@ var stateManager = new StateManager({
     evPowerKwAvg: 0
 });
 
-// Convenience functions for easier usage
 var getState = function (key) { return stateManager.get(key); };
 var setState = function (key, value) { stateManager.set(key, value); };
 var subscribe = function (key, callback) { return stateManager.subscribe(key, callback); };
 
-// For backward compatibility, export the state object with getters/setters
 var state = new Proxy({}, {
     get: function (target, prop) {
         return stateManager.get(prop);
@@ -118,5 +115,21 @@ var state = new Proxy({}, {
     }
 });
 
-// Export all functions and objects
+const updateInstantConsumption = () => {
+    const power = getState('evPowerKw') || 0;
+    const speed = parseFloat(getState('carSpeed')) || 0;
+
+    let consumption = 0;
+    if (speed > 0) {
+        consumption = (power * 100) / speed;
+    }
+
+    setState('instantEVConsumption', consumption);
+    console.log('Instant consumption:', consumption, 'kWh/100km')
+    console.log('Speed:', speed, 'km/h')
+};
+
+subscribe('evPowerKw', updateInstantConsumption);
+subscribe('carSpeed', updateInstantConsumption);
+
 export { stateManager, getState, setState, subscribe, state };

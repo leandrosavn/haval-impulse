@@ -177,7 +177,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 let lastValue = 0;
-const smoothingFactor = 0.1;
+const smoothingFactor = 0.05; // Less dramatic changes
 let timeToModeChange = 10;
 let simulationPhase = 'idle';
 let currentSpeed = 0.0;
@@ -225,7 +225,7 @@ window.simulationInterval = setInterval(() => {
                 simulationPhase = 'idle';
                 setTimeout(() => {
                     simulationPhase = 'accelerating';
-                }, 1000);
+                }, 5000);
             }
             break;
 
@@ -254,22 +254,25 @@ window.simulationInterval = setInterval(() => {
         const gasV = Math.round(lastValue) / 3;
         setState('gasConsumption', gasV);
         setState('gasConsumptionIdle', 0);
-        // Simulate RPM: if running, it should be between 800 and 7000
-        // We can base it on car speed and some randomness
-        const simulatedRPM = currentSpeed > 0 ? 1000 + (currentSpeed * 40) + (Math.random() * 500) : 800;
+        // Simulate RPM: if running AND speed > 0, it should be between 800 and 7000
+        // Force 0 if speed is 0
+        const playsRPM = currentSpeed > 0;
+        const simulatedRPM = playsRPM ? 1000 + (currentSpeed * 40) + (Math.random() * 500) : 0;
         setState('engineRPM', Math.min(Math.max(simulatedRPM, 0), 7000));
     } else {
         setState('gasConsumption', 0);
         setState('gasConsumptionIdle', Math.round(lastValue) / 20);
-        // If idle, RPM is usually around 800
-        setState('engineRPM', 800);
+        // If idle, RPM is 800 but ONLY if speed > 0
+        const idleRPM = currentSpeed > 0 ? 800 : 0;
+        setState('engineRPM', idleRPM);
     }
 
     // Simulate EV power factor: -100 to +100 % (for power ring)
     const powerFactor = Math.round(lastValue * 2) - 100;
-    setState('evPowerFactor', powerFactor);
+    setState('evPowerFactor', powerFactor * 2);
     // Simulate EV power in kW: ±120 kW range (for graph)
-    setState('evPowerKw', Math.round(powerFactor * 1.2));
+    if (powerFactor > 0) setState('evPowerKw', Math.round(powerFactor * 4 * Math.abs(currentSpeed) / 100));
+    else setState('evPowerKw', Math.round(powerFactor));
     setState('lastRegenValue', Math.round(lastValue));
 
 }, SIMULATION_INTERVAL);
