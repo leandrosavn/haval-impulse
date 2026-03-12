@@ -174,7 +174,6 @@ const addDataPoint = (dataKey, value, datasetConfig = {}) => {
         // Data Thinning
         if (value !== 0 && lastPoint.y !== 0 && timeGap < smoothFactor) {
             lastPoint.y = (lastPoint.y + value) / 2;
-            lastPoint.x = now;
             return;
         }
 
@@ -348,16 +347,17 @@ function startGlobalDataCollector() {
         smoothingStates.forEach((state, rawKey) => {
             const rawValue = getState(rawKey) || 0;
 
-            if (Math.abs(rawValue) > 0.1) {
-                state.samples = Math.min(state.samples + 1, 10);
-            } else {
-                state.samples = 0;
+            if (state.emaValue === undefined) {
+                state.emaValue = rawValue;
             }
-            const multiplier = state.samples / 10;
-            const smoothedValue = rawValue * multiplier;
 
-            setState(state.targetKey, smoothedValue);
-            addDataPoint(state.targetKey, smoothedValue);
+            // Exponential Moving Average (EMA) for noise reduction
+            // Alpha 0.3 provides a good balance between responsiveness and smoothness
+            const alpha = 0.3;
+            state.emaValue = (state.emaValue * (1 - alpha)) + (rawValue * alpha);
+
+            setState(state.targetKey, state.emaValue);
+            addDataPoint(state.targetKey, state.emaValue);
         });
     }, 200);
 }
