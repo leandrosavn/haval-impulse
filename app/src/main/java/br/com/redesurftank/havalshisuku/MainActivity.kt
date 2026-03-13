@@ -97,6 +97,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -136,6 +137,18 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+import br.com.redesurftank.havalshisuku.models.DisplayAppConfig
+import br.com.redesurftank.havalshisuku.models.TargetDisplay
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedInputStream
@@ -1321,9 +1334,12 @@ fun TelasTab() {
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            DisplayAppConfigSection()
         }
     )
-
 
     if (showDatePicker) {
         val calendar = Calendar.getInstance()
@@ -1346,6 +1362,575 @@ fun TelasTab() {
                 )
                 dialog.setOnDismissListener { showDatePicker = false }
                 dialog.show()
+            }
+        }
+    }
+}
+
+@Composable
+fun DisplayAppConfigSection() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var configs by remember { mutableStateOf(DisplayAppLauncher.getAllConfigs()) }
+    var showConfigDialog by remember { mutableStateOf(false) }
+    var editingPackage by remember { mutableStateOf<String?>(null) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Apps em Telas Secundárias",
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Button(
+                onClick = {
+                    editingPackage = null
+                    showConfigDialog = true
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF)),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Adicionar", color = Color.White, fontSize = 13.sp)
+            }
+        }
+
+        if (configs.isEmpty()) {
+            StyledCard {
+                Text(
+                    "Nenhum app configurado.\nClique em \"Adicionar\" para configurar um app para exibir em outra tela.",
+                    color = Color(0xFFB0B8C4),
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(20.dp)
+                )
+            }
+        } else {
+            configs.values.forEach { config ->
+                val pm = context.packageManager
+                val appName = try {
+                    pm.getApplicationInfo(config.packageName, 0).let { pm.getApplicationLabel(it).toString() }
+                } catch (_: Exception) { config.packageName }
+                val appIcon = try {
+                    pm.getApplicationIcon(config.packageName)
+                } catch (_: Exception) { null }
+                val displayLabel = TargetDisplay.fromId(config.displayId)?.label ?: "Display ${config.displayId}"
+
+                StyledCard {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // App info row
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (appIcon != null) {
+                                val bitmap = (appIcon as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                                if (bitmap != null) {
+                                    Image(
+                                        bitmap = android.graphics.Bitmap.createScaledBitmap(bitmap, 96, 96, true)
+                                            .asImageBitmap(),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(40.dp)
+                                    )
+                                }
+                                Spacer(Modifier.width(12.dp))
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(appName, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                                Text(displayLabel, color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                                Text(
+                                    "Pos: ${config.x},${config.y} | Tam: ${config.width}x${config.height}",
+                                    color = Color(0xFF808080),
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+
+                        // Action buttons row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            // Abrir aqui (main display for interaction)
+                            Button(
+                                onClick = { scope.launch { DisplayAppLauncher.launchOnMainDisplay(config) } },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3A3F47)),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Abrir aqui", color = Color.White, fontSize = 11.sp)
+                            }
+                            // Enviar para tela secundária
+                            Button(
+                                onClick = { scope.launch { DisplayAppLauncher.sendToDisplay(config) } },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF)),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Send, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Enviar", color = Color.White, fontSize = 11.sp)
+                            }
+                            // Editar
+                            Button(
+                                onClick = {
+                                    editingPackage = config.packageName
+                                    showConfigDialog = true
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3A3F47)),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                            }
+                            // Matar app
+                            Button(
+                                onClick = { scope.launch { DisplayAppLauncher.killApp(config.packageName) } },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B2500)),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                            }
+                            // Remover config (kill + delete)
+                            Button(
+                                onClick = {
+                                    scope.launch { DisplayAppLauncher.killApp(config.packageName) }
+                                    DisplayAppLauncher.deleteConfig(config.packageName)
+                                    configs = DisplayAppLauncher.getAllConfigs()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B2500)),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showConfigDialog) {
+        DisplayAppConfigDialog(
+            existingConfig = editingPackage?.let { configs[it] },
+            onDismiss = { showConfigDialog = false },
+            onSave = { config ->
+                DisplayAppLauncher.saveConfig(config)
+                configs = DisplayAppLauncher.getAllConfigs()
+                showConfigDialog = false
+            }
+        )
+    }
+}
+
+data class InstalledAppInfo(
+    val packageName: String,
+    val activityName: String,
+    val label: String,
+    val icon: android.graphics.drawable.Drawable?
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DisplayAppConfigDialog(
+    existingConfig: DisplayAppConfig?,
+    onDismiss: () -> Unit,
+    onSave: (DisplayAppConfig) -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // App selection state
+    var selectedApp by remember { mutableStateOf<InstalledAppInfo?>(null) }
+    var showAppPicker by remember { mutableStateOf(false) }
+
+    // Display selection
+    var selectedDisplay by remember { mutableStateOf(existingConfig?.let { TargetDisplay.fromId(it.displayId) } ?: TargetDisplay.CLUSTER) }
+    var displayDropdownExpanded by remember { mutableStateOf(false) }
+
+    // Get display resolution for sliders
+    val resolution = remember(selectedDisplay) { DisplayAppLauncher.getDisplayResolution(selectedDisplay.id) }
+
+    // Position & size
+    var posX by remember { mutableIntStateOf(existingConfig?.x ?: 0) }
+    var posY by remember { mutableIntStateOf(existingConfig?.y ?: 0) }
+    var sizeW by remember { mutableIntStateOf(existingConfig?.width ?: resolution.first) }
+    var sizeH by remember { mutableIntStateOf(existingConfig?.height ?: resolution.second) }
+
+    // Preview tracking
+    var previewActive by remember { mutableStateOf(false) }
+    var previewJob by remember { mutableStateOf<Job?>(null) }
+
+    // Helper to build config from current state
+    fun currentConfig(): DisplayAppConfig? {
+        val app = selectedApp ?: return null
+        return DisplayAppConfig(
+            packageName = app.packageName,
+            activityName = app.activityName,
+            displayId = selectedDisplay.id,
+            x = posX, y = posY, width = sizeW, height = sizeH
+        )
+    }
+
+    // Load existing app info and auto-launch preview
+    LaunchedEffect(existingConfig) {
+        if (existingConfig != null) {
+            val pm = context.packageManager
+            val label = try {
+                pm.getApplicationInfo(existingConfig.packageName, 0).let { pm.getApplicationLabel(it).toString() }
+            } catch (_: Exception) { existingConfig.packageName }
+            val icon = try { pm.getApplicationIcon(existingConfig.packageName) } catch (_: Exception) { null }
+            selectedApp = InstalledAppInfo(existingConfig.packageName, existingConfig.activityName, label, icon)
+            // Auto-launch with existing config for visual reference
+            previewActive = true
+            DisplayAppLauncher.launchApp(existingConfig)
+        }
+    }
+
+    // When display changes with an app already selected, reset bounds to full screen and re-launch
+    LaunchedEffect(selectedDisplay) {
+        val res = DisplayAppLauncher.getDisplayResolution(selectedDisplay.id)
+        if (existingConfig == null || existingConfig.displayId != selectedDisplay.id) {
+            posX = 0
+            posY = 0
+            sizeW = res.first
+            sizeH = res.second
+        }
+        // Re-launch on new display if preview is active
+        if (previewActive && selectedApp != null) {
+            delay(300)
+            currentConfig()?.let { DisplayAppLauncher.launchApp(it) }
+        }
+    }
+
+    // Debounced live preview — updates in real-time as sliders move
+    LaunchedEffect(posX, posY, sizeW, sizeH) {
+        if (previewActive && selectedApp != null) {
+            previewJob?.cancel()
+            previewJob = scope.launch {
+                delay(500)
+                currentConfig()?.let { DisplayAppLauncher.resizeApp(it) }
+            }
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.85f)
+                .fillMaxHeight(0.9f)
+                .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A)),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    if (existingConfig != null) "Editar App" else "Adicionar App",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                // App selector
+                Text("Aplicativo", color = Color(0xFFB0B8C4), fontSize = 14.sp)
+                Button(
+                    onClick = { showAppPicker = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2F37)),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        selectedApp?.label ?: "Selecionar app...",
+                        color = if (selectedApp != null) Color.White else Color(0xFF808080),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // Display selector
+                Text("Tela de destino", color = Color(0xFFB0B8C4), fontSize = 14.sp)
+                ExposedDropdownMenuBox(
+                    expanded = displayDropdownExpanded,
+                    onExpandedChange = { displayDropdownExpanded = it }
+                ) {
+                    TextField(
+                        value = selectedDisplay.label,
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = displayDropdownExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color(0xFF2A2F37),
+                            unfocusedContainerColor = Color(0xFF2A2F37),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedIndicatorColor = Color(0xFF4A9EFF),
+                            unfocusedIndicatorColor = Color(0xFF3A3F47)
+                        )
+                    )
+                    ExposedDropdownMenu(
+                        expanded = displayDropdownExpanded,
+                        onDismissRequest = { displayDropdownExpanded = false }
+                    ) {
+                        TargetDisplay.entries.forEach { display ->
+                            DropdownMenuItem(
+                                text = { Text(display.label, color = Color.White) },
+                                onClick = {
+                                    selectedDisplay = display
+                                    displayDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Resolution info
+                Text(
+                    "Resolução: ${resolution.first} x ${resolution.second}",
+                    color = Color(0xFF808080),
+                    fontSize = 12.sp
+                )
+
+                // Position X slider
+                SliderWithLabel(
+                    label = "Posição X",
+                    value = posX,
+                    range = 0..resolution.first,
+                    onValueChange = { posX = it }
+                )
+
+                // Position Y slider
+                SliderWithLabel(
+                    label = "Posição Y",
+                    value = posY,
+                    range = 0..resolution.second,
+                    onValueChange = { posY = it }
+                )
+
+                // Width slider
+                SliderWithLabel(
+                    label = "Largura",
+                    value = sizeW,
+                    range = 100..resolution.first,
+                    onValueChange = { sizeW = it }
+                )
+
+                // Height slider
+                SliderWithLabel(
+                    label = "Altura",
+                    value = sizeH,
+                    range = 100..resolution.second,
+                    onValueChange = { sizeH = it }
+                )
+
+                // Live preview status
+                if (previewActive && selectedApp != null) {
+                    Text(
+                        "Preview ativo — ajuste os sliders e veja em tempo real",
+                        color = Color(0xFF4A9EFF),
+                        fontSize = 12.sp
+                    )
+                }
+
+                // Action buttons
+                Button(
+                    onClick = {
+                        if (selectedApp != null) {
+                            onSave(
+                                DisplayAppConfig(
+                                    packageName = selectedApp!!.packageName,
+                                    activityName = selectedApp!!.activityName,
+                                    displayId = selectedDisplay.id,
+                                    x = posX, y = posY, width = sizeW, height = sizeH
+                                )
+                            )
+                        }
+                    },
+                    enabled = selectedApp != null,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Salvar", color = Color.White, fontSize = 13.sp)
+                }
+
+                // Cancel button
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cancelar", color = Color(0xFFB0B8C4), fontSize = 13.sp)
+                }
+            }
+        }
+    }
+
+    if (showAppPicker) {
+        AppPickerDialog(
+            onDismiss = { showAppPicker = false },
+            onAppSelected = { app ->
+                selectedApp = app
+                showAppPicker = false
+                // Auto-launch full screen on target display for visual reference
+                previewActive = true
+                scope.launch {
+                    DisplayAppLauncher.launchApp(
+                        DisplayAppConfig(
+                            packageName = app.packageName,
+                            activityName = app.activityName,
+                            displayId = selectedDisplay.id,
+                            x = posX, y = posY, width = sizeW, height = sizeH
+                        )
+                    )
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun SliderWithLabel(
+    label: String,
+    value: Int,
+    range: IntRange,
+    onValueChange: (Int) -> Unit
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(label, color = Color(0xFFB0B8C4), fontSize = 14.sp)
+            Text("$value", color = Color.White, fontSize = 14.sp)
+        }
+        Slider(
+            value = value.toFloat(),
+            onValueChange = { onValueChange(it.toInt()) },
+            valueRange = range.first.toFloat()..range.last.toFloat(),
+            modifier = Modifier.fillMaxWidth(),
+            colors = SliderDefaults.colors(
+                thumbColor = Color(0xFF4A9EFF),
+                activeTrackColor = Color(0xFF4A9EFF),
+                inactiveTrackColor = Color(0xFF2C3139)
+            )
+        )
+    }
+}
+
+@Composable
+fun AppPickerDialog(
+    onDismiss: () -> Unit,
+    onAppSelected: (InstalledAppInfo) -> Unit
+) {
+    val context = LocalContext.current
+    var searchQuery by remember { mutableStateOf("") }
+    val installedApps = remember {
+        val pm = context.packageManager
+        val intent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
+        pm.queryIntentActivities(intent, 0)
+            .map { resolveInfo ->
+                InstalledAppInfo(
+                    packageName = resolveInfo.activityInfo.packageName,
+                    activityName = resolveInfo.activityInfo.name,
+                    label = resolveInfo.loadLabel(pm).toString(),
+                    icon = try { resolveInfo.loadIcon(pm) } catch (_: Exception) { null }
+                )
+            }
+            .sortedBy { it.label.lowercase() }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.85f)
+                .fillMaxHeight(0.9f)
+                .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A)),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(16.dp)
+            ) {
+                Text(
+                    "Selecionar Aplicativo",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                TextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Buscar...", color = Color(0xFF808080)) },
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    singleLine = true,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color(0xFF2A2F37),
+                        unfocusedContainerColor = Color(0xFF2A2F37),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedIndicatorColor = Color(0xFF4A9EFF),
+                        unfocusedIndicatorColor = Color(0xFF3A3F47)
+                    )
+                )
+
+                val filteredApps = if (searchQuery.isBlank()) installedApps
+                else installedApps.filter {
+                    it.label.contains(searchQuery, ignoreCase = true) ||
+                            it.packageName.contains(searchQuery, ignoreCase = true)
+                }
+
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(filteredApps) { app ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onAppSelected(app) }
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val bitmap = (app.icon as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                            if (bitmap != null) {
+                                Image(
+                                    bitmap = android.graphics.Bitmap.createScaledBitmap(bitmap, 96, 96, true)
+                                        .asImageBitmap(),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            } else {
+                                Box(modifier = Modifier.size(36.dp).background(Color(0xFF2A2F37), RoundedCornerShape(8.dp)))
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(app.label, color = Color.White, fontSize = 14.sp)
+                                Text(app.packageName, color = Color(0xFF808080), fontSize = 11.sp)
+                            }
+                        }
+                        HorizontalDivider(color = Color(0xFF1D2430), thickness = 0.5.dp)
+                    }
+                }
             }
         }
     }

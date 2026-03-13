@@ -61,6 +61,7 @@ enum class SharedPreferencesKeys(val key: String, val description: String) {
     OPEN_SUNROOF_CURTAIN_END_MINUTE("openSunroofCurtainEndMinute", "Minuto fim para abrir cortina"),
     OPEN_SUNROOF_CURTAIN_MAX_TEMP("openSunroofCurtainMaxTemp", "Temperatura externa máxima para abrir cortina"),
     PENDING_RESET_TARGET_VERSION("pendingResetTargetVersion", "Versão alvo para resetar dados ao voltar para canal estável"),
-    SHOW_BETA_UPDATES("showBetaUpdates", "Mostrar atualizações do canal beta")
+    SHOW_BETA_UPDATES("showBetaUpdates", "Mostrar atualizações do canal beta"),
+    DISPLAY_APP_CONFIGS("displayAppConfigs", "Configurações de apps para telas secundárias")
 
 }

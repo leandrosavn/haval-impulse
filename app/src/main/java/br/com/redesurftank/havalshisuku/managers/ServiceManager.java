@@ -551,6 +551,19 @@ public class ServiceManager {
 
             timeInitialized = SystemClock.uptimeMillis();
             Log.w(TAG, "Services initialized successfully");
+
+            // Enable freeform window mode and floating button for secondary display app launching
+            backgroundHandler.post(() -> {
+                try {
+                    ShizukuUtils.runCommandAndGetOutput(new String[]{"sh", "-c", "settings put global enable_freeform_support 1"});
+                    ShizukuUtils.runCommandAndGetOutput(new String[]{"sh", "-c", "settings put global force_resizable_activities 1"});
+                    Log.d(TAG, "Freeform mode enabled for secondary display apps");
+                    FloatingButtonManager.INSTANCE.initialize();
+                } catch (Exception e) {
+                    Log.e(TAG, "Error enabling freeform mode", e);
+                }
+            });
+
             ProjectorManager.getInstance().initialize();
             return true;
         } catch (RemoteException e) {
@@ -1192,6 +1205,14 @@ public class ServiceManager {
     public void disableWifiTether() {
         try {
             connectivityManager.stopTethering(0, "br.com.redesurftank.havalshisuku");
+        } catch (NoSuchMethodError e) {
+            // Fallback for Android versions where stopTethering(int, String) doesn't exist
+            try {
+                java.lang.reflect.Method m = connectivityManager.getClass().getMethod("stopTethering", int.class);
+                m.invoke(connectivityManager, 0);
+            } catch (Exception e2) {
+                Log.e(TAG, "Error disabling Wi-Fi tether (fallback)", e2);
+            }
         } catch (Exception e) {
             Log.e(TAG, "Error disabling Wi-Fi", e);
         }
