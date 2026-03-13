@@ -115,18 +115,37 @@ var state = new Proxy({}, {
     }
 });
 
+let instantEVEMA = 0;
+const EMA_ALPHA = 0.3;
+
 const updateInstantConsumption = () => {
     const power = getState('evPowerKw') || 0;
     const speed = parseFloat(getState('carSpeed')) || 0;
 
     let consumption = 0;
-    if (speed > 0) {
-        consumption = (power * 100) / speed;
+    const speedThreshold = 10;
+
+    if (speed <= 0) {
+        consumption = 0;
+        instantEVEMA = 0; // Force immediate 0 to avoid trailing values
+    } else {
+        const physicalValue = (power * 100) / speed;
+
+        if (speed < speedThreshold) {
+            // Smooth blending: w = x^3 * (4 - 3x) where x = speed / threshold
+            // This ensures O(s^3) fade at 0 and zero-derivative match at threshold.
+            const x = speed / speedThreshold;
+            const weight = Math.pow(x, 3) * (4 - 3 * x);
+            consumption = physicalValue * weight;
+        } else {
+            consumption = physicalValue;
+        }
     }
 
-    setState('instantEVConsumption', consumption);
-    console.log('Instant consumption:', consumption, 'kWh/100km')
-    console.log('Speed:', speed, 'km/h')
+    // Noise reduction (EMA)
+    instantEVEMA = (instantEVEMA * (1 - EMA_ALPHA)) + (consumption * EMA_ALPHA);
+
+    setState('instantEVConsumption', instantEVEMA);
 };
 
 subscribe('evPowerKw', updateInstantConsumption);
