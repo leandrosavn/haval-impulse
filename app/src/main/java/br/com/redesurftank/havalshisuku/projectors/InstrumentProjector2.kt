@@ -42,9 +42,10 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
     // Cached EV power values for kW calculation
     private var batteryVoltage = 0f
     private var batteryCurrent = 0f
+    
     private var speedTextView: android.widget.TextView? = null
-
-    private val maskViews = mutableListOf<View>()
+    private var fuelTextView: android.widget.TextView? = null
+    private var batteryTextView: android.widget.TextView? = null
 
     private val prefsListener =
             SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -90,129 +91,27 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
         }
         setContentView(root)
 
-        // Top black bar (Straight 125px)
-        val arcTopBar = object : View(context) {
-            init {
-                setLayerType(LAYER_TYPE_SOFTWARE, null)
-            }
-            private val paint = android.graphics.Paint().apply {
-                color = 0xCC000000.toInt() // 80% transparency
-                style = android.graphics.Paint.Style.FILL
-                isAntiAlias = true
-                // Large outer shadow (bottom-ish)
-                setShadowLayer(80f, 0f, 20f, 0xFF000000.toInt())
-            }
-
-            override fun onDraw(canvas: android.graphics.Canvas) {
-                super.onDraw(canvas)
-                // Part 1: Top 62px at 80% opacity
-                paint.color = 0xCC000000.toInt()
-                paint.clearShadowLayer() // No shadow for the top part
-                canvas.drawRect(0f, 0f, width.toFloat(), 62f, paint)
-
-                // Part 2: Bottom 63px at 60% opacity
-                paint.color = 0x99000000.toInt() // 60% opacity
-                // Large outer shadow (bottom-ish)
-                paint.setShadowLayer(80f, 0f, 20f, 0xFF000000.toInt())
-                canvas.drawRect(0f, 62f, width.toFloat(), 125f, paint)
-            }
-        }.apply {
-            // Increased height to 225 to contain 125px bar + shadow bleed below
-            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 225)
+        // Native Overlays for Display 1 (Speed, Fuel, Battery)
+        if (display.displayId == 1) {
+            setupNativeOverlays()
         }
-        root.addView(arcTopBar)
-        maskViews.add(arcTopBar)
 
-        // Bottom black bar (120px)
-        val bottomBar = object : View(context) {
-            init {
-                setLayerType(LAYER_TYPE_SOFTWARE, null)
-            }
-            private val paint = android.graphics.Paint().apply {
-                color = 0xCC000000.toInt() // 80% transparency
-                style = android.graphics.Paint.Style.FILL
-                isAntiAlias = true
-                // Large outer shadow (top-ish)
-                setShadowLayer(60f, 0f, -15f, 0xFF000000.toInt())
-            }
+        // Full-screen WebView for Template
+        setupAcControlView(root)
+        
+        updateMaskVisibility()
 
-            override fun onDraw(canvas: android.graphics.Canvas) {
-                super.onDraw(canvas)
-                val w = width.toFloat()
-                val H = height.toFloat()
-                val hBar = 80f
-                // Draw 80px rectangle at the bottom of the view
-                canvas.drawRect(0f, H - hBar, w, H, paint)
-            }
-        }.apply {
-            // Increased height to 180 to contain 80px bar + shadow bleed above
-            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 180).apply {
-                gravity = android.view.Gravity.BOTTOM
-            }
-        }
-        root.addView(bottomBar)
-        maskViews.add(bottomBar)
+        setupDataListeners()
 
+        root.isVisible = shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn
+    }
+
+    private fun setupNativeOverlays() {
         val radius = 226
         val centerY = 430
-
-        // Speed Dash circle shadow (Outer glow)
         val leftCenterX = 290
-        val shadowRadius = radius + 60
-        val speedDashShadow = object : View(context) {
-            init { setLayerType(LAYER_TYPE_SOFTWARE, null) }
-            private val paint = android.graphics.Paint().apply {
-                color = Color.BLACK
-                style = android.graphics.Paint.Style.FILL
-                isAntiAlias = true
-                setShadowLayer(60f, 0f, 0f, 0xFF000000.toInt())
-            }
-            override fun onDraw(canvas: android.graphics.Canvas) {
-                super.onDraw(canvas)
-                canvas.drawCircle(width / 2f, height / 2f, radius.toFloat(), paint)
-            }
-        }.apply {
-            layoutParams = FrameLayout.LayoutParams(shadowRadius * 2, shadowRadius * 2).apply {
-                leftMargin = leftCenterX - shadowRadius
-                topMargin = centerY - shadowRadius
-            }
-        }
-        root.addView(speedDashShadow)
-        maskViews.add(speedDashShadow)
-
-        val speedDashView = FrameLayout(context).apply {
-            layoutParams = FrameLayout.LayoutParams(radius * 2, radius * 2).apply {
-                leftMargin = leftCenterX - radius
-                topMargin = centerY - radius
-            }
-            // Black background circle
-            setBackgroundColor(Color.BLACK)
-            clipToOutline = true
-            outlineProvider = object : ViewOutlineProvider() {
-                override fun getOutline(view: View, outline: Outline) {
-                    outline.setOval(0, 0, view.width, view.height)
-                }
-            }
-        }
-        // Add blue border to speedDashView
-        val speedDashBorder = View(context).apply {
-            layoutParams = FrameLayout.LayoutParams(radius * 2, radius * 2).apply {
-                leftMargin = leftCenterX - radius
-                topMargin = centerY - radius
-            }
-            translationZ = 10f // Match circle shadow
-            background = android.graphics.drawable.GradientDrawable().apply {
-                shape = android.graphics.drawable.GradientDrawable.OVAL
-                setColor(Color.TRANSPARENT)
-                setStroke(3, Color.parseColor("#1d4ed8")) // Blue border
-            }
-        }
-        root.addView(speedDashBorder)
-        root.addView(speedDashView)
-        maskViews.add(speedDashBorder)
-        maskViews.add(speedDashView)
-
-        // Speed Indicator TextView
+        
+        // Speed Indicator
         speedTextView = android.widget.TextView(context).apply {
             layoutParams = FrameLayout.LayoutParams(radius * 2, radius * 2).apply {
                 leftMargin = leftCenterX - radius
@@ -220,234 +119,106 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
             }
             gravity = android.view.Gravity.CENTER
             setTextColor(Color.WHITE)
-            textSize = 120f
+            textSize = 100f
             setTypeface(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD)
-            scaleY = 0.7f // squash height by 30%
+            scaleY = 0.8f
             text = "0"
-            translationZ = 11f // Above the circle shadow
+            translationZ = 120f // Ensure it's on top of WebView
         }
         root.addView(speedTextView)
-        maskViews.add(speedTextView!!)
 
-        // Existing WebView circle (right)
-        val rightCenterX = 1630
-        // CircularView shadow (Outer glow)
-        val rightShadow = object : View(context) {
-            init { setLayerType(LAYER_TYPE_SOFTWARE, null) }
-            private val paint = android.graphics.Paint().apply {
-                color = Color.BLACK
-                style = android.graphics.Paint.Style.FILL
-                isAntiAlias = true
-                setShadowLayer(60f, 0f, 0f, 0xFF000000.toInt())
+        // Fuel Label
+        fuelTextView = android.widget.TextView(context).apply {
+            layoutParams = FrameLayout.LayoutParams(250, 60).apply {
+                leftMargin = leftCenterX - 250
+                topMargin = centerY + radius - 40
             }
-            override fun onDraw(canvas: android.graphics.Canvas) {
-                super.onDraw(canvas)
-                canvas.drawCircle(width / 2f, height / 2f, radius.toFloat(), paint)
-            }
-        }.apply {
-            layoutParams = FrameLayout.LayoutParams(shadowRadius * 2, shadowRadius * 2).apply {
-                leftMargin = rightCenterX - shadowRadius
-                topMargin = centerY - shadowRadius
-            }
+            setTextColor(Color.WHITE)
+            textSize = 22f
+            text = "GAS: 0%"
+            translationZ = 120f
         }
-        root.addView(rightShadow)
-        maskViews.add(rightShadow)
+        root.addView(fuelTextView)
 
-        val circularView = FrameLayout(context).apply {
-            layoutParams = FrameLayout.LayoutParams(radius * 2, radius * 2).apply {
-                leftMargin = rightCenterX - radius
-                topMargin = centerY - radius
+        // Battery Label
+        batteryTextView = android.widget.TextView(context).apply {
+            layoutParams = FrameLayout.LayoutParams(250, 60).apply {
+                leftMargin = leftCenterX + 40
+                topMargin = centerY + radius - 40
             }
-            setBackgroundColor(Color.TRANSPARENT)
-            clipToOutline = true
-            outlineProvider = object : ViewOutlineProvider() {
-                override fun getOutline(view: View, outline: Outline) {
-                    outline.setOval(0, 0, view.width, view.height)
-                }
-            }
+            setTextColor(Color.WHITE)
+            textSize = 22f
+            text = "EV: 0%"
+            translationZ = 120f
         }
-        root.addView(circularView)
-        // Set webview background to transparent if possible to show apps behind
-        setupAcControlView(circularView)
-        // We don't add circularView to maskViews because the WebView itself (the content) 
-        // should probably stay, but maybe the "mask" part (the circle container/shadow) should be toggled?
-        // User asked "option to enable or disable the mask". Usually this refers to the overlay elements.
-        // Let's assume circularView is part of the mask except the WebView.
-        // Actually, if mask is disabled, we probably still want the WebView but maybe not clipped or positioned this way?
-        // Re-reading: "lets create a new web view placeholder... on the right, the existing webview should appear on top of it".
-        // The mask IS the placeholder + speed_dash + layout.
-        // So disabling mask should probably hide all these custom additions.
-        maskViews.add(circularView)
-        
-        // Only show speed indicator on Display 3
-        if (display.displayId != 3) {
-            speedTextView?.let {
-                it.visibility = View.GONE
-            }
-        }
-        
-        updateMaskVisibility()
+        root.addView(batteryTextView)
+    }
 
+    private fun setupDataListeners() {
         ServiceManager.getInstance().addDataChangedListener { key, value ->
             ensureUi {
                 when (key) {
-                    CarConstants.CAR_HVAC_FAN_SPEED.value -> {
-                        evaluateJsIfReady(webView, "control('fan', $value)")
+                    CarConstants.CAR_BASIC_VEHICLE_SPEED.value -> {
+                        val speedStr = value.toString().split(".")[0]
+                        speedTextView?.text = speedStr
+                        evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.CAR_SPEED}', $speedStr)")
                     }
-                    CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.value -> {
-                        evaluateJsIfReady(webView, "control('temp', $value)")
+                    CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE.value -> {
+                        fuelTextView?.text = "GAS: $value%"
+                        evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.FUEL_PERCENT}', $value)")
                     }
-                    CarConstants.CAR_HVAC_POWER_MODE.value -> {
-                        evaluateJsIfReady(webView, "control('power', $value)")
+                    CarConstants.CAR_EV_INFO_BATTERY_CHARGE_PERCENTAGE.value -> {
+                        batteryTextView?.text = "EV: $value%"
+                        evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.BATTERY_PERCENT}', $value)")
                     }
-                    CarConstants.CAR_HVAC_CYCLE_MODE.value -> {
-                        evaluateJsIfReady(webView, "control('recycle', $value)")
-                    }
-                    CarConstants.CAR_HVAC_AUTO_ENABLE.value -> {
-                        evaluateJsIfReady(webView, "control('auto', $value)")
-                    }
-                    CarConstants.CAR_HVAC_ANION_ENABLE.value -> {
-                        evaluateJsIfReady(webView, "control('aion', $value)")
-                    }
+                    CarConstants.CAR_HVAC_FAN_SPEED.value -> evaluateJsIfReady(webView, "control('fan', $value)")
+                    CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.value -> evaluateJsIfReady(webView, "control('temp', $value)")
+                    CarConstants.CAR_HVAC_POWER_MODE.value -> evaluateJsIfReady(webView, "control('power', $value)")
+                    CarConstants.CAR_HVAC_CYCLE_MODE.value -> evaluateJsIfReady(webView, "control('recycle', $value)")
+                    CarConstants.CAR_HVAC_AUTO_ENABLE.value -> evaluateJsIfReady(webView, "control('auto', $value)")
+                    CarConstants.CAR_HVAC_ANION_ENABLE.value -> evaluateJsIfReady(webView, "control('aion', $value)")
                     CarConstants.CAR_BASIC_OUTSIDE_TEMP.value -> {
-                        evaluateJsIfReady(
-                                webView,
-                                "control('outside_temp', ${value.toFloat().roundToInt()})"
-                        )
+                        evaluateJsIfReady(webView, "control('outside_temp', ${value.toFloat().roundToInt()})")
                     }
                     CarConstants.CAR_BASIC_INSIDE_TEMP.value -> {
-                        evaluateJsIfReady(
-                                webView,
-                                "control('inside_temp', ${value.toFloat().roundToInt()})"
-                        )
+                        evaluateJsIfReady(webView, "control('inside_temp', ${value.toFloat().roundToInt()})")
                     }
                     CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value -> {
-                        evaluateJsIfReady(
-                                webView,
-                                "control('evMode', ${MainMenu.EvModeOptions.getLabel(value)})"
-                        )
+                        evaluateJsIfReady(webView, "control('evMode', ${MainMenu.EvModeOptions.getLabel(value)})")
                     }
                     CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.value -> {
-                        evaluateJsIfReady(
-                                webView,
-                                "control('drivingMode', ${MainMenu.DrivingModeOptions.getLabel(value)})"
-                        )
+                        evaluateJsIfReady(webView, "control('drivingMode', ${MainMenu.DrivingModeOptions.getLabel(value)})")
                     }
                     CarConstants.CAR_DRIVE_SETTING_STEERING_WHEEL_ASSIST_MODE.value -> {
-                        evaluateJsIfReady(
-                                webView,
-                                "control('steerMode', ${MainMenu.SteerModeOptions.getLabel(value)})"
-                        )
+                        evaluateJsIfReady(webView, "control('steerMode', ${MainMenu.SteerModeOptions.getLabel(value)})")
                     }
                     CarConstants.CAR_DRIVE_SETTING_ESP_ENABLE.value -> {
-                        evaluateJsIfReady(
-                                webView,
-                                "control('espStatus', ${MainMenu.EspOptions.getLabel(value)})"
-                        )
+                        evaluateJsIfReady(webView, "control('espStatus', ${MainMenu.EspOptions.getLabel(value)})")
                     }
                     CarConstants.CAR_CONFIGURE_PEDAL_CONTROL_ENABLE.value -> {
                         evaluateJsIfReady(webView, "control('onepedal', ${value == "1"})")
                     }
                     CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL.value -> {
-                        evaluateJsIfReady(
-                                webView,
-                                "control('regenMode', ${RegenScreen.RegenOptions.getLabel(value)})"
-                        )
+                        evaluateJsIfReady(webView, "control('regenMode', ${RegenScreen.RegenOptions.getLabel(value)})")
                     }
                     CarConstants.CAR_EV_INFO_ENERGY_OUTPUT_PERCENTAGE.value -> {
                         val regenValue = kotlin.math.max(0.0f, -1 * (value).toFloat())
-                        evaluateJsIfReady(
-                                webView,
-                                "control('${GraphicsScreen.GraphOptions.EV_POWER_FACTOR}',$value)"
-                        )
-                        evaluateJsIfReady(
-                                webView,
-                                "control('${RegenScreen.RegenOptions.REGEN_GRAPH_STATE_NAME}', $regenValue)"
-                        )
+                        evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.EV_POWER_FACTOR}',$value)")
+                        evaluateJsIfReady(webView, "control('${RegenScreen.RegenOptions.REGEN_GRAPH_STATE_NAME}', $regenValue)")
                     }
                     CarConstants.CAR_EV_INFO_POWER_BATTERY_VOLTAGE.value -> {
                         batteryVoltage = value.toFloatOrNull() ?: 0f
                         val kw = batteryVoltage * batteryCurrent / 1000f
-                        evaluateJsIfReady(
-                                webView,
-                                "control('${GraphicsScreen.GraphOptions.EV_POWER_KW}', $kw)"
-                        )
+                        evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.EV_POWER_KW}', $kw)")
                     }
                     CarConstants.CAR_EV_INFO_CUR_CHARGE_CURRENT.value -> {
                         batteryCurrent = value.toFloatOrNull() ?: 0f
                         val kw = batteryVoltage * batteryCurrent / 1000f
-                        evaluateJsIfReady(
-                                webView,
-                                "control('${GraphicsScreen.GraphOptions.EV_POWER_KW}', $kw)"
-                        )
-                    }
-                    CarConstants.CAR_BASIC_INSTANT_FUEL_CONSUMPTION.value -> {
-                        val stringValue = value.toString()
-                        var metricValue = 0.0f
-                        var consumptionValue = 0.0f
-                        var adjustedValue = 0.0f
-                        var adjustedValueIdle = 0.0f
-                        if (stringValue.startsWith("{") &&
-                                        stringValue.endsWith("}") &&
-                                        stringValue.contains(",")
-                        ) {
-                            try {
-                                val cleanedString = stringValue.substring(1, stringValue.length - 1)
-                                val parts = cleanedString.split(',')
-
-                                if (parts.size >= 2) {
-                                    metricValue = parts[0].trim().toFloat()
-                                    consumptionValue = parts[1].trim().toFloat()
-                                }
-                            } catch (e: Exception) {
-                                metricValue = 0.0f
-                                consumptionValue = 0.0f
-                            }
-                        }
-                        if (metricValue == 4.0f) {
-                            if (consumptionValue > 0.0f) {
-                                adjustedValueIdle = kotlin.math.truncate(consumptionValue * 10) / 10
-                                adjustedValue = 0.0f
-                                evaluateJsIfReady(
-                                        webView,
-                                        "control('${GraphicsScreen.GraphOptions.GAS_CONSUMPTION_MODE}', ${GraphicsScreen.GraphOptions.GAS_CONSUMPTION_METRIC_IDLE})"
-                                )
-                            } else {
-                                adjustedValueIdle = 0.0f
-                            }
-                        } else if (metricValue == 1.0f) {
-                            if (consumptionValue > 0.0f) {
-                                adjustedValue =
-                                        kotlin.math.truncate(10 * 100 / consumptionValue) / 10
-                                adjustedValueIdle = 0.0f
-                                evaluateJsIfReady(
-                                        webView,
-                                        "control('${GraphicsScreen.GraphOptions.GAS_CONSUMPTION_MODE}', ${GraphicsScreen.GraphOptions.GAS_CONSUMPTION_METRIC_IDLE})"
-                                )
-                            } else {
-                                adjustedValue = 0.0f
-                            }
-                        }
-                        evaluateJsIfReady(
-                                webView,
-                                "control('${GraphicsScreen.GraphOptions.GAS_CONSUMPTION_IDLE}', $adjustedValueIdle)"
-                        )
-                        evaluateJsIfReady(
-                                webView,
-                                "control('${GraphicsScreen.GraphOptions.GAS_CONSUMPTION}', $adjustedValue)"
-                        )
-                    }
-                    CarConstants.CAR_BASIC_VEHICLE_SPEED.value -> {
-                        speedTextView?.text = value.toString()
-                        evaluateJsIfReady(
-                                webView,
-                                "control('${GraphicsScreen.GraphOptions.CAR_SPEED}',$value)"
-                        )
+                        evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.EV_POWER_KW}', $kw)")
                     }
                     CarConstants.CAR_BASIC_ENGINE_SPEED.value -> {
                         evaluateJsIfReady(webView, "control('engineRPM',$value)")
                     }
-                    else -> {}
                 }
             }
         }
@@ -457,29 +228,17 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                 when (event) {
                     ServiceManagerEventType.CLUSTER_CARD_CHANGED -> {
                         val card = args[0] as Int
-                        circularView.isVisible = card != 0
-                        // webView?.visibility = View.INVISIBLE    //uncomment if you wan to show
-                        // blank screen between card transitions
-                        when (card) {
-                            1, 3 -> {
-                                MainUiManager.getInstance().handleCardChange(card)
-                                updateValuesWebView()
-                                showWebView()
-                            }
-                            else -> {}
+                        // In the new full-screen template, card transitions might affect visibility of secondary elements
+                        if (card == 1 || card == 3) {
+                            MainUiManager.getInstance().handleCardChange(card)
+                            updateValuesWebView()
                         }
                     }
                     ServiceManagerEventType.STEERING_WHEEL_AC_CONTROL -> {
                         when (args[0] as SteeringWheelAcControlType) {
-                            SteeringWheelAcControlType.FAN_SPEED -> {
-                                evaluateJsIfReady(webView, "focus('fan')")
-                            }
-                            SteeringWheelAcControlType.TEMPERATURE -> {
-                                evaluateJsIfReady(webView, "focus('temp')")
-                            }
-                            SteeringWheelAcControlType.POWER -> {
-                                evaluateJsIfReady(webView, "focus('power')")
-                            }
+                            SteeringWheelAcControlType.FAN_SPEED -> evaluateJsIfReady(webView, "focus('fan')")
+                            SteeringWheelAcControlType.TEMPERATURE -> evaluateJsIfReady(webView, "focus('temp')")
+                            SteeringWheelAcControlType.POWER -> evaluateJsIfReady(webView, "focus('power')")
                         }
                     }
                     ServiceManagerEventType.MENU_ITEM_NAVIGATION -> {
@@ -488,141 +247,74 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                     }
                     ServiceManagerEventType.UPDATE_SCREEN -> {
                         val screen = args[0] as Screen
-                        val screenName = screen.jsName
-                        evaluateJsIfReady(webView, "showScreen('$screenName')")
+                        evaluateJsIfReady(webView, "showScreen('${screen.jsName}')")
                     }
                     ServiceManagerEventType.GRAPH_SCREEN_NAVIGATION -> {
                         val screen = args[0] as String
                         evaluateJsIfReady(webView, "control('currentGraph','$screen')")
                     }
-                    ServiceManagerEventType.MAX_AUTO_AC_STATUS_CHANGED -> {
-                        val maxauto = args[0] as Int
-                        evaluateJsIfReady(webView, "control('maxauto', $maxauto)")
-                    }
                 }
             }
         }
-
-        root.isVisible = shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun setupAcControlView(circularView: FrameLayout) {
+    private fun setupAcControlView(parent: FrameLayout) {
         if (webView == null) {
-            webView =
-                    WebView(context).apply {
-                        layoutParams =
-                                FrameLayout.LayoutParams(
-                                        FrameLayout.LayoutParams.MATCH_PARENT,
-                                        FrameLayout.LayoutParams.MATCH_PARENT
-                                )
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        settings.allowContentAccess = true
-                        webViewClient =
-                                object : WebViewClient() {
-                                    override fun onPageFinished(view: WebView?, url: String?) {
-                                        super.onPageFinished(view, url)
-                                        view?.let {
-                                            webViewsLoaded[it] = true
-                                            updateValuesWebView()
-                                            val queue = pendingJsQueues[it] ?: return
-                                            queue.forEach { js -> it.evaluateJavascript(js, null) }
-                                            pendingJsQueues.remove(it)
-                                        }
-                                    }
-                                }
-                        loadDataWithBaseURL(null, readRawHtml(context), "text/html", "UTF-8", null)
+            webView = WebView(context).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+                setBackgroundColor(Color.TRANSPARENT)
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.allowContentAccess = true
+                webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(view: WebView?, url: String?) {
+                        super.onPageFinished(view, url)
+                        view?.let {
+                            webViewsLoaded[it] = true
+                            updateValuesWebView()
+                            pendingJsQueues[it]?.forEach { js -> it.evaluateJavascript(js, null) }
+                            pendingJsQueues.remove(it)
+                        }
                     }
-            circularView.addView(webView)
-            webView?.visibility = View.INVISIBLE
-        }
-    }
-
-    private fun showWebView() {
-        webView?.visibility = View.VISIBLE
-        webView?.let {
-            if (webViewsLoaded[it] == true) {
-                updateValuesWebView()
+                }
+                loadDataWithBaseURL(null, readRawHtml(context), "text/html", "UTF-8", null)
             }
+            parent.addView(webView)
         }
     }
 
     private fun updateValuesWebView() {
-        val currentTemp =
-                ServiceManager.getInstance().getData(CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.value)
-        val currentFanSpeed =
-                ServiceManager.getInstance().getData(CarConstants.CAR_HVAC_FAN_SPEED.value)
-        val currentAcState =
-                ServiceManager.getInstance().getData(CarConstants.CAR_HVAC_POWER_MODE.value)
-        val currentRecycleMode =
-                ServiceManager.getInstance().getData(CarConstants.CAR_HVAC_CYCLE_MODE.value)
-        val currentAutoMode =
-                ServiceManager.getInstance().getData(CarConstants.CAR_HVAC_AUTO_ENABLE.value)
+        // Send initial state to JS
+        val sm = ServiceManager.getInstance()
+        evaluateJsIfReady(webView, "control('temp', ${sm.getData(CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.value)})")
+        evaluateJsIfReady(webView, "control('fan', ${sm.getData(CarConstants.CAR_HVAC_FAN_SPEED.value)})")
+        evaluateJsIfReady(webView, "control('power', ${sm.getData(CarConstants.CAR_HVAC_POWER_MODE.value)})")
+        evaluateJsIfReady(webView, "control('recycle', ${sm.getData(CarConstants.CAR_HVAC_CYCLE_MODE.value)})")
+        evaluateJsIfReady(webView, "control('auto', ${sm.getData(CarConstants.CAR_HVAC_AUTO_ENABLE.value)})")
+        evaluateJsIfReady(webView, "control('outside_temp', ${sm.getData(CarConstants.CAR_BASIC_OUTSIDE_TEMP.value).toFloat().roundToInt()})")
+        evaluateJsIfReady(webView, "control('onepedal', ${sm.getData(CarConstants.CAR_CONFIGURE_PEDAL_CONTROL_ENABLE.value) == "1"})")
+        
+        val isMaskEnabled = preferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key, true)
+        evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.MASK_VISIBLE}', $isMaskEnabled)")
+    }
 
-        val currentEVMode =
-                ServiceManager.getInstance()
-                        .getData(CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value)
-        val currentDrivingMode =
-                ServiceManager.getInstance()
-                        .getData(CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.value)
-        val currentSteerMode =
-                ServiceManager.getInstance()
-                        .getData(CarConstants.CAR_DRIVE_SETTING_STEERING_WHEEL_ASSIST_MODE.value)
-
-        val regenMode =
-                ServiceManager.getInstance()
-                        .getData(CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL.value)
-        val espMode =
-                ServiceManager.getInstance()
-                        .getData(CarConstants.CAR_DRIVE_SETTING_ESP_ENABLE.value)
-        val insideTemp =
-                ServiceManager.getInstance()
-                        .getData(CarConstants.CAR_BASIC_INSIDE_TEMP.value)
-                        .toFloat()
-                        .roundToInt()
-        val outsideTemp =
-                ServiceManager.getInstance()
-                        .getData(CarConstants.CAR_BASIC_OUTSIDE_TEMP.value)
-                        .toFloat()
-                        .roundToInt()
-        val onePedal =
-                ServiceManager.getInstance()
-                        .getData(CarConstants.CAR_CONFIGURE_PEDAL_CONTROL_ENABLE.value) == "1"
-
-        evaluateJsIfReady(webView, "control('temp', $currentTemp)")
-        evaluateJsIfReady(webView, "control('fan', $currentFanSpeed)")
-        evaluateJsIfReady(webView, "control('power', $currentAcState)")
-        evaluateJsIfReady(webView, "control('recycle', $currentRecycleMode)")
-        evaluateJsIfReady(webView, "control('auto', $currentAutoMode)")
-        //        evaluateJsIfReady(webView, "focus('fan')")
-        evaluateJsIfReady(webView, "control('outside_temp', $outsideTemp)")
-        evaluateJsIfReady(webView, "control('inside_temp', $insideTemp)")
-        evaluateJsIfReady(webView, "control('onepedal', $onePedal)")
-
-        evaluateJsIfReady(
-                webView,
-                "control('evMode', ${MainMenu.EvModeOptions.getLabel(currentEVMode)})"
-        )
-        evaluateJsIfReady(
-                webView,
-                "control('drivingMode', ${MainMenu.DrivingModeOptions.getLabel(currentDrivingMode)})"
-        )
-        evaluateJsIfReady(
-                webView,
-                "control('steerMode', ${MainMenu.SteerModeOptions.getLabel(currentSteerMode)})"
-        )
-        evaluateJsIfReady(webView, "control('espStatus', ${MainMenu.EspOptions.getLabel(espMode)})")
-        evaluateJsIfReady(
-                webView,
-                "control('regenMode', ${RegenScreen.RegenOptions.getLabel(regenMode)})"
-        )
+    private fun updateMaskVisibility() {
+        val maskEnabled = preferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key, true)
+        evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.MASK_VISIBLE}', $maskEnabled)")
+        
+        // Native overlays follow the mask setting
+        speedTextView?.isVisible = maskEnabled
+        fuelTextView?.isVisible = maskEnabled
+        batteryTextView?.isVisible = maskEnabled
     }
 
     private fun evaluateJsIfReady(webView: WebView?, js: String) {
         if (webView == null) return
-        val loaded = webViewsLoaded.getOrDefault(webView, false)
-        if (loaded) {
+        if (webViewsLoaded.getOrDefault(webView, false)) {
             webView.evaluateJavascript(js, null)
         } else {
             pendingJsQueues.getOrPut(webView) { mutableListOf() }.add(js)
@@ -639,16 +331,5 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
 
     override fun carMainScreenOn() {
         ensureUi { root.visibility = View.VISIBLE }
-    }
-
-    private fun updateMaskVisibility() {
-        val maskEnabled = preferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key, true)
-        maskViews.forEach { view ->
-            if (view == speedTextView) {
-                view.isVisible = maskEnabled && display.displayId == 3
-            } else {
-                view.isVisible = maskEnabled
-            }
-        }
     }
 }

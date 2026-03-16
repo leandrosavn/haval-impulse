@@ -98,7 +98,20 @@ var stateManager = new StateManager({
     gasConsumptionMode: 'Running',
     carSpeed: 0,
     engineRPM: 0,
-    evPowerKwAvg: 0
+    evPowerKwAvg: 0,
+
+    // Template states
+    templateId: 'default',
+    maskVisible: true,
+    fuelPercent: 75,
+    batteryPercent: 45,
+    fuelRange: 357,
+    batteryRange: 169,
+    clockTime: '13:21',
+    gearState: 'P',
+    evModeLabel: 'NORMAL',
+    readyState: true,
+    limitSpeed: '--'
 });
 
 var getState = function (key) { return stateManager.get(key); };

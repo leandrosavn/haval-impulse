@@ -3,6 +3,8 @@ import {createMainMenu} from './components/mainMenu.js';
 import {createAcControlScreen, updateProgressRings as updateProgressRingsAC} from "./components/aircon/mainAcControl.js";
 import {createRegenScreen, updateProgressRings as updateProgressRingsRegen } from "./components/regen/regenControl.js";
 import {createGraphScreen } from "./components/graphs/graphs.js";
+import { createMask } from './components/mask.js';
+import { createDashboardInfo } from './components/dashboardInfo.js';
 import { div } from './utils/createElement.js';
 
 if (process.env.NODE_ENV === 'development') {
@@ -11,6 +13,31 @@ if (process.env.NODE_ENV === 'development') {
 
 const appContainer = document.getElementById('app');
 let currentComponent = null;
+let maskComponent = null;
+
+// Create container for dynamic content to separate from persistent mask
+const contentContainer = div({ className: 'content-container' });
+
+function initializeLayout() {
+    if (!appContainer) return;
+    appContainer.innerHTML = '';
+    
+    // Add mask background first (z-index: 50)
+    const mask = createMask();
+    maskComponent = mask;
+    
+    appContainer.appendChild(mask.background);
+    
+    // Add content container (z-index: 100)
+    appContainer.appendChild(contentContainer);
+    
+    // Add Dashboard Info (Gauges, Clock, etc.) (z-index: 140)
+    const dashboardInfo = createDashboardInfo();
+    appContainer.appendChild(dashboardInfo);
+    
+    // Add mask foreground on top (z-index: 150)
+    appContainer.appendChild(mask.foreground);
+}
 
 function render() {
     const screen = get('screen');
@@ -19,9 +46,7 @@ function render() {
         currentComponent.cleanup();
     }
 
-    if (appContainer && appContainer.innerHTML) {
-        appContainer.innerHTML = '';
-    }
+    contentContainer.innerHTML = '';
 
     if (screen === 'main_menu') {
         currentComponent = createMainMenu();
@@ -37,12 +62,18 @@ function render() {
         const element = currentComponent.element || currentComponent;
         const onMount = currentComponent.onMount;
         currentComponent = element;
-        appContainer.appendChild(element);
+        
+        // Wrap in positioned container to maintain (1630, 430) placement
+        const wrapper = div({ className: 'menu-positioned-container' }, element);
+        contentContainer.appendChild(wrapper);
+        
         if (onMount) {
             onMount();
         }
     }
 }
+
+initializeLayout();
 
 // Start rendering and subscribe to listen for screen changes thus triggering new render
 subscribe('screen', render);

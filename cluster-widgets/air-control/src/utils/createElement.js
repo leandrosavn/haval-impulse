@@ -5,10 +5,17 @@
  * @param {...(string|HTMLElement)} children - Child elements or text content
  * @returns {HTMLElement} The created DOM element
  */
-export function createElement(tagName, props = {}) {
+export function createElement(tagName, props = {}, ...childrenArgs) {
     // Create the element
     const element = document.createElement(tagName);
-    const children = props.children || [];
+    
+    // Consolidate children from props and extra arguments
+    let children = [];
+    if (props && props.children) {
+        children = Array.isArray(props.children) ? props.children : [props.children];
+        delete props.children;
+    }
+    children = children.concat(childrenArgs);
     
     // Handle props
     if (props) {

@@ -1,0 +1,319 @@
+:root {
+    --mask-radius: 228px;
+    --mask-center-y: 430px;
+    --mask-left-x: 290px;
+    --mask-right-x: 1630px;
+    --mask-bg-color: rgba(0, 0, 0, 0.8);
+    --mask-border-color: #1d4ed8;
+    --mask-shadow: 0 0 60px rgba(0, 0, 0, 1);
+}
+
+@font-face {
+    font-family: 'Eurostile';
+    src: url('./assets/fonts/eurostile.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+}
+
+.cluster-mask-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1920px;
+    height: 720px;
+    pointer-events: none;
+    z-index: 50; /* Below content */
+}
+
+.cluster-mask {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1920px;
+    height: 720px;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+    z-index: 150; /* Above content */
+}
+
+.content-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1920px;
+    height: 720px;
+    overflow: hidden;
+    z-index: 100; /* Between mask layers */
+}
+
+.menu-positioned-container {
+    position: absolute;
+    left: var(--mask-right-x);
+    top: var(--mask-center-y);
+    transform: translate(-50%, -50%);
+    width: 456px; /* 228 * 2 */
+    height: 456px;
+    /* Circular masking */
+    border-radius: 50%;
+    overflow: hidden;
+    background-color: black;
+}
+
+.mask-top-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 125px;
+    background: linear-gradient(#000 45%, #000c 55%, #0009 100%);
+    box-shadow: 0 20px 80px rgba(0,0,0,1);
+}
+
+.mask-bottom-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 80px;
+    background-color: rgba(0,0,0,0.8);
+    box-shadow: 0 -15px 60px rgba(0,0,0,1);
+}
+
+.mask-circle {
+    position: absolute;
+    width: calc(var(--mask-radius) * 2);
+    height: calc(var(--mask-radius) * 2);
+    border-radius: 50%;
+    background-color: black;
+    box-shadow: var(--mask-shadow);
+    top: calc(var(--mask-center-y) - var(--mask-radius));
+}
+
+.mask-circle.left {
+    left: calc(var(--mask-left-x) - var(--mask-radius));
+}
+
+.mask-circle.right {
+    left: calc(var(--mask-right-x) - var(--mask-radius));
+}
+
+.mask-circle-border {
+    position: absolute;
+    width: calc(var(--mask-radius) * 2);
+    height: calc(var(--mask-radius) * 2);
+    border-radius: 50%;
+    border: 3px solid var(--mask-border-color);
+    box-sizing: border-box; /* Ensure border is inside the circle */
+    top: calc(var(--mask-center-y) - var(--mask-radius));
+    pointer-events: none;
+    /* Inherits z-index 150 from .cluster-mask */
+}
+
+.mask-circle-border.left {
+    left: calc(var(--mask-left-x) - var(--mask-radius));
+}
+
+.mask-circle-border.right {
+    left: calc(var(--mask-right-x) - var(--mask-radius));
+}
+
+/* Dashboard Info Styles */
+.dashboard-info-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1920px;
+    height: 720px;
+    pointer-events: none;
+    font-family: 'Khand', sans-serif;
+    color: white;
+    z-index: 140; /* Above content (100) but below blue rings (150) */
+}
+
+/* Top Center (Clock, Gear, Mode) */
+.dashboard-top-center {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    height: 125px; /* Match top bar height */
+    display: flex;
+    align-items: center;
+    gap: 60px; /* Increased gap */
+    font-size: 34px; /* Increased font size */
+    font-weight: 500;
+}
+
+.dashboard-clock { color: #A3AED0; }
+.dashboard-gear { color: #ff3b30; font-weight: 700; font-size: 40px; }
+.dashboard-ev-mode { color: white; text-transform: uppercase; }
+
+/* Speed Gauge (Left Circle) */
+.dashboard-speed-container {
+    position: absolute;
+    left: var(--mask-left-x);
+    top: var(--mask-center-y);
+    transform: translate(-50%, -50%);
+    width: 456px;
+    height: 456px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.dashboard-speed-dial {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+
+.speed-inner-circle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 380px;
+    height: 380px;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 50%;
+}
+
+.speed-needle-container {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    transition: transform 0.2s ease-out;
+}
+
+.speed-needle {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 25px;
+    background: linear-gradient(to top, #fff, transparent);
+    box-shadow: 0 0 15px #fff;
+    border-radius: 2px;
+}
+
+.dashboard-speed-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 2;
+}
+
+.dashboard-ready {
+    color: #4cd964;
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: -10px;
+}
+
+.dashboard-speed-value {
+    font-family: 'Eurostile', sans-serif;
+    font-size: 130px;
+    font-weight: 400;
+    line-height: 1;
+}
+
+.dashboard-speed-metric {
+    font-size: 22px;
+    color: #A3AED0;
+    margin-top: -10px;
+}
+
+.dashboard-limit-sign {
+    margin-top: 15px;
+}
+
+.limit-circle {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 3px solid #ff3b30;
+    background-color: white;
+    color: black;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+/* Bottom Gauges */
+.dashboard-bottom-gauges {
+    position: absolute;
+    bottom: 0;
+    height: 80px; /* Match bottom bar height */
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 450px; /* Reduced width between them */
+    box-sizing: border-box;
+}
+
+.dashboard-fuel-container, .dashboard-battery-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.gauge-top-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: -4px;
+}
+
+.fuel-range, .battery-range {
+    font-size: 28px;
+    font-weight: 500;
+}
+
+.segmented-bar-container {
+    display: flex;
+    gap: 6px;
+    width: 250px; /* Adjusted width */
+    position: relative;
+    padding-bottom: 25px;
+}
+
+.segment-track {
+    flex: 1;
+    height: 8px; /* Slightly taller */
+    background-color: rgba(255,255,255,0.15);
+    position: relative;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.bar-segment {
+    height: 100%;
+    width: 0%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.fuel .bar-segment { background-color: #3b82f6; }
+.battery .bar-segment { background-color: #10b981; }
+
+.fuel-labels, .battery-labels {
+    position: absolute;
+    bottom: 0px;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    font-size: 18px;
+    color: #A3AED0;
+}
+
+.ev-label {
+    color: #00beff;
+    font-weight: 600;
+    font-size: 24px;
+    margin-left: 10px;
+}
