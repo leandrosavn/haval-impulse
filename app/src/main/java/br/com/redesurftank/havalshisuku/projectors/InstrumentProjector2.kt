@@ -42,6 +42,9 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
     // Cached EV power values for kW calculation
     private var batteryVoltage = 0f
     private var batteryCurrent = 0f
+    private var speedTextView: android.widget.TextView? = null
+
+    private val maskViews = mutableListOf<View>()
 
     private val prefsListener =
             SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -50,12 +53,14 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                                         SharedPreferencesKeys
                                                 .ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION
                                                 .key,
-                                        SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key
+                                        SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key,
+                                        SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key
                                 )
                 ) {
                     ensureUi {
                         root.isVisible =
                                 shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn
+                        updateMaskVisibility()
                     }
                 }
             }
@@ -77,31 +82,211 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
         WebView.setWebContentsDebuggingEnabled(true)
         window?.setBackgroundDrawable(Color.TRANSPARENT.toDrawable())
         window?.addFlags(WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED)
-        window?.addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION)
+        window?.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT)
+        window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
 
-        root = FrameLayout(context)
+        root = FrameLayout(context).apply {
+            setBackgroundColor(Color.TRANSPARENT)
+        }
         setContentView(root)
 
+        // Top black bar (Straight 125px)
+        val arcTopBar = object : View(context) {
+            init {
+                setLayerType(LAYER_TYPE_SOFTWARE, null)
+            }
+            private val paint = android.graphics.Paint().apply {
+                color = 0xCC000000.toInt() // 80% transparency
+                style = android.graphics.Paint.Style.FILL
+                isAntiAlias = true
+                // Large outer shadow (bottom-ish)
+                setShadowLayer(80f, 0f, 20f, 0xFF000000.toInt())
+            }
+
+            override fun onDraw(canvas: android.graphics.Canvas) {
+                super.onDraw(canvas)
+                // Part 1: Top 62px at 80% opacity
+                paint.color = 0xCC000000.toInt()
+                paint.clearShadowLayer() // No shadow for the top part
+                canvas.drawRect(0f, 0f, width.toFloat(), 62f, paint)
+
+                // Part 2: Bottom 63px at 60% opacity
+                paint.color = 0x99000000.toInt() // 60% opacity
+                // Large outer shadow (bottom-ish)
+                paint.setShadowLayer(80f, 0f, 20f, 0xFF000000.toInt())
+                canvas.drawRect(0f, 62f, width.toFloat(), 125f, paint)
+            }
+        }.apply {
+            // Increased height to 225 to contain 125px bar + shadow bleed below
+            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 225)
+        }
+        root.addView(arcTopBar)
+        maskViews.add(arcTopBar)
+
+        // Bottom black bar (120px)
+        val bottomBar = object : View(context) {
+            init {
+                setLayerType(LAYER_TYPE_SOFTWARE, null)
+            }
+            private val paint = android.graphics.Paint().apply {
+                color = 0xCC000000.toInt() // 80% transparency
+                style = android.graphics.Paint.Style.FILL
+                isAntiAlias = true
+                // Large outer shadow (top-ish)
+                setShadowLayer(60f, 0f, -15f, 0xFF000000.toInt())
+            }
+
+            override fun onDraw(canvas: android.graphics.Canvas) {
+                super.onDraw(canvas)
+                val w = width.toFloat()
+                val H = height.toFloat()
+                val hBar = 80f
+                // Draw 80px rectangle at the bottom of the view
+                canvas.drawRect(0f, H - hBar, w, H, paint)
+            }
+        }.apply {
+            // Increased height to 180 to contain 80px bar + shadow bleed above
+            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 180).apply {
+                gravity = android.view.Gravity.BOTTOM
+            }
+        }
+        root.addView(bottomBar)
+        maskViews.add(bottomBar)
+
         val radius = 226
-        val centerX = 1630
         val centerY = 430
 
-        val circularView = FrameLayout(context)
-        val params = FrameLayout.LayoutParams(radius * 2, radius * 2)
-        params.leftMargin = centerX - radius
-        params.topMargin = centerY - radius
-        circularView.layoutParams = params
-        circularView.setBackgroundColor(Color.TRANSPARENT)
-        circularView.clipToOutline = true
-        circularView.outlineProvider =
-                object : ViewOutlineProvider() {
-                    override fun getOutline(view: View, outline: Outline) {
-                        outline.setOval(0, 0, view.width, view.height)
-                    }
+        // Speed Dash circle shadow (Outer glow)
+        val leftCenterX = 290
+        val shadowRadius = radius + 60
+        val speedDashShadow = object : View(context) {
+            init { setLayerType(LAYER_TYPE_SOFTWARE, null) }
+            private val paint = android.graphics.Paint().apply {
+                color = Color.BLACK
+                style = android.graphics.Paint.Style.FILL
+                isAntiAlias = true
+                setShadowLayer(60f, 0f, 0f, 0xFF000000.toInt())
+            }
+            override fun onDraw(canvas: android.graphics.Canvas) {
+                super.onDraw(canvas)
+                canvas.drawCircle(width / 2f, height / 2f, radius.toFloat(), paint)
+            }
+        }.apply {
+            layoutParams = FrameLayout.LayoutParams(shadowRadius * 2, shadowRadius * 2).apply {
+                leftMargin = leftCenterX - shadowRadius
+                topMargin = centerY - shadowRadius
+            }
+        }
+        root.addView(speedDashShadow)
+        maskViews.add(speedDashShadow)
+
+        val speedDashView = FrameLayout(context).apply {
+            layoutParams = FrameLayout.LayoutParams(radius * 2, radius * 2).apply {
+                leftMargin = leftCenterX - radius
+                topMargin = centerY - radius
+            }
+            // Black background circle
+            setBackgroundColor(Color.BLACK)
+            clipToOutline = true
+            outlineProvider = object : ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: Outline) {
+                    outline.setOval(0, 0, view.width, view.height)
                 }
+            }
+        }
+        // Add blue border to speedDashView
+        val speedDashBorder = View(context).apply {
+            layoutParams = FrameLayout.LayoutParams(radius * 2, radius * 2).apply {
+                leftMargin = leftCenterX - radius
+                topMargin = centerY - radius
+            }
+            translationZ = 10f // Match circle shadow
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(Color.TRANSPARENT)
+                setStroke(3, Color.parseColor("#1d4ed8")) // Blue border
+            }
+        }
+        root.addView(speedDashBorder)
+        root.addView(speedDashView)
+        maskViews.add(speedDashBorder)
+        maskViews.add(speedDashView)
+
+        // Speed Indicator TextView
+        speedTextView = android.widget.TextView(context).apply {
+            layoutParams = FrameLayout.LayoutParams(radius * 2, radius * 2).apply {
+                leftMargin = leftCenterX - radius
+                topMargin = centerY - radius - 10
+            }
+            gravity = android.view.Gravity.CENTER
+            setTextColor(Color.WHITE)
+            textSize = 120f
+            setTypeface(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD)
+            scaleY = 0.7f // squash height by 30%
+            text = "0"
+            translationZ = 11f // Above the circle shadow
+        }
+        root.addView(speedTextView)
+        maskViews.add(speedTextView!!)
+
+        // Existing WebView circle (right)
+        val rightCenterX = 1630
+        // CircularView shadow (Outer glow)
+        val rightShadow = object : View(context) {
+            init { setLayerType(LAYER_TYPE_SOFTWARE, null) }
+            private val paint = android.graphics.Paint().apply {
+                color = Color.BLACK
+                style = android.graphics.Paint.Style.FILL
+                isAntiAlias = true
+                setShadowLayer(60f, 0f, 0f, 0xFF000000.toInt())
+            }
+            override fun onDraw(canvas: android.graphics.Canvas) {
+                super.onDraw(canvas)
+                canvas.drawCircle(width / 2f, height / 2f, radius.toFloat(), paint)
+            }
+        }.apply {
+            layoutParams = FrameLayout.LayoutParams(shadowRadius * 2, shadowRadius * 2).apply {
+                leftMargin = rightCenterX - shadowRadius
+                topMargin = centerY - shadowRadius
+            }
+        }
+        root.addView(rightShadow)
+        maskViews.add(rightShadow)
+
+        val circularView = FrameLayout(context).apply {
+            layoutParams = FrameLayout.LayoutParams(radius * 2, radius * 2).apply {
+                leftMargin = rightCenterX - radius
+                topMargin = centerY - radius
+            }
+            setBackgroundColor(Color.TRANSPARENT)
+            clipToOutline = true
+            outlineProvider = object : ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: Outline) {
+                    outline.setOval(0, 0, view.width, view.height)
+                }
+            }
+        }
         root.addView(circularView)
-        circularView.isVisible = false
+        // Set webview background to transparent if possible to show apps behind
         setupAcControlView(circularView)
+        // We don't add circularView to maskViews because the WebView itself (the content) 
+        // should probably stay, but maybe the "mask" part (the circle container/shadow) should be toggled?
+        // User asked "option to enable or disable the mask". Usually this refers to the overlay elements.
+        // Let's assume circularView is part of the mask except the WebView.
+        // Actually, if mask is disabled, we probably still want the WebView but maybe not clipped or positioned this way?
+        // Re-reading: "lets create a new web view placeholder... on the right, the existing webview should appear on top of it".
+        // The mask IS the placeholder + speed_dash + layout.
+        // So disabling mask should probably hide all these custom additions.
+        maskViews.add(circularView)
+        
+        // Only show speed indicator on Display 3
+        if (display.displayId != 3) {
+            speedTextView?.let {
+                it.visibility = View.GONE
+            }
+        }
+        
+        updateMaskVisibility()
 
         ServiceManager.getInstance().addDataChangedListener { key, value ->
             ensureUi {
@@ -253,6 +438,7 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                         )
                     }
                     CarConstants.CAR_BASIC_VEHICLE_SPEED.value -> {
+                        speedTextView?.text = value.toString()
                         evaluateJsIfReady(
                                 webView,
                                 "control('${GraphicsScreen.GraphOptions.CAR_SPEED}',$value)"
@@ -453,5 +639,16 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
 
     override fun carMainScreenOn() {
         ensureUi { root.visibility = View.VISIBLE }
+    }
+
+    private fun updateMaskVisibility() {
+        val maskEnabled = preferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key, true)
+        maskViews.forEach { view ->
+            if (view == speedTextView) {
+                view.isVisible = maskEnabled && display.displayId == 3
+            } else {
+                view.isVisible = maskEnabled
+            }
+        }
     }
 }

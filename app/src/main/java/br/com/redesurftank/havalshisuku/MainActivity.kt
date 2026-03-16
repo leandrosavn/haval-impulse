@@ -1177,6 +1177,7 @@ fun TelasTab() {
     var enableProjector by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key, false)) }
     var enableWarning by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_REVISION_WARNING.key, false)) }
     var enableCustomIntegration by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.key, false)) }
+    var enableMask by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key, false)) }
     var nextKmText by remember { mutableStateOf(prefs.getInt(SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key, 12000).toString()) }
     var nextDateMillis by remember { mutableLongStateOf(prefs.getLong(SharedPreferencesKeys.INSTRUMENT_REVISION_NEXT_DATE.key, 0L)) }
     var showDatePicker by remember { mutableStateOf(false) }
@@ -1237,6 +1238,55 @@ fun TelasTab() {
                 }
             },
             enabled = enableProjector
+        ),
+        SettingItem(
+            title = "Máscara do instrumento",
+            description = SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.description,
+            checked = enableMask,
+            onCheckedChange = {
+                enableMask = it
+                prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key, it) }
+            },
+            customContent = if (enableMask) {
+                {
+                    var maskDisplayId by remember { mutableIntStateOf(prefs.getInt(SharedPreferencesKeys.INSTRUMENT_MASK_DISPLAY_ID.key, 1)) }
+                    Column {
+                        Text("Exibir na tela:", color = Color.White, fontSize = 14.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            listOf(1, 3).forEach { id ->
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            if (maskDisplayId != id) {
+                                                maskDisplayId = id
+                                                prefs.edit { putInt(SharedPreferencesKeys.INSTRUMENT_MASK_DISPLAY_ID.key, id) }
+                                                try {
+                                                    br.com.redesurftank.havalshisuku.managers.ProjectorManager.getInstance().refresh()
+                                                } catch (e: Exception) {
+                                                    Log.e("TelasTab", "Error refreshing projectors: ${e.message}", e)
+                                                }
+                                            }
+                                        }
+                                        .background(
+                                            if (maskDisplayId == id) Color(0xFF4A9EFF) else Color(0xFF2A2F37),
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .padding(vertical = 12.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "Display $id",
+                                        color = Color.White,
+                                        fontWeight = if (maskDisplayId == id) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            } else null
         )
     )
 
