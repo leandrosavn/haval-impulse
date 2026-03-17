@@ -25,18 +25,12 @@ export function createDashboardInfo() {
     speedDial.appendChild(speedInnerCircle);
 
     const speedContent = div({ className: 'dashboard-speed-content' });
-    const ready = div({ className: 'dashboard-ready', children: ['READY'] });
     const speedValue = div({ className: 'dashboard-speed-value', children: [getState('carSpeed')] });
     const speedMetric = div({ className: 'dashboard-speed-metric', children: ['km/h'] });
-    const limitSign = div({ className: 'dashboard-limit-sign', children: [
-        div({ className: 'limit-circle', children: [getState('limitSpeed')] })
-    ]});
 
-    speedContent.appendChild(ready);
     speedContent.appendChild(speedValue);
     speedContent.appendChild(speedMetric);
-    speedContent.appendChild(limitSign);
-    
+
     const speedContainer = div({ className: 'dashboard-speed-container' });
     speedContainer.appendChild(speedDial);
     speedContainer.appendChild(speedContent);
@@ -78,7 +72,6 @@ export function createDashboardInfo() {
     const batteryBar = div({ className: 'segmented-bar-container battery', children: [
         ...batterySegments,
         div({ className: 'battery-labels', children: [span({}, 'E'), span({}, 'F')] }),
-        span({ className: 'ev-label', children: ['EV'] })
     ]});
 
     batteryContainer.appendChild(batteryTop);

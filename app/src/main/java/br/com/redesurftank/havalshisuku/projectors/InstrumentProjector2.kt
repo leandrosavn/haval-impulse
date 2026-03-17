@@ -51,11 +51,12 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
             SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
                 if (key in
                                 listOf(
-                                        SharedPreferencesKeys
+                                    SharedPreferencesKeys
                                                 .ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION
                                                 .key,
-                                        SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key,
-                                        SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key
+                                    SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key,
+                                    SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key,
+                                    SharedPreferencesKeys.INSTRUMENT_MASK_DISPLAY_ID.key
                                 )
                 ) {
                     ensureUi {
@@ -126,32 +127,6 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
             translationZ = 120f // Ensure it's on top of WebView
         }
         root.addView(speedTextView)
-
-        // Fuel Label
-        fuelTextView = android.widget.TextView(context).apply {
-            layoutParams = FrameLayout.LayoutParams(250, 60).apply {
-                leftMargin = leftCenterX - 250
-                topMargin = centerY + radius - 40
-            }
-            setTextColor(Color.WHITE)
-            textSize = 22f
-            text = "GAS: 0%"
-            translationZ = 120f
-        }
-        root.addView(fuelTextView)
-
-        // Battery Label
-        batteryTextView = android.widget.TextView(context).apply {
-            layoutParams = FrameLayout.LayoutParams(250, 60).apply {
-                leftMargin = leftCenterX + 40
-                topMargin = centerY + radius - 40
-            }
-            setTextColor(Color.WHITE)
-            textSize = 22f
-            text = "EV: 0%"
-            translationZ = 120f
-        }
-        root.addView(batteryTextView)
     }
 
     private fun setupDataListeners() {
@@ -252,6 +227,10 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                     ServiceManagerEventType.GRAPH_SCREEN_NAVIGATION -> {
                         val screen = args[0] as String
                         evaluateJsIfReady(webView, "control('currentGraph','$screen')")
+                    }
+                    ServiceManagerEventType.MAX_AUTO_AC_STATUS_CHANGED -> {
+                        val status = args[0] as Int
+                        evaluateJsIfReady(webView, "control('maxauto', $status)")
                     }
                 }
             }

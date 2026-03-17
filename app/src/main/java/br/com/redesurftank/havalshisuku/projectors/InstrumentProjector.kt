@@ -20,7 +20,6 @@ import br.com.redesurftank.havalshisuku.models.CarConstants
 import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys
 import java.util.concurrent.TimeUnit
 import kotlin.properties.Delegates
-import java.util.Locale
 
 class InstrumentProjector(outerContext: Context, display: Display) : BaseProjector(outerContext, display), IDataChanged {
     private val preferences: SharedPreferences = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
@@ -33,16 +32,6 @@ class InstrumentProjector(outerContext: Context, display: Display) : BaseProject
     private var maintenanceTextView: TextView? = null
     private var blinkAnimator: ObjectAnimator? = null
     private lateinit var rootLayout: RelativeLayout
-
-    private var insideTempTextView: TextView? = null
-    private var outsideTempTextView: TextView? = null
-    private val COLOR_TEXT = Color.parseColor("#CFCFCF")
-
-    // Helper: Converts a baseline Y position to top margin for a TextView.
-    private fun baselineToTop(textView: TextView, baselineY: Int): Int {
-        val fm = textView.paint.fontMetrics
-        return (baselineY + fm.ascent).toInt()
-    }
 
     private val maintenanceParams = RelativeLayout.LayoutParams(
         RelativeLayout.LayoutParams.WRAP_CONTENT,
@@ -84,51 +73,6 @@ class InstrumentProjector(outerContext: Context, display: Display) : BaseProject
         )
 
         setContentView(rootLayout)
-
-        insideTempTextView = TextView(context).apply {
-            text = "↓--.-°"
-            textSize = 28f
-            setTextColor(COLOR_TEXT)
-            alpha = 150 / 255f
-            typeface = android.graphics.Typeface.create(
-                "sans-serif-light",
-                android.graphics.Typeface.NORMAL
-            )
-        }
-
-        outsideTempTextView = TextView(context).apply {
-            id = View.generateViewId()
-            text = "↑--.-°"
-            textSize = 28f
-            setTextColor(COLOR_TEXT)
-            alpha = 150 / 255f
-            typeface = android.graphics.Typeface.create(
-                "sans-serif-light",
-                android.graphics.Typeface.NORMAL
-            )
-        }
-
-        rootLayout.addView(
-            insideTempTextView,
-            RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.WRAP_CONTENT,
-                RelativeLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                leftMargin = 1175
-                topMargin = this@InstrumentProjector.baselineToTop(insideTempTextView!!, 45)
-            }
-        )
-
-        rootLayout.addView(
-            outsideTempTextView,
-            RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.WRAP_CONTENT,
-                RelativeLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                leftMargin = 700
-                topMargin = this@InstrumentProjector.baselineToTop(outsideTempTextView!!, 45)
-            }
-        )
 
         serviceManager.addDataChangedListener(this)
         preferences.registerOnSharedPreferenceChangeListener(prefsListener)
@@ -195,31 +139,11 @@ class InstrumentProjector(outerContext: Context, display: Display) : BaseProject
             blinkAnimator = null
             maintenanceTextView!!.alpha = 1f
         }
-
-        val insideTempStr = serviceManager.getData(CarConstants.CAR_BASIC_INSIDE_TEMP.value)
-        insideTempStr?.toFloatOrNull()?.let {
-            insideTempTextView?.text = "↓ ${String.format(Locale.US, "%.1f", it)}°"
-        }
-
-        val outsideTempStr = serviceManager.getData(CarConstants.CAR_BASIC_OUTSIDE_TEMP.value)
-        outsideTempStr?.toFloatOrNull()?.let {
-            outsideTempTextView?.text = "↑ ${String.format(Locale.US, "%.1f", it)}°"
-        }
     }
 
     override fun onDataChanged(key: String, value: String) {
         if (key == CarConstants.CAR_BASIC_TOTAL_ODOMETER.value) {
             currentKm = value.toInt()
-        } else if (key == CarConstants.CAR_BASIC_INSIDE_TEMP.value) {
-            val parsed = value.toFloatOrNull()
-            if (parsed != null) {
-                ensureUi { insideTempTextView?.text = "↓ ${String.format(Locale.US, "%.1f", parsed)}°" }
-            }
-        } else if (key == CarConstants.CAR_BASIC_OUTSIDE_TEMP.value) {
-            val parsed = value.toFloatOrNull()
-            if (parsed != null) {
-                ensureUi { outsideTempTextView?.text = "↑ ${String.format(Locale.US, "%.1f", parsed)}°" }
-            }
         }
     }
 
