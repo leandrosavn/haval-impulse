@@ -63,6 +63,18 @@
         background-color 0.3s ease;
 }
 
+.menu-item.spacer {
+    height: 2px;
+    width: 200px;
+    background-color: #5d9ef4;
+    padding: 0;
+    opacity: 0.5;
+    border-radius: 0;
+}
+.menu-item.spacer * {
+    display: none;
+}
+
 .icon-container {
     width: 56px;
     height: 56px;

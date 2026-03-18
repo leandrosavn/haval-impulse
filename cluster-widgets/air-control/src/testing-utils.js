@@ -5,7 +5,8 @@ const focusableAreas = {
     main_menu: menuItems.map(item => item.id),
     ac_control: ['fan', 'temp'],
     regen: ['Baixo', 'Normal', 'Alto'],
-    graph: ['evConsumption', 'gasConsumption', 'carSpeed']
+    graph: ['evConsumption', 'gasConsumption', 'carSpeed'],
+    display_selection: ['sel_template', 'mode_normal', 'mode_reduzido', 'mode_clean']
 };
 
 document.addEventListener('keydown', (e) => {
@@ -20,7 +21,7 @@ document.addEventListener('keydown', (e) => {
         const currentIndex = cards.indexOf(currentCardId);
         const nextIndex = (currentIndex + 1) % cards.length;
         const targetCard = cards[nextIndex];
-        const cardMeaning = {0: 'Hide Menu', 1: 'Main Menu', 3: 'AC Menu'};
+        const cardMeaning = { 0: 'Hide Menu', 1: 'Main Menu', 3: 'AC Menu' };
         console.log(`[Card Simulation] Cycle Up -> Card ${targetCard} (${cardMeaning[targetCard]})`);
         setState('cardId', targetCard);
         return;
@@ -30,7 +31,7 @@ document.addEventListener('keydown', (e) => {
         const currentIndex = cards.indexOf(currentCardId);
         const prevIndex = (currentIndex - 1 + cards.length) % cards.length;
         const targetCard = cards[prevIndex];
-        const cardMeaning = {0: 'Hide Menu', 1: 'Main Menu', 3: 'AC Menu'};
+        const cardMeaning = { 0: 'Hide Menu', 1: 'Main Menu', 3: 'AC Menu' };
         console.log(`[Card Simulation] Cycle Down -> Card ${targetCard} (${cardMeaning[targetCard]})`);
         setState('cardId', targetCard);
         return;
@@ -41,14 +42,6 @@ document.addEventListener('keydown', (e) => {
             window.showScreen('main_menu');
         }
         return;
-    }
-
-    if (e.key === 'Enter') {
-        const currentDisplay = stateManager.getState().display;
-        if (currentDisplay === 'Clean') {
-            setState('display', 'Normal');
-            return;
-        }
     }
 
     if (currentScreen === 'main_menu') {
@@ -68,7 +61,7 @@ document.addEventListener('keydown', (e) => {
                 const newStatus = (currentStatus === 'ON') ? 'OFF' : 'ON';
                 setState('espStatus', newStatus);
             } else if (currentState.focusedMenuItem === 'option_2') {
-                const modes = ['HEV', 'PHEV', 'EV'];
+                const modes = ['EV', 'EVP', 'HEV'];
                 const currentMode = stateManager.getState().evMode;
                 const currentIndex = modes.indexOf(currentMode);
                 const nextIndex = (currentIndex + 1) % modes.length;
@@ -191,6 +184,28 @@ document.addEventListener('keydown', (e) => {
             const currentIndex = controls.indexOf(currentGraph);
             const prevIndex = (currentIndex - 1 + controls.length) % controls.length;
             window.control('currentGraph', controls[prevIndex]);
+        }
+    }
+    else if (currentScreen === 'display_selection') {
+        const controls = focusableAreas.display_selection;
+        const currentFocus = currentState.displayFocus || 'sel_template';
+        const currentIndex = Math.max(0, controls.indexOf(currentFocus));
+
+        if (e.key === 'ArrowUp') {
+            const prevIndex = (currentIndex - 1 + controls.length) % controls.length;
+            window.focus(controls[prevIndex]);
+        } else if (e.key === 'ArrowDown') {
+            const nextIndex = (currentIndex + 1) % controls.length;
+            window.focus(controls[nextIndex]);
+        } else if (e.key === 'Enter') {
+            const currentDisplay = currentState.display || 'Normal';
+            if (currentDisplay === 'Clean') {
+                window.control('display', 'Normal');
+                window.focus('mode_normal');
+            } else if (currentFocus.startsWith('mode_')) {
+                const newDisplay = currentFocus.replace('mode_', '');
+                window.control('display', newDisplay.charAt(0).toUpperCase() + newDisplay.slice(1));
+            }
         }
     }
 
@@ -333,7 +348,7 @@ window.simulationInterval = setInterval(() => {
 
     const currentFuelPercent = Math.max(0, Math.min(100, Math.round(percent)));
     const currentBatteryPercent = Math.max(0, Math.min(100, Math.round(percent)));
-    
+
     setState('fuelPercent', currentFuelPercent);
     setState('batteryPercent', currentBatteryPercent);
     setState('fuelRange', Math.round((currentFuelPercent / 100) * MAX_FUEL_RANGE));

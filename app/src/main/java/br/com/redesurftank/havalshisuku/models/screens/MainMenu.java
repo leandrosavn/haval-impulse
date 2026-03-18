@@ -34,19 +34,19 @@ public class MainMenu implements Screen {
     }
 
     public static class EvModeOptions {
-        public static final int PHEV = 0;
-        public static final int HEV = 1;
+        public static final int HEV = 0;
+        public static final int EVP = 1;
         public static final int EV = 3;
 
         public static String getLabel(String value) {
             int val = Integer.parseInt(value);
             switch (val) {
                 case 0:
-                    return "'Modo HEV'";
+                    return "'HEV'";
                 case 1:
-                    return "'Prior. EV'";
+                    return "'EVP'";
                 case 3:
-                    return "'Modo EV'";
+                    return "'EV'";
             }
             return "";
         }
@@ -106,6 +106,9 @@ public class MainMenu implements Screen {
             Screen graphScreen = new GraphicsScreen();
             graphScreen.setReturnScreen(this);
             graphScreen.initialize();
+            Screen displaySelectionScreen = new DisplaySelectionScreen();
+            displaySelectionScreen.setReturnScreen(this);
+            displaySelectionScreen.initialize();
 
             // Define menu structure and options available
             menuItems = Arrays.asList(
@@ -116,7 +119,7 @@ public class MainMenu implements Screen {
                     ),
                     new MenuItem(
                             MenuItem.MENU_ID_EVMODE,
-                            new MenuAction.CycleValues(Arrays.asList(EvModeOptions.EV, EvModeOptions.HEV, EvModeOptions.PHEV),
+                            new MenuAction.CycleValues(Arrays.asList(EvModeOptions.EV, EvModeOptions.EVP, EvModeOptions.HEV),
                             CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG)
                     ),
                     new MenuItem(
@@ -126,7 +129,7 @@ public class MainMenu implements Screen {
                     ),
                     new MenuItem(
                             MenuItem.MENU_ID_AC_CONTROL,
-                            new MenuAction.NavigateTo(acControlScreen)
+                            new MenuAction.NavigateTo(displaySelectionScreen)
                     ),
                     new MenuItem(
                             MenuItem.MENU_ID_STEER_MODE,
