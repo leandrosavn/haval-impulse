@@ -222,6 +222,10 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                         val status = args[0] as Int
                         evaluateJsIfReady(webView, "control('maxauto', $status)")
                     }
+                    ServiceManagerEventType.DISPLAY_SCREEN_SELECTION -> {
+                        val payload = args[0] as String
+                        evaluateJsIfReady(webView, payload)
+                    }
                 }
             }
         }
@@ -266,6 +270,11 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
         evaluateJsIfReady(webView, "control('auto', ${sm.getData(CarConstants.CAR_HVAC_AUTO_ENABLE.value)})")
         evaluateJsIfReady(webView, "control('outside_temp', ${sm.getData(CarConstants.CAR_BASIC_OUTSIDE_TEMP.value).toFloat().roundToInt()})")
         evaluateJsIfReady(webView, "control('onepedal', ${sm.getData(CarConstants.CAR_CONFIGURE_PEDAL_CONTROL_ENABLE.value) == "1"})")
+        
+        val tmpl = preferences.getString(SharedPreferencesKeys.CURRENT_CLUSTER_TEMPLATE.key, "Normal")
+        val displ = preferences.getString(SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key, "Normal")
+        evaluateJsIfReady(webView, "control('template', '$tmpl')")
+        evaluateJsIfReady(webView, "control('display', '$displ')")
         
         val isMaskEnabled = preferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key, true)
         evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.MASK_VISIBLE}', $isMaskEnabled)")

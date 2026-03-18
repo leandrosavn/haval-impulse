@@ -1,8 +1,8 @@
-import {getState as get, setState, subscribe} from './state.js';
-import {createMainMenu} from './components/mainMenu.js';
-import {createAcControlScreen, updateProgressRings as updateProgressRingsAC} from "./components/aircon/mainAcControl.js";
-import {createRegenScreen, updateProgressRings as updateProgressRingsRegen } from "./components/regen/regenControl.js";
-import {createGraphScreen } from "./components/graphs/graphs.js";
+import { getState as get, setState, subscribe } from './state.js';
+import { createMainMenu } from './components/mainMenu.js';
+import { createAcControlScreen, updateProgressRings as updateProgressRingsAC } from "./components/aircon/mainAcControl.js";
+import { createRegenScreen, updateProgressRings as updateProgressRingsRegen } from "./components/regen/regenControl.js";
+import { createGraphScreen } from "./components/graphs/graphs.js";
 import { createMask } from './components/mask.js';
 import { createDashboardInfo } from './components/dashboardInfo.js';
 import { createDisplaySelectionScreen } from './components/displaySelection.js';
@@ -18,24 +18,26 @@ let maskComponent = null;
 
 // Create container for dynamic content to separate from persistent mask
 const contentContainer = div({ className: 'content-container' });
+const menuWrapper = div({ className: 'menu-positioned-container' });
+contentContainer.appendChild(menuWrapper);
 
 function initializeLayout() {
     if (!appContainer) return;
     appContainer.innerHTML = '';
-    
+
     // Add mask background first (z-index: 50)
     const mask = createMask();
     maskComponent = mask;
-    
+
     appContainer.appendChild(mask.background);
-    
+
     // Add content container (z-index: 100)
     appContainer.appendChild(contentContainer);
-    
+
     // Add Dashboard Info (Gauges, Clock, etc.) (z-index: 140)
     const dashboardInfo = createDashboardInfo();
     appContainer.appendChild(dashboardInfo);
-    
+
     // Add mask foreground on top (z-index: 150)
     appContainer.appendChild(mask.foreground);
 }
@@ -53,7 +55,7 @@ function render() {
         currentComponent.cleanup();
     }
 
-    contentContainer.innerHTML = '';
+    menuWrapper.innerHTML = '';
 
     if (screen === 'main_menu') {
         currentComponent = createMainMenu();
@@ -71,13 +73,11 @@ function render() {
         const element = currentComponent.element || currentComponent;
         const onMount = currentComponent.onMount;
         currentComponent = element;
-        
-        // Wrap in positioned container to maintain (1630, 430) placement
-        const wrapper = div({ className: 'menu-positioned-container' }, element);
-        contentContainer.appendChild(wrapper);
-        
+
+        menuWrapper.appendChild(element);
+
         if (onMount) {
-            onMount();
+            currentComponent.cleanup = onMount();
         }
     }
 }
@@ -86,6 +86,7 @@ initializeLayout();
 
 // Start rendering and subscribe to listen for screen changes thus triggering new render
 subscribe('screen', render);
+subscribe('display', render);
 render();
 
 // Handle Card ID transitions
@@ -103,26 +104,36 @@ subscribe('cardId', (cardId) => {
     }
 });
 
+// Keyboard shortcuts
+window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() === 'k') {
+        const current = get('maskVisible');
+        setState('maskVisible', !current);
+    }
+});
+
 
 // Functions used by Kotlin to trigger interactions
-window.showScreen = function(screenName) {
+window.showScreen = function (screenName) {
     setState('screen', screenName);
 };
 
-window.focus = function(item) {
+window.focus = function (item) {
     const screen = get('screen');
     if (screen === 'main_menu') {
         setState('focusedMenuItem', item);
     } else if (screen === 'aircon') {
         setState('focusArea', item);
+    } else if (screen === 'display_selection') {
+        setState('displayFocus', item);
     }
 };
 
-window.control = function(key, value) {
+window.control = function (key, value) {
     setState(key, value);
 };
 
-window.cleanup = function() {
+window.cleanup = function () {
     if (currentComponent && currentComponent.cleanup) {
         currentComponent.cleanup();
     }

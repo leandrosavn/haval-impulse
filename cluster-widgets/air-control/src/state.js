@@ -104,6 +104,7 @@ var stateManager = new StateManager({
     // Template states
     template: 'Normal',
     display: 'Normal',
+    displayFocus: 'sel_template',
     maskVisible: true,
     fuelPercent: 0,
     batteryPercent: 0,
@@ -165,5 +166,10 @@ const updateInstantConsumption = () => {
 
 subscribe('evPowerKw', updateInstantConsumption);
 subscribe('carSpeed', updateInstantConsumption);
+
+// Synchronize driving mode with top bar label
+subscribe('drivingMode', (val) => {
+    setState('evModeLabel', val.toUpperCase());
+});
 
 export { stateManager, getState, setState, subscribe, state };

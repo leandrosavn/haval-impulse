@@ -1,4 +1,4 @@
-import { getState, subscribe } from '../state.js';
+import { getState, setState, subscribe } from '../state.js';
 import { div, span, img } from '../utils/createElement.js';
 
 const fuelIconBase64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xLDEyTDUsOVYxNVoiLz48cGF0aCBkPSJNMjIsMTBWOGEyLDIsMCwwLDAtMi0yaC0zVjRhMiwyLDAsMCwwLTItMkg5QTIsMiwwLDAsMCw3LDR2MTZhMiwyLDAsMCwwLDIsMmg4YTIsMiwwLDAsMCwyLTJWMTJoMXY0YTIsMiwwLDAsMCw0LDBWMTBaTTksNGg4djZIOVptOCwxNkg5VjEyaDhaIi8+PC9zdmc+";
@@ -22,6 +22,18 @@ export function createDashboardInfo() {
     updateGearColor(gearValue);
 
     const evMode = span({ className: 'dashboard-ev-mode', children: [getState('evModeLabel')] });
+
+    const updateEvModeColor = (val) => {
+        const lowerVal = String(val).toLowerCase();
+        if (lowerVal.includes('eco')) {
+            evMode.style.color = '#4CAF50';
+        } else if (lowerVal.includes('sport')) {
+            evMode.style.color = '#FF4D4D';
+        } else {
+            evMode.style.color = '#ffffff';
+        }
+    };
+    updateEvModeColor(getState('evModeLabel'));
 
     topCenter.appendChild(clock);
     topCenter.appendChild(gear);
@@ -152,17 +164,64 @@ export function createDashboardInfo() {
     batteryContainer.appendChild(batteryLabels);
 
     bottomGauges.appendChild(fuelContainer);
-    bottomGauges.appendChild(batteryContainer);
 
-    const cleanExitBtn = div({ 
-        className: 'clean-exit-btn', 
-        children: ['OK para Sair do Modo Clean'] 
-    });
+    // Temperature Labels
+    const externalTempContainer = div({ className: 'external-temp-container' });
+    const externalTempValue = span({ className: 'temp-value', children: [getState('outside_temp') + '°C'] });
+    const externalTempLabel = span({ className: 'temp-sub-label', children: ['External'] });
+    externalTempContainer.appendChild(externalTempValue);
+    externalTempContainer.appendChild(externalTempLabel);
+
+    const internalTempContainer = div({ className: 'internal-temp-container' });
+    const internalTempValue = span({ className: 'temp-value', children: [getState('inside_temp') + '°C'] });
+    const internalTempLabel = span({ className: 'temp-sub-label', children: ['Internal'] });
+    internalTempContainer.appendChild(internalTempValue);
+    internalTempContainer.appendChild(internalTempLabel);
+
+    // EV Mode Display (Bottom Right)
+    const bottomEvMode = div({ className: 'dashboard-bottom-ev-mode' });
+    const bottomEvLabel = span({ className: 'bottom-ev-label' });
+
+    const updateBottomEv = (val) => {
+        const cleanVal = String(val).toUpperCase().replace(/'/g, "");
+        if (cleanVal === 'EV') {
+            bottomEvLabel.textContent = 'EV';
+            bottomEvLabel.style.color = '#00beff'; // Blue
+        } else if (cleanVal === 'EVP') {
+            bottomEvLabel.textContent = 'EV';
+            bottomEvLabel.style.color = '#4CAF50'; // Green (EVP)
+        } else if (cleanVal === 'HEV') {
+            bottomEvLabel.textContent = 'HEV';
+            bottomEvLabel.style.color = '#ffffff'; // White (HEV)
+        } else {
+            bottomEvLabel.textContent = val;
+            bottomEvLabel.style.color = '#ffffff';
+        }
+    };
+    updateBottomEv(getState('evMode'));
+
+    bottomEvMode.appendChild(bottomEvLabel);
+    bottomGauges.appendChild(batteryContainer);
 
     container.appendChild(topCenter);
     container.appendChild(speedContainer);
     container.appendChild(bottomGauges);
-    container.appendChild(cleanExitBtn);
+    container.appendChild(externalTempContainer);
+    container.appendChild(internalTempContainer);
+    container.appendChild(bottomEvMode);
+
+    const updateCleanModeVisibility = (visible) => {
+        const display = visible ? 'flex' : 'none';
+
+        topCenter.style.display = display;
+        speedContainer.style.display = display;
+        bottomGauges.style.display = display;
+        bottomEvMode.style.display = display;
+
+        // Temperatures should stay visible
+        externalTempContainer.style.display = 'flex';
+        internalTempContainer.style.display = 'flex';
+    };
 
     // Subscriptions
     const updateBarSegments = (tracks, percent) => {
@@ -205,7 +264,13 @@ export function createDashboardInfo() {
         gear.textContent = val;
         updateGearColor(val);
     });
-    const sub2 = subscribe('evModeLabel', val => evMode.textContent = val);
+    const sub2 = subscribe('evModeLabel', val => {
+        evMode.textContent = val;
+        updateEvModeColor(val);
+    });
+    const sub4 = subscribe('evMode', val => {
+        updateBottomEv(val);
+    });
     const sub3 = subscribe('carSpeed', val => {
         speedValue.textContent = val;
         updateSpeedRotation(val);
@@ -220,14 +285,18 @@ export function createDashboardInfo() {
     });
     const sub7 = subscribe('fuelRange', val => fuelTop.querySelector('.fuel-range').textContent = val + ' km');
     const sub8 = subscribe('batteryRange', val => batteryTop.querySelector('.battery-range').textContent = val + ' km');
+    const sub9 = subscribe('outside_temp', val => externalTempValue.textContent = val + '°C');
+    const sub10 = subscribe('inside_temp', val => internalTempValue.textContent = val + '°C');
+    const sub11 = subscribe('maskVisible', val => updateCleanModeVisibility(val));
 
     updateBarSegments(fuelSegments, getState('fuelPercent'));
     updateBarSegments(batterySegments, getState('batteryPercent'));
     updateSpeedRotation(getState('carSpeed'));
+    updateCleanModeVisibility(getState('maskVisible'));
 
     container.cleanup = () => {
         clearInterval(clockInterval);
-        [sub0, sub1, sub2, sub3, sub5, sub6, sub7, sub8].forEach(un => un());
+        [sub0, sub1, sub2, sub3, sub4, sub5, sub6, sub7, sub8, sub9, sub10, sub11].forEach(un => un());
     };
 
     return container;
