@@ -154,9 +154,15 @@ export function createDashboardInfo() {
     bottomGauges.appendChild(fuelContainer);
     bottomGauges.appendChild(batteryContainer);
 
+    const cleanExitBtn = div({ 
+        className: 'clean-exit-btn', 
+        children: ['OK para Sair do Modo Clean'] 
+    });
+
     container.appendChild(topCenter);
     container.appendChild(speedContainer);
     container.appendChild(bottomGauges);
+    container.appendChild(cleanExitBtn);
 
     // Subscriptions
     const updateBarSegments = (tracks, percent) => {

@@ -43,6 +43,14 @@ document.addEventListener('keydown', (e) => {
         return;
     }
 
+    if (e.key === 'Enter') {
+        const currentDisplay = stateManager.getState().display;
+        if (currentDisplay === 'Clean') {
+            setState('display', 'Normal');
+            return;
+        }
+    }
+
     if (currentScreen === 'main_menu') {
         const menuItems = focusableAreas.main_menu;
         const currentIndex = menuItems.indexOf(currentState.focusedMenuItem);
@@ -74,12 +82,7 @@ document.addEventListener('keydown', (e) => {
                 const newMode = modes[nextIndex];
                 setState('drivingMode', newMode);
             } else if (currentState.focusedMenuItem === 'option_4') {
-                setState('fan', 1);
-                setState('temp', 21.0);
-                setState('outside_temp', 28.5);
-                setState('inside_temp', 23.0);
-                setState('targetTemp', 21.0);
-                window.showScreen('aircon');
+                window.showScreen('display_selection');
             } else if (currentState.focusedMenuItem === 'option_5') {
                 const modes = ['Normal', 'Conforto', 'Esportiva'];
                 const currentMode = stateManager.getState().steerMode;

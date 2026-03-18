@@ -5,6 +5,7 @@ import {createRegenScreen, updateProgressRings as updateProgressRingsRegen } fro
 import {createGraphScreen } from "./components/graphs/graphs.js";
 import { createMask } from './components/mask.js';
 import { createDashboardInfo } from './components/dashboardInfo.js';
+import { createDisplaySelectionScreen } from './components/displaySelection.js';
 import { div } from './utils/createElement.js';
 
 if (process.env.NODE_ENV === 'development') {
@@ -41,6 +42,12 @@ function initializeLayout() {
 
 function render() {
     const screen = get('screen');
+    const displayMode = get('display') || 'Normal';
+
+    // Update app class based on display mode
+    if (appContainer) {
+        appContainer.className = (appContainer.className.split(' ').filter(c => !c.startsWith('display-')).join(' ') + ' display-' + displayMode.toLowerCase()).trim();
+    }
 
     if (currentComponent && currentComponent.cleanup) {
         currentComponent.cleanup();
@@ -56,6 +63,8 @@ function render() {
         currentComponent = createRegenScreen();
     } else if (screen === 'graph') {
         currentComponent = createGraphScreen();
+    } else if (screen === 'display_selection') {
+        currentComponent = createDisplaySelectionScreen();
     }
 
     if (currentComponent) {

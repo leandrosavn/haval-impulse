@@ -14,7 +14,7 @@ export const menuItems = [
     {id: 'option_1', label: 'ESP',         stateKey: 'espStatus',   iconSrc: iconESP},
     {id: 'option_2', label: '',            stateKey: 'evMode',      iconSrc: iconEV},
     {id: 'option_3', label: 'Modo',        stateKey: 'drivingMode', iconSrc: iconMode},
-    {id: 'option_4', label: 'Menu A/C',                             iconSrc: iconAC},
+    {id: 'option_4', label: 'Template/Modo',                        iconSrc: iconMode},
     {id: 'option_5', label: 'Modo',        stateKey: 'steerMode',   iconSrc: iconSteer},
     {id: 'option_6', label: 'Regeneração',                          iconSrc: iconRegen},
     {id: 'option_7', label: 'Gráficos',                             iconSrc: iconProfiles},

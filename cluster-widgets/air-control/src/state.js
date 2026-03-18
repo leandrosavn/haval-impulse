@@ -102,7 +102,8 @@ var stateManager = new StateManager({
     evPowerKwAvg: 0,
 
     // Template states
-    templateId: 'default',
+    template: 'Normal',
+    display: 'Normal',
     maskVisible: true,
     fuelPercent: 0,
     batteryPercent: 0,
