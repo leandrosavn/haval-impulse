@@ -32,8 +32,6 @@
 .display-clean .mask-circle-border,
 .display-clean .needle-trail-wrapper,
 .display-clean .speed-needle-container,
-.display-clean .dashboard-limit-sign,
-.display-clean .dashboard-ready,
 .display-clean .dashboard-speed-dial {
     opacity: 0 !important;
     visibility: hidden !important;
@@ -124,13 +122,13 @@
 }
 
 .mask-top-bar {
+background: linear-gradient(#000 60%,rgba(0,0,0,.5) 65%,rgba(0,0,0,.2) 100%);
+    width: 100%;
+    height: 135px;
     position: absolute;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 125px;
-    background: linear-gradient(#000 48%, rgba(0, 0, 0, 0.5) 52%, rgba(0, 0, 0, 0.2) 100%);
-    box-shadow: 0 20px 80px rgba(0, 0, 0, 1);
+    box-shadow: 0 10px 80px #000;
 }
 
 .mask-bottom-bar {
@@ -139,7 +137,7 @@
     left: 0;
     width: 100%;
     height: 80px;
-    background-color: rgba(0, 0, 0, 0.8);
+    background-color: rgba(0, 0, 0, 1);
     box-shadow: 0 -15px 60px rgba(0, 0, 0, 1);
 }
 
@@ -157,6 +155,7 @@
 .mask-circle.left {
     left: calc(var(--mask-left-x) - var(--mask-radius) + var(--display-left-offset));
     transform: scale(var(--display-scale));
+    background: radial-gradient(circle at center, rgb(0 0 0 / 0%) 0%, rgb(0 0 0 / 100%) 70%, rgb(0 0 0 / 100%) 80%, rgb(0 0 0) 100%);
 }
 
 .mask-circle.right {
@@ -268,10 +267,9 @@
     height: 380px;
     border: 2px solid rgba(160, 180, 255, 0.5);
     border-radius: 50%;
-    background: radial-gradient(circle at center, rgba(0, 0, 0, 0.8) 20%, rgba(160, 180, 255, 0.6) 100%);
+    background: radial-gradient(circle,rgba(0,0,0,.8) 0%,rgba(0,0,0,.6) 80%,rgba(160,180,255,.6) 100%);
     box-shadow: 0 0 50px 10px #6477ff85;
     backdrop-filter: blur(10px) saturate(180%);
-    -webkit-backdrop-filter: blur(10px) saturate(180%);
     z-index: 11;
     transition: all .6s cubic-bezier(.4, 0, .2, 1);
 }

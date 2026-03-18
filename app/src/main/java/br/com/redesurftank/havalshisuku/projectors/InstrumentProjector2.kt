@@ -121,17 +121,18 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                     CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE.value -> {
                         evaluateJsIfReady(webView, "control('fuelPercent', $value)")
                     }
-                    CarConstants.CAR_EV_INFO_BATTERY_CHARGE_PERCENTAGE.value -> {
+                    CarConstants.CAR_EV_INFO_CUR_BATTERY_POWER_PERCENTAGE.value -> {
                         evaluateJsIfReady(webView, "control('batteryPercent', $value)")
                     }
+                    CarConstants.CAR_EV_INFO_FUEL_MODE_REMAIN_ODOMETER.value -> {
+                        evaluateJsIfReady(webView,"control('fuelRange', $value)")
+                    }
+                    CarConstants.CAR_EV_INFO_ELECTRIC_MODE_REMAIN_ODOMETER.value -> {
+                        evaluateJsIfReady(webView,"control('batteryRange', $value)")
+                    }
+
                     CarConstants.CAR_BASIC_GEAR_STATUS.value -> {
-                        val gear = when(value.toString().toIntOrNull()) {
-                            1 -> "P"
-                            2 -> "R"
-                            3 -> "N"
-                            4 -> "D"
-                            else -> "P"
-                        }
+                        val gear = getGearLabel(value.toString());
                         evaluateJsIfReady(webView, "control('gearState', '$gear')")
                     }
                     CarConstants.CAR_HVAC_FAN_SPEED.value -> evaluateJsIfReady(webView, "control('fan', $value)")
@@ -193,7 +194,6 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                 when (event) {
                     ServiceManagerEventType.CLUSTER_CARD_CHANGED -> {
                         val card = args[0] as Int
-                        // In the new full-screen template, card transitions might affect visibility of secondary elements
                         if (card == 1 || card == 3) {
                             MainUiManager.getInstance().handleCardChange(card)
                             updateValuesWebView()
@@ -268,16 +268,16 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
         evaluateJsIfReady(webView, "control('power', ${sm.getData(CarConstants.CAR_HVAC_POWER_MODE.value)})")
         evaluateJsIfReady(webView, "control('recycle', ${sm.getData(CarConstants.CAR_HVAC_CYCLE_MODE.value)})")
         evaluateJsIfReady(webView, "control('auto', ${sm.getData(CarConstants.CAR_HVAC_AUTO_ENABLE.value)})")
+        evaluateJsIfReady(webView, "control('inside_temp', ${sm.getData(CarConstants.CAR_BASIC_INSIDE_TEMP.value).toFloat().roundToInt()})")
         evaluateJsIfReady(webView, "control('outside_temp', ${sm.getData(CarConstants.CAR_BASIC_OUTSIDE_TEMP.value).toFloat().roundToInt()})")
         evaluateJsIfReady(webView, "control('onepedal', ${sm.getData(CarConstants.CAR_CONFIGURE_PEDAL_CONTROL_ENABLE.value) == "1"})")
-        
-        val tmpl = preferences.getString(SharedPreferencesKeys.CURRENT_CLUSTER_TEMPLATE.key, "Normal")
-        val displ = preferences.getString(SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key, "Normal")
-        evaluateJsIfReady(webView, "control('template', '$tmpl')")
-        evaluateJsIfReady(webView, "control('display', '$displ')")
-        
-        val isMaskEnabled = preferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key, true)
-        evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.MASK_VISIBLE}', $isMaskEnabled)")
+
+        evaluateJsIfReady(webView, "control('fuelPercent', ${sm.getData(CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE.value)})")
+        evaluateJsIfReady(webView, "control('batteryPercent', ${sm.getData(CarConstants.CAR_EV_INFO_CUR_BATTERY_POWER_PERCENTAGE.value)})")
+        evaluateJsIfReady(webView, "control('fuelRange', ${sm.getData(CarConstants.CAR_EV_INFO_FUEL_MODE_REMAIN_ODOMETER.value)})")
+        evaluateJsIfReady(webView, "control('batteryRange', ${sm.getData(CarConstants.CAR_EV_INFO_ELECTRIC_MODE_REMAIN_ODOMETER.value)})")
+        evaluateJsIfReady(webView, "control('gearState', '${getGearLabel(sm.getData(CarConstants.CAR_BASIC_GEAR_STATUS.value))})")
+
     }
 
     private fun updateMaskVisibility() {
@@ -305,4 +305,16 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
     override fun carMainScreenOn() {
         ensureUi { root.visibility = View.VISIBLE }
     }
+
+    fun getGearLabel(gear: String?): String {
+        val gearLabel = when(gear.toString().toIntOrNull()) {
+            1 -> "N"
+            2 -> "D"
+            3 -> "P"
+            4 -> "R"
+            else -> "P"
+        }
+        return gearLabel;
+    }
+
 }

@@ -120,8 +120,10 @@ public class ServiceManager {
             CarConstants.CAR_CONFIGURE_PEDAL_CONTROL_ENABLE,
             CarConstants.CAR_BASIC_INSTANT_FUEL_CONSUMPTION,
             CarConstants.CAR_EV_INFO_CUR_CHARGE_CURRENT,
-            CarConstants.CAR_EV_INFO_POWER_BATTERY_VOLTAGE
-
+            CarConstants.CAR_EV_INFO_POWER_BATTERY_VOLTAGE,
+            CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE,
+            CarConstants.CAR_EV_INFO_FUEL_MODE_REMAIN_ODOMETER,
+            CarConstants.CAR_EV_INFO_ELECTRIC_MODE_REMAIN_ODOMETER
     };
 
     private static final CarConstants[] KEYS_TO_SAVE = {
@@ -398,6 +400,12 @@ public class ServiceManager {
                                     break;
                                 case 1025:
                                     key = Screen.Key.DOWN;
+                                    break;
+                                case 1026:
+                                    key = Screen.Key.LEFT;
+                                    break;
+                                case 1027:
+                                    key = Screen.Key.RIGHT;
                                     break;
                                 case 1028:
                                     key = Screen.Key.ENTER;
