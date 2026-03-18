@@ -61,6 +61,7 @@ StateManager.prototype._notifyListeners = function (key, value) {
 var stateManager = new StateManager({
     // Main Menu state
     screen: 'main_menu',
+    cardId: 1,
     focusedMenuItem: 'option_4',
     espStatus: 'ON',
     drivingMode: 'Normal',
@@ -103,10 +104,10 @@ var stateManager = new StateManager({
     // Template states
     templateId: 'default',
     maskVisible: true,
-    fuelPercent: 75,
-    batteryPercent: 45,
-    fuelRange: 357,
-    batteryRange: 169,
+    fuelPercent: 0,
+    batteryPercent: 0,
+    fuelRange: 0,
+    batteryRange: 0,
     clockTime: '13:21',
     gearState: 'P',
     evModeLabel: 'NORMAL',

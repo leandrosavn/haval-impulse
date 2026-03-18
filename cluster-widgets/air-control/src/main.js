@@ -79,6 +79,21 @@ initializeLayout();
 subscribe('screen', render);
 render();
 
+// Handle Card ID transitions
+subscribe('cardId', (cardId) => {
+    console.log('Actual Card:', cardId);
+    // 0 = hide the right menu display
+    contentContainer.style.display = (cardId === 0) ? 'none' : 'block';
+
+    if (cardId === 1) {
+        // 1 = go to main regular menu
+        setState('screen', 'main_menu');
+    } else if (cardId === 3) {
+        // 3 = set to AC menu
+        setState('screen', 'aircon');
+    }
+});
+
 
 // Functions used by Kotlin to trigger interactions
 window.showScreen = function(screenName) {

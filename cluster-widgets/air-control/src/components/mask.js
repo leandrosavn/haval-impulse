@@ -24,11 +24,19 @@ export function createMask() {
 
     const updateVisibility = () => {
         const visible = get('maskVisible');
+        const cardId = get('cardId');
+        
         maskFg.style.opacity = visible ? '1' : '0';
         maskBg.style.opacity = visible ? '1' : '0';
+        
+        // Hide right circle if cardId is 0
+        const rightVisible = visible && (cardId !== 0);
+        rightCircle.style.opacity = rightVisible ? '1' : '0';
+        rightCircleBorder.style.opacity = rightVisible ? '1' : '0';
     };
 
-    const unsubscribe = subscribe('maskVisible', updateVisibility);
+    const unsub1 = subscribe('maskVisible', updateVisibility);
+    const unsub2 = subscribe('cardId', updateVisibility);
     updateVisibility();
 
     // Use a combined object for cleanup
@@ -36,7 +44,8 @@ export function createMask() {
         background: maskBg,
         foreground: maskFg,
         cleanup: () => {
-            unsubscribe();
+            unsub1();
+            unsub2();
         }
     };
 

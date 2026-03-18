@@ -4,11 +4,9 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Color
-import android.graphics.Outline
 import android.os.Bundle
 import android.view.Display
 import android.view.View
-import android.view.ViewOutlineProvider
 import android.view.WindowManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -27,10 +25,21 @@ import br.com.redesurftank.havalshisuku.models.screens.GraphicsScreen
 import br.com.redesurftank.havalshisuku.models.screens.MainMenu
 import br.com.redesurftank.havalshisuku.models.screens.RegenScreen
 import br.com.redesurftank.havalshisuku.models.screens.Screen
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.roundToInt
 
 class InstrumentProjector2(outerContext: Context, display: Display) :
         BaseProjector(outerContext, display) {
+    
+    private val clockRunnable = object : Runnable {
+        override fun run() {
+            val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+            evaluateJsIfReady(webView, "control('clockTime', '$time')")
+            handler.postDelayed(this, 30000) // Update every 30s
+        }
+    }
     private val preferences: SharedPreferences =
             App.getDeviceProtectedContext()
                     .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
@@ -43,10 +52,6 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
     private var batteryVoltage = 0f
     private var batteryCurrent = 0f
     
-    private var speedTextView: android.widget.TextView? = null
-    private var fuelTextView: android.widget.TextView? = null
-    private var batteryTextView: android.widget.TextView? = null
-
     private val prefsListener =
             SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
                 if (key in
@@ -80,6 +85,7 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handler.post(clockRunnable)
         preferences.registerOnSharedPreferenceChangeListener(prefsListener)
         WebView.setWebContentsDebuggingEnabled(true)
         window?.setBackgroundDrawable(Color.TRANSPARENT.toDrawable())
@@ -91,42 +97,17 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
             setBackgroundColor(Color.TRANSPARENT)
         }
         setContentView(root)
-
-        // Native Overlays for Display 1 (Speed, Fuel, Battery)
-        if (display.displayId == 1) {
-            setupNativeOverlays()
-        }
-
-        // Full-screen WebView for Template
-        setupAcControlView(root)
-        
+        setupControlView(root)
         updateMaskVisibility()
-
         setupDataListeners()
 
         root.isVisible = shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn
     }
-
-    private fun setupNativeOverlays() {
-        val radius = 226
-        val centerY = 430
-        val leftCenterX = 290
-        
-        // Speed Indicator
-        speedTextView = android.widget.TextView(context).apply {
-            layoutParams = FrameLayout.LayoutParams(radius * 2, radius * 2).apply {
-                leftMargin = leftCenterX - radius
-                topMargin = centerY - radius - 10
-            }
-            gravity = android.view.Gravity.CENTER
-            setTextColor(Color.WHITE)
-            textSize = 100f
-            setTypeface(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD)
-            scaleY = 0.8f
-            text = "0"
-            translationZ = 120f // Ensure it's on top of WebView
-        }
-        root.addView(speedTextView)
+    
+    override fun onStop() {
+        super.onStop()
+        handler.removeCallbacks(clockRunnable)
+        preferences.unregisterOnSharedPreferenceChangeListener(prefsListener)
     }
 
     private fun setupDataListeners() {
@@ -135,16 +116,23 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                 when (key) {
                     CarConstants.CAR_BASIC_VEHICLE_SPEED.value -> {
                         val speedStr = value.toString().split(".")[0]
-                        speedTextView?.text = speedStr
                         evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.CAR_SPEED}', $speedStr)")
                     }
                     CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE.value -> {
-                        fuelTextView?.text = "GAS: $value%"
-                        evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.FUEL_PERCENT}', $value)")
+                        evaluateJsIfReady(webView, "control('fuelPercent', $value)")
                     }
                     CarConstants.CAR_EV_INFO_BATTERY_CHARGE_PERCENTAGE.value -> {
-                        batteryTextView?.text = "EV: $value%"
-                        evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.BATTERY_PERCENT}', $value)")
+                        evaluateJsIfReady(webView, "control('batteryPercent', $value)")
+                    }
+                    CarConstants.CAR_BASIC_GEAR_STATUS.value -> {
+                        val gear = when(value.toString().toIntOrNull()) {
+                            1 -> "P"
+                            2 -> "R"
+                            3 -> "N"
+                            4 -> "D"
+                            else -> "P"
+                        }
+                        evaluateJsIfReady(webView, "control('gearState', '$gear')")
                     }
                     CarConstants.CAR_HVAC_FAN_SPEED.value -> evaluateJsIfReady(webView, "control('fan', $value)")
                     CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.value -> evaluateJsIfReady(webView, "control('temp', $value)")
@@ -162,7 +150,9 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                         evaluateJsIfReady(webView, "control('evMode', ${MainMenu.EvModeOptions.getLabel(value)})")
                     }
                     CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.value -> {
-                        evaluateJsIfReady(webView, "control('drivingMode', ${MainMenu.DrivingModeOptions.getLabel(value)})")
+                        val label = MainMenu.DrivingModeOptions.getLabel(value)
+                        evaluateJsIfReady(webView, "control('drivingMode', $label)")
+                        evaluateJsIfReady(webView, "control('evModeLabel', $label)")
                     }
                     CarConstants.CAR_DRIVE_SETTING_STEERING_WHEEL_ASSIST_MODE.value -> {
                         evaluateJsIfReady(webView, "control('steerMode', ${MainMenu.SteerModeOptions.getLabel(value)})")
@@ -238,7 +228,7 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun setupAcControlView(parent: FrameLayout) {
+    private fun setupControlView(parent: FrameLayout) {
         if (webView == null) {
             webView = WebView(context).apply {
                 layoutParams = FrameLayout.LayoutParams(
@@ -284,11 +274,6 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
     private fun updateMaskVisibility() {
         val maskEnabled = preferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key, true)
         evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.MASK_VISIBLE}', $maskEnabled)")
-        
-        // Native overlays follow the mask setting
-        speedTextView?.isVisible = maskEnabled
-        fuelTextView?.isVisible = maskEnabled
-        batteryTextView?.isVisible = maskEnabled
     }
 
     private fun evaluateJsIfReady(webView: WebView?, js: String) {

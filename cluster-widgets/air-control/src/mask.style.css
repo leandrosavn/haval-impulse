@@ -1,3 +1,5 @@
+@import "./fonts/fonts.css";
+
 :root {
     --mask-radius: 228px;
     --mask-center-y: 430px;
@@ -8,13 +10,6 @@
     --mask-shadow: 0 0 60px rgba(0, 0, 0, 1);
 }
 
-@font-face {
-    font-family: 'Eurostile';
-    src: url('./assets/fonts/eurostile.woff') format('woff');
-    font-weight: normal;
-    font-style: normal;
-}
-
 .cluster-mask-bg {
     position: absolute;
     top: 0;
@@ -22,7 +17,8 @@
     width: 1920px;
     height: 720px;
     pointer-events: none;
-    z-index: 50; /* Below content */
+    z-index: 50;
+    /* Below content */
 }
 
 .cluster-mask {
@@ -33,7 +29,8 @@
     height: 720px;
     pointer-events: none;
     transition: opacity 0.5s ease;
-    z-index: 150; /* Above content */
+    z-index: 150;
+    /* Above content */
 }
 
 .content-container {
@@ -43,7 +40,8 @@
     width: 1920px;
     height: 720px;
     overflow: hidden;
-    z-index: 100; /* Between mask layers */
+    z-index: 100;
+    /* Between mask layers */
 }
 
 .menu-positioned-container {
@@ -51,7 +49,8 @@
     left: var(--mask-right-x);
     top: var(--mask-center-y);
     transform: translate(-50%, -50%);
-    width: 456px; /* 228 * 2 */
+    width: 456px;
+    /* 228 * 2 */
     height: 456px;
     /* Circular masking */
     border-radius: 50%;
@@ -66,7 +65,7 @@
     width: 100%;
     height: 125px;
     background: linear-gradient(#000 45%, #000c 55%, #0009 100%);
-    box-shadow: 0 20px 80px rgba(0,0,0,1);
+    box-shadow: 0 20px 80px rgba(0, 0, 0, 1);
 }
 
 .mask-bottom-bar {
@@ -75,8 +74,8 @@
     left: 0;
     width: 100%;
     height: 80px;
-    background-color: rgba(0,0,0,0.8);
-    box-shadow: 0 -15px 60px rgba(0,0,0,1);
+    background-color: rgba(0, 0, 0, 0.8);
+    box-shadow: 0 -15px 60px rgba(0, 0, 0, 1);
 }
 
 .mask-circle {
@@ -103,7 +102,8 @@
     height: calc(var(--mask-radius) * 2);
     border-radius: 50%;
     border: 3px solid var(--mask-border-color);
-    box-sizing: border-box; /* Ensure border is inside the circle */
+    box-sizing: border-box;
+    /* Ensure border is inside the circle */
     top: calc(var(--mask-center-y) - var(--mask-radius));
     pointer-events: none;
     /* Inherits z-index 150 from .cluster-mask */
@@ -127,7 +127,8 @@
     pointer-events: none;
     font-family: 'Khand', sans-serif;
     color: white;
-    z-index: 140; /* Above content (100) but below blue rings (150) */
+    z-index: 140;
+    /* Above content (100) but below blue rings (150) */
 }
 
 /* Top Center (Clock, Gear, Mode) */
@@ -136,17 +137,30 @@
     top: 0;
     left: 50%;
     transform: translateX(-50%);
-    height: 125px; /* Match top bar height */
+    height: 70px;
+    /* Match top bar height */
     display: flex;
     align-items: center;
-    gap: 60px; /* Increased gap */
-    font-size: 34px; /* Increased font size */
+    gap: 60px;
+    /* Increased gap */
+    font-size: 46px;
+    /* Increased font size */
     font-weight: 500;
 }
 
-.dashboard-clock { color: #A3AED0; }
-.dashboard-gear { color: #ff3b30; font-weight: 700; font-size: 40px; }
-.dashboard-ev-mode { color: white; text-transform: uppercase; }
+.dashboard-clock {
+    color: #ffffff;
+}
+
+.dashboard-gear {
+    font-weight: 500;
+    font-size: 60px;
+}
+
+.dashboard-ev-mode {
+    color: white;
+    text-transform: uppercase;
+}
 
 /* Speed Gauge (Left Circle) */
 .dashboard-speed-container {
@@ -174,8 +188,13 @@
     transform: translate(-50%, -50%);
     width: 380px;
     height: 380px;
-    border: 1px solid rgba(255,255,255,0.15);
+    border: 2px solid rgba(160, 180, 255, 0.5);
     border-radius: 50%;
+    background: radial-gradient(circle at center, rgba(0, 0, 0, 0.8) 20%, rgba(160, 180, 255, 0.6) 100%);
+    box-shadow: 0 0 50px 10px #6477ff85;
+    backdrop-filter: blur(10px) saturate(180%);
+    -webkit-backdrop-filter: blur(10px) saturate(180%);
+    z-index: 11;
 }
 
 .speed-needle-container {
@@ -187,21 +206,67 @@
 
 .speed-needle {
     position: absolute;
-    bottom: 20px;
+    bottom: 10px;
     left: 50%;
     transform: translateX(-50%);
-    width: 4px;
-    height: 25px;
+    width: 5px;
+    height: 90px;
     background: linear-gradient(to top, #fff, transparent);
-    box-shadow: 0 0 15px #fff;
-    border-radius: 2px;
+    box-shadow: 0 0 20px #fff;
+    border-radius: 3px;
+    z-index: 10;
 }
+
+.needle-trail-wrapper {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    /* Radius matched to needle tip (432px diameter / 216px radius) */
+    width: 432px;
+    height: 432px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 4;
+    /* Smooth transition for lag effect */
+    transition: transform 0.1s cubic-bezier(0.1, 0, 0.3, 1);
+    mix-blend-mode: hard-light;
+}
+
+.needle-trail {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border-style: solid;
+    border-color: #FFF transparent transparent transparent;
+    box-sizing: border-box;
+    filter: blur(4px);
+    animation: sweep 0.2s ease-in-out infinite alternate;
+    mix-blend-mode: hard-light;
+}
+
+.needle-trail.main-trail {
+    filter: blur(2px);
+    opacity: 1 !important;
+    mix-blend-mode: color-dodge;
+}
+
+@keyframes sweep {
+    0% {
+        transform: rotate(-1deg);
+    }
+
+    100% {
+        transform: rotate(1deg);
+    }
+}
+
+/* Removed @keyframes rotation as we want a static trail that follow needle */
 
 .dashboard-speed-content {
     display: flex;
     flex-direction: column;
     align-items: center;
-    z-index: 2;
+    z-index: 20;
 }
 
 .dashboard-ready {
@@ -246,69 +311,107 @@
 .dashboard-bottom-gauges {
     position: absolute;
     bottom: 0;
-    height: 80px; /* Match bottom bar height */
+    height: 80px;
+    /* Match bottom bar height */
     width: 100%;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 450px; /* Reduced width between them */
+    padding: 0 450px;
+    /* Reduced width between them */
     box-sizing: border-box;
 }
 
-.dashboard-fuel-container, .dashboard-battery-container {
+.dashboard-fuel-container,
+.dashboard-battery-container {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
+    align-items: center;
+    gap: 0px;
 }
 
 .gauge-top-info {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: -4px;
+    justify-content: center;
+    width: 250px;
+    height: 48px;
+    position: relative;
+    margin-bottom: 4px;
 }
 
-.fuel-range, .battery-range {
-    font-size: 28px;
+.fuel-range,
+.battery-range {
+    font-size: 32px;
     font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+}
+
+.fuel-percent,
+.battery-percent {
+    position: absolute;
+    right: 40px;
+    font-size: 26px;
+    font-weight: 300;
+    color: #A3AED0;
+    font-variant-numeric: tabular-nums;
+    text-align: left;
+}
+
+.fuel-icon,
+.battery-icon {
+    position: absolute;
+    left: 40px;
+    width: 32px;
+    height: 32px;
+    vertical-align: middle;
+    object-fit: contain;
 }
 
 .segmented-bar-container {
     display: flex;
-    gap: 6px;
-    width: 250px; /* Adjusted width */
+    gap: 8px;
+    width: 250px;
     position: relative;
-    padding-bottom: 25px;
+    margin-top: -5px;
 }
 
 .segment-track {
     flex: 1;
-    height: 8px; /* Slightly taller */
-    background-color: rgba(255,255,255,0.15);
+    height: 8px;
+    /* Slightly taller */
+    background-color: rgba(255, 255, 255, 0.15);
     position: relative;
-    border-radius: 4px;
+    border-radius: 2px;
     overflow: hidden;
 }
 
 .bar-segment {
     height: 100%;
     width: 0%;
-    border-radius: 4px;
+    border-radius: 2px;
     transition: width 0.3s ease;
 }
 
-.fuel .bar-segment { background-color: #3b82f6; }
-.battery .bar-segment { background-color: #10b981; }
+.fuel .bar-segment {
+    background-color: #3b82f6;
+}
 
-.fuel-labels, .battery-labels {
+.battery .bar-segment {
+    background-color: #10b981;
+}
+
+.gauge-labels-container {
     position: absolute;
-    bottom: 0px;
-    width: 100%;
+    bottom: 20px;
+    width: 250px;
     display: flex;
     justify-content: space-between;
-    font-size: 18px;
+    font-size: 20px;
+    font-weight: 500;
     color: #A3AED0;
+    pointer-events: none;
 }
 
 .ev-label {
