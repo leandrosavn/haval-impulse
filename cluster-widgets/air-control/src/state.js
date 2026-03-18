@@ -61,6 +61,7 @@ StateManager.prototype._notifyListeners = function (key, value) {
 var stateManager = new StateManager({
     // Main Menu state
     screen: 'main_menu',
+    cardId: 1,
     focusedMenuItem: 'option_4',
     espStatus: 'ON',
     drivingMode: 'Normal',
@@ -98,7 +99,22 @@ var stateManager = new StateManager({
     gasConsumptionMode: 'Running',
     carSpeed: 0,
     engineRPM: 0,
-    evPowerKwAvg: 0
+    evPowerKwAvg: 0,
+
+    // Template states
+    template: 'Normal',
+    display: 'Normal',
+    displayFocus: 'sel_template',
+    maskVisible: true,
+    fuelPercent: 0,
+    batteryPercent: 0,
+    fuelRange: 0,
+    batteryRange: 0,
+    clockTime: '13:21',
+    gearState: 'P',
+    evModeLabel: 'NORMAL',
+    readyState: true,
+    limitSpeed: '--'
 });
 
 var getState = function (key) { return stateManager.get(key); };
@@ -150,5 +166,10 @@ const updateInstantConsumption = () => {
 
 subscribe('evPowerKw', updateInstantConsumption);
 subscribe('carSpeed', updateInstantConsumption);
+
+// Synchronize driving mode with top bar label
+subscribe('drivingMode', (val) => {
+    setState('evModeLabel', val.toUpperCase());
+});
 
 export { stateManager, getState, setState, subscribe, state };

@@ -41,16 +41,19 @@ public class ProjectorManager {
     private ProjectorManager() {
         sharedPreferences = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE);
 
-        projectorCreators.put(1, (ctx, disp) -> {
+        int maskDisplayId = sharedPreferences.getInt("instrumentMaskDisplayId", 1);
+        int hudDisplayId = (maskDisplayId == 1) ? 3 : 1;
+
+        projectorCreators.put(maskDisplayId, (ctx, disp) -> {
             instrumentProjector2 = new InstrumentProjector2(ctx, disp);
             instrumentProjector2.show();
-            Log.w(TAG, "InstrumentProjector2 initialized and displayed successfully");
+            Log.w(TAG, "InstrumentProjector2 (Mask) initialized on Display " + disp.getDisplayId());
         });
 
-        projectorCreators.put(3, (ctx, disp) -> {
+        projectorCreators.put(hudDisplayId, (ctx, disp) -> {
             instrumentProjector = new InstrumentProjector(ctx, disp);
             instrumentProjector.show();
-            Log.w(TAG, "HudProjector initialized and displayed successfully");
+            Log.w(TAG, "InstrumentProjector (HUD) initialized on Display " + disp.getDisplayId());
         });
     }
 
@@ -100,6 +103,50 @@ public class ProjectorManager {
         } catch (Exception e) {
             Log.e(TAG, "Failed to initialize ProjectorManager", e);
         }
+    }
+
+    public void stopProjectors() {
+        Log.w(TAG, "Stopping all projectors");
+        if (instrumentProjector != null) {
+            try {
+                instrumentProjector.dismiss();
+            } catch (Exception e) {
+                Log.e(TAG, "Error dismissing instrumentProjector", e);
+            }
+            instrumentProjector = null;
+        }
+        if (instrumentProjector2 != null) {
+            try {
+                instrumentProjector2.dismiss();
+            } catch (Exception e) {
+                Log.e(TAG, "Error dismissing instrumentProjector2", e);
+            }
+            instrumentProjector2 = null;
+        }
+        projectorCreators.clear();
+    }
+
+    public void refresh() {
+        Log.w(TAG, "Refreshing ProjectorManager");
+        stopProjectors();
+        
+        // Re-read preferences and re-populate creators
+        int maskDisplayId = sharedPreferences.getInt("instrumentMaskDisplayId", 1);
+        int hudDisplayId = (maskDisplayId == 1) ? 3 : 1;
+
+        projectorCreators.put(maskDisplayId, (ctx, disp) -> {
+            instrumentProjector2 = new InstrumentProjector2(ctx, disp);
+            instrumentProjector2.show();
+            Log.w(TAG, "InstrumentProjector2 (Mask) refreshed on Display " + disp.getDisplayId());
+        });
+
+        projectorCreators.put(hudDisplayId, (ctx, disp) -> {
+            instrumentProjector = new InstrumentProjector(ctx, disp);
+            instrumentProjector.show();
+            Log.w(TAG, "InstrumentProjector (HUD) refreshed on Display " + disp.getDisplayId());
+        });
+
+        initialize();
     }
 
     private Display getDisplayById(int id) {

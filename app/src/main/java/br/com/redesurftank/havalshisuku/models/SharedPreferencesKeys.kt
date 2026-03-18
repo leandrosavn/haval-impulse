@@ -62,6 +62,10 @@ enum class SharedPreferencesKeys(val key: String, val description: String) {
     OPEN_SUNROOF_CURTAIN_MAX_TEMP("openSunroofCurtainMaxTemp", "Temperatura externa máxima para abrir cortina"),
     PENDING_RESET_TARGET_VERSION("pendingResetTargetVersion", "Versão alvo para resetar dados ao voltar para canal estável"),
     SHOW_BETA_UPDATES("showBetaUpdates", "Mostrar atualizações do canal beta"),
-    DISPLAY_APP_CONFIGS("displayAppConfigs", "Configurações de apps para telas secundárias")
+    DISPLAY_APP_CONFIGS("displayAppConfigs", "Configurações de apps para telas secundárias"),
+    ENABLE_INSTRUMENT_MASK("enableInstrumentMask", "Habilitar máscara/overlay no painel de instrumentos"),
+    INSTRUMENT_MASK_DISPLAY_ID("instrumentMaskDisplayId", "ID da tela para a máscara (1 ou 3)"),
+    CURRENT_CLUSTER_TEMPLATE("currentClusterTemplate", "Template atual do cluster"),
+    CURRENT_CLUSTER_DISPLAY("currentClusterDisplay", "Modo de exibição do cluster")
 
 }

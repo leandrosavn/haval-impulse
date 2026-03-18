@@ -362,7 +362,7 @@ public enum CarConstants {
     CAR_EV_INFO_ATTENUATION_OF_BATTERY("car.ev_info.attenuation_of_battery"),
     CAR_EV_INFO_AVG_ENERGY_CONSUME_INFO_SINCE_RESET("car.ev_info.avg_energy_consume_info_since_reset"),
     CAR_EV_INFO_AVG_ENERGY_CONSUME_INFO_SINCE_STARTUP("car.ev_info.avg_energy_consume_info_since_startup"),
-    CAR_EV_INFO_BATTERY_CHARGE_PERCENTAGE("car.ev_info.battery_charge_percentage"),
+    CAR_EV_INFO_BATTERY_POWER_PERCENTAGE("car.ev_info.battery_charge_percentage"),
     CAR_EV_INFO_BATT_HEAT_RUNAWAY_NOTIFY("car.ev_info.batt_heat_runaway_notify"),
     CAR_EV_INFO_BMS_STATE("car.ev_info.bms_state"),
     CAR_EV_INFO_CAR_EV_INFO_SOC_OF_BATTERY("car.ev_info.soc_of_battery"),
