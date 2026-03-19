@@ -20,6 +20,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,6 +35,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -65,12 +67,15 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -94,12 +99,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.animation.AnimatedVisibility
+import android.content.SharedPreferences
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -127,6 +143,7 @@ import br.com.redesurftank.havalshisuku.ui.components.SettingCard
 import br.com.redesurftank.havalshisuku.ui.components.SettingItem
 import br.com.redesurftank.havalshisuku.ui.components.StyledCard
 import br.com.redesurftank.havalshisuku.ui.components.TwoColumnSettingsLayout
+import br.com.redesurftank.havalshisuku.ui.components.StyledTextField
 import br.com.redesurftank.havalshisuku.ui.theme.HavalShisukuTheme
 import br.com.redesurftank.havalshisuku.utils.FridaUtils
 import coil.compose.AsyncImage
@@ -139,11 +156,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
@@ -331,7 +348,6 @@ fun BasicSettingsTab() {
     var closeSunroofOnPowerOff by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.CLOSE_SUNROOF_ON_POWER_OFF.key, false)) }
     var closeSunroofOnFoldMirror by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.CLOSE_SUNROOF_ON_FOLD_MIRROR.key, false)) }
     var closeSunroofSunShadeOnCloseSunroof by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.CLOSE_SUNROOF_SUN_SHADE_ON_CLOSE_SUNROOF.key, false)) }
-    var enableCustomMenu by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_CUSTOM_MENU.key, false)) }
     var setStartupVolume by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.SET_STARTUP_VOLUME.key, false)) }
     var volume by remember { mutableIntStateOf(prefs.getInt(SharedPreferencesKeys.STARTUP_VOLUME.key, 1)) }
     var closeWindowsOnSpeed by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.CLOSE_WINDOWS_ON_SPEED.key, false)) }
@@ -353,6 +369,7 @@ fun BasicSettingsTab() {
     var dayBrightnessLevel by remember { mutableIntStateOf(prefs.getInt(SharedPreferencesKeys.AUTO_BRIGHTNESS_LEVEL_DAY.key, 10)) }
     var enableSeatVentilationOnAcOn by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_SEAT_VENTILATION_ON_AC_ON.key, false)) }
     var enableCustomSteeringWheelButtons by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_STEERING_WHEEL_CUSTOM_BUTTONS.key, false)) }
+    var enablePersistentBottomBar by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR.key, false)) }
     var showStartPicker by remember { mutableStateOf(false) }
     var showEndPicker by remember { mutableStateOf(false) }
 
@@ -681,6 +698,38 @@ fun BasicSettingsTab() {
                 }
             ),
             SettingItem(
+                title = "Habilitar barra inferior de rápido acesso",
+                description = "Cria uma barra inferior fixa com atalhos para ar condicionado e outras funções",
+                checked = enablePersistentBottomBar,
+                onCheckedChange = { checked ->
+                    if (checked && !Settings.canDrawOverlays(context)) {
+                        // Request overlay permission
+                        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
+                        context.startActivity(intent)
+                        android.widget.Toast.makeText(context, "Por favor, habilite a permissão de sobreposição para a barra inferior", android.widget.Toast.LENGTH_LONG).show()
+                        return@SettingItem
+                    }
+
+                    enablePersistentBottomBar = checked
+                    prefs.edit { putBoolean(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR.key, checked) }
+                    val serviceIntent = Intent(context, br.com.redesurftank.havalshisuku.services.BottomBarService::class.java)
+                    if (checked) {
+                        context.startService(serviceIntent)
+                        Thread {
+                            val result = br.com.redesurftank.havalshisuku.utils.ShizukuUtils.runCommandAndGetOutput(arrayOf("sh", "-c", "wm overscan 0,0,0,50"))
+                            if (result.isEmpty()) {
+                                Log.w("MainActivity", "Não foi possível aplicar overscan. Shizuku está rodando?")
+                            }
+                        }.start()
+                    } else {
+                        context.stopService(serviceIntent)
+                        Thread {
+                            br.com.redesurftank.havalshisuku.utils.ShizukuUtils.runCommandAndGetOutput(arrayOf("sh", "-c", "wm overscan 0,0,0,0"))
+                        }.start()
+                    }
+                }
+            ),
+            SettingItem(
                 title = "Desativar AVAS",
                 description = "Sistema de alerta de veículo silencioso",
                 checked = disableAvas,
@@ -697,15 +746,6 @@ fun BasicSettingsTab() {
                 onCheckedChange = {
                     disableAvmCarStopped = it
                     prefs.edit { putBoolean(SharedPreferencesKeys.DISABLE_AVM_CAR_STOPPED.key, it) }
-                }
-            ),
-            SettingItem(
-                title = "Habilitar menu customizado no cluster",
-                description = SharedPreferencesKeys.ENABLE_CUSTOM_MENU.description,
-                checked = enableCustomMenu,
-                onCheckedChange = {
-                    enableCustomMenu = it
-                    prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_CUSTOM_MENU.key, it) }
                 }
             ),
             SettingItem(
@@ -746,10 +786,10 @@ fun BasicSettingsTab() {
                 },
                 customContent = if (enableCustomSteeringWheelButtons) {
                     {
-                        var action1 by remember { mutableStateOf(prefs.getString(SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_1_ACTION.key, SteeringWheelCustomActionType.DEFAULT.key)!!) }
-                        var action2 by remember { mutableStateOf(prefs.getString(SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_2_ACTION.key, SteeringWheelCustomActionType.DEFAULT.key)!!) }
-                        var package1 by remember { mutableStateOf(prefs.getString(SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_1.key, "")!!) }
-                        var package2 by remember { mutableStateOf(prefs.getString(SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_2.key, "")!!) }
+                        var action1 by remember { mutableStateOf(prefs.getString(SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_1_ACTION.key, SteeringWheelCustomActionType.DEFAULT.key) ?: SteeringWheelCustomActionType.DEFAULT.key) }
+                        var action2 by remember { mutableStateOf(prefs.getString(SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_2_ACTION.key, SteeringWheelCustomActionType.DEFAULT.key) ?: SteeringWheelCustomActionType.DEFAULT.key) }
+                        var package1 by remember { mutableStateOf(prefs.getString(SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_1.key, "") ?: "") }
+                        var package2 by remember { mutableStateOf(prefs.getString(SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_2.key, "") ?: "") }
                         var expanded1 by remember { mutableStateOf(false) }
                         var expanded2 by remember { mutableStateOf(false) }
 
@@ -768,7 +808,7 @@ fun BasicSettingsTab() {
                                     label = { Text("Tipo de Ação") },
                                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded1) },
                                     colors = ExposedDropdownMenuDefaults.textFieldColors(),
-                                    modifier = Modifier.menuAnchor()
+                                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable)
                                 )
                                 ExposedDropdownMenu(
                                     expanded = expanded1,
@@ -820,7 +860,7 @@ fun BasicSettingsTab() {
                                     label = { Text("Tipo de Ação") },
                                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded2) },
                                     colors = ExposedDropdownMenuDefaults.textFieldColors(),
-                                    modifier = Modifier.menuAnchor()
+                                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable)
                                 )
                                 ExposedDropdownMenu(
                                     expanded = expanded2,
@@ -1169,249 +1209,478 @@ fun FridaHooksTab() {
         )
     }
 }
+data class RevisionEntry(val km: Int, val date: Long)
+
+fun getRevisionHistory(prefs: SharedPreferences): List<RevisionEntry> {
+    val json = prefs.getString(SharedPreferencesKeys.INSTRUMENT_REVISION_HISTORY.key, "[]")
+    return try {
+        val type = object : TypeToken<List<RevisionEntry>>() {}.type
+        Gson().fromJson(json, type) ?: emptyList()
+    } catch (e: Exception) {
+        Log.e("RevisionHistory", "Error parsing history: ${e.message}")
+        emptyList()
+    }
+}
+
+fun saveRevisionHistory(prefs: SharedPreferences, history: List<RevisionEntry>) {
+    val json = Gson().toJson(history)
+    prefs.edit { putString(SharedPreferencesKeys.INSTRUMENT_REVISION_HISTORY.key, json) }
+}
 
 @Composable
 fun TelasTab() {
     val context = LocalContext.current
     val prefs = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
+    val scope = rememberCoroutineScope()
+
+    // Base properties
     var enableProjector by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key, false)) }
     var enableWarning by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_REVISION_WARNING.key, false)) }
     var enableCustomIntegration by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.key, false)) }
     var enableMask by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key, false)) }
-    var nextKmText by remember { mutableStateOf(prefs.getInt(SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key, 12000).toString()) }
-    var nextDateMillis by remember { mutableLongStateOf(prefs.getLong(SharedPreferencesKeys.INSTRUMENT_REVISION_NEXT_DATE.key, 0L)) }
-    var showDatePicker by remember { mutableStateOf(false) }
-    val dateFormatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+    var enableCustomMenu by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_CUSTOM_MENU.key, false)) }
+    var allClusterFunctionsEnabled by remember { mutableStateOf(enableProjector || enableCustomIntegration || enableCustomMenu) }
 
-    val formattedNextDate = if (nextDateMillis > 0) dateFormatter.format(nextDateMillis) else "Não definido"
+    // Revision History States
+    var revisionHistory by remember { mutableStateOf(getRevisionHistory(prefs)) }
+    var showRegisterDialog by remember { mutableStateOf(false) }
+    var expandedHistory by remember { mutableStateOf(false) }
+    var tempKm by remember { mutableStateOf("") }
+    var tempDate by remember { mutableLongStateOf(0L) }
+    var showDatePickerForRegister by remember { mutableStateOf(false) }
 
-    val settingsList = listOf(
-        SettingItem(
-            title = "Projetor do painel",
-            description = SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.description,
-            checked = enableProjector,
-            onCheckedChange = {
-                enableProjector = it
-                prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key, it) }
-                if (!it) {
-                    enableWarning = false
-                    prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_REVISION_WARNING.key, false) }
-                    enableCustomIntegration = false
-                    prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.key, false) }
+    // Virtual Cluster States
+    var selectedTheme by remember { mutableStateOf(prefs.getString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Básico") ?: "Básico") }
+    var defaultApp by remember { mutableStateOf(prefs.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "") ?: "") }
+    var appExpanded by remember { mutableStateOf(false) }
+    var themeExpanded by remember { mutableStateOf(false) }
+    var configs by remember { mutableStateOf(br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()) }
 
-                    try {
-                        ServiceManager.getInstance().ensureSystemApps()
-                    } catch (e: Exception) {
-                        Log.e("TelasTab", "Erro ao desabilitar projetor: ${e.message}", e)
-                    }
-                }
-            }
-        ),
-        SettingItem(
-            title = "Aviso de revisão",
-            description = SharedPreferencesKeys.ENABLE_INSTRUMENT_REVISION_WARNING.description,
-            checked = enableWarning,
-            onCheckedChange = {
-                enableWarning = it
-                prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_REVISION_WARNING.key, it) }
-            },
-            enabled = enableProjector
-        ),
-        SettingItem(
-            title = "Integração de mídia customizada",
-            description = SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.description,
-            checked = enableCustomIntegration,
-            onCheckedChange = {
-                enableCustomIntegration = it
-                prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.key, it) }
+    // Date formatter
+    val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
 
-                try {
-                    ServiceManager.getInstance().ensureSystemApps()
-                    if (enableCustomIntegration) {
-                        ServiceManager.getInstance().startClusterHeartbeat()
-                    }
-                } catch (e: Exception) {
-                    // Log do erro e desabilitar a opção se falhar
-                    Log.e("TelasTab", "Erro ao configurar integração de mídia: ${e.message}", e)
-                    enableCustomIntegration = false
-                    prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.key, false) }
-                }
-            },
-            enabled = enableProjector
-        ),
-        SettingItem(
-            title = "Máscara do instrumento",
-            description = SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.description,
-            checked = enableMask,
-            onCheckedChange = {
-                enableMask = it
-                prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key, it) }
-            },
-            customContent = if (enableMask) {
-                {
-                    var maskDisplayId by remember { mutableIntStateOf(prefs.getInt(SharedPreferencesKeys.INSTRUMENT_MASK_DISPLAY_ID.key, 1)) }
-                    Column {
-                        Text("Exibir na tela:", color = Color.White, fontSize = 14.sp)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            listOf(1, 3).forEach { id ->
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clickable {
-                                            if (maskDisplayId != id) {
-                                                maskDisplayId = id
-                                                prefs.edit { putInt(SharedPreferencesKeys.INSTRUMENT_MASK_DISPLAY_ID.key, id) }
-                                                try {
-                                                    br.com.redesurftank.havalshisuku.managers.ProjectorManager.getInstance().refresh()
-                                                } catch (e: Exception) {
-                                                    Log.e("TelasTab", "Error refreshing projectors: ${e.message}", e)
-                                                }
-                                            }
-                                        }
-                                        .background(
-                                            if (maskDisplayId == id) Color(0xFF4A9EFF) else Color(0xFF2A2F37),
-                                            RoundedCornerShape(8.dp)
-                                        )
-                                        .padding(vertical = 12.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        "Display $id",
-                                        color = Color.White,
-                                        fontWeight = if (maskDisplayId == id) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            } else null
-        )
-    )
+    // Auto-calculate next revision
+    val latestRevision = revisionHistory.maxByOrNull { it.km }
+    val nextKm = latestRevision?.let { it.km + 12000 } ?: 0
+    val nextDate = latestRevision?.let {
+        val cal = Calendar.getInstance()
+        cal.timeInMillis = it.date
+        cal.add(Calendar.YEAR, 1)
+        cal.timeInMillis
+    } ?: 0L
 
-    TwoColumnSettingsLayout(
-        settingsList = settingsList,
-        bottomContent = {
-            if (enableWarning) {
-                StyledCard(
-                    modifier = Modifier.padding(horizontal = 8.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Column {
-                            Text(
-                                "Próxima KM:",
-                                color = Color.White,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row {
-                                TextField(
-                                    value = nextKmText,
-                                    onValueChange = { newValue ->
-                                        if (newValue.isEmpty() || newValue.toIntOrNull() != null) {
-                                            nextKmText = newValue
-                                            newValue.toIntOrNull()?.let {
-                                                prefs.edit { putInt(SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key, it) }
-                                            }
-                                        }
-                                    },
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    modifier = Modifier.weight(1f),
-                                    colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color(0xFF2A2F37),
-                                        unfocusedContainerColor = Color(0xFF2A2F37),
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color(0xFFB0B8C4),
-                                        focusedIndicatorColor = Color(0xFF4A9EFF),
-                                        unfocusedIndicatorColor = Color(0xFF3A3F47)
-                                    )
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Button(
-                                    onClick = {
-                                        val currentKm = ServiceManager.getInstance().totalOdometer
-                                        val newNextKm = currentKm + 12000
-                                        nextKmText = newNextKm.toString()
-                                        prefs.edit { putInt(SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key, newNextKm) }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF4A9EFF)
-                                    )
-                                ) {
-                                    Text("Resetar", color = Color.White)
-                                }
-                            }
-                        }
-
-                        Column {
-                            Text(
-                                "Próxima data: $formattedNextDate",
-                                color = Color.White,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row {
-                                Button(
-                                    onClick = { showDatePicker = true },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF4A9EFF)
-                                    )
-                                ) {
-                                    Text("Informar manual", color = Color.White)
-                                }
-                                Spacer(Modifier.width(8.dp))
-                                Button(
-                                    onClick = {
-                                        val cal = Calendar.getInstance()
-                                        cal.add(Calendar.YEAR, 1)
-                                        nextDateMillis = cal.timeInMillis
-                                        prefs.edit { putLong(SharedPreferencesKeys.INSTRUMENT_REVISION_NEXT_DATE.key, nextDateMillis) }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF4A9EFF)
-                                    )
-                                ) {
-                                    Text("Resetar", color = Color.White)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            DisplayAppConfigSection()
+    // Periodic app config update
+    LaunchedEffect(Unit) {
+        while (true) {
+            configs = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()
+            kotlinx.coroutines.delay(5000)
         }
-    )
+    }
 
-    if (showDatePicker) {
-        val calendar = Calendar.getInstance()
-        if (nextDateMillis > 0) calendar.timeInMillis = nextDateMillis
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // MASTER TOGGLE CARD - Consolidates Projector, Media Integration and Custom Menu
+        StyledCard(modifier = Modifier.padding(horizontal = 8.dp)) {
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Habilitar Funções do Cluster", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text("Habilitar projeção, integração de mídia e menu customizado", color = Color(0xFFB0B8C4), fontSize = 14.sp)
+                    }
+                    Switch(
+                        checked = allClusterFunctionsEnabled,
+                        onCheckedChange = {
+                            allClusterFunctionsEnabled = it
+                            enableProjector = it
+                            enableCustomIntegration = it
+                            enableCustomMenu = it
+                            
+                            prefs.edit { 
+                                putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key, it)
+                                putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.key, it)
+                                putBoolean(SharedPreferencesKeys.ENABLE_CUSTOM_MENU.key, it)
+                            }
 
-        LaunchedEffect(showDatePicker) {
-            if (showDatePicker) {
-                val dialog = DatePickerDialog(
-                    context,
-                    { _, year, month, day ->
-                        val cal = Calendar.getInstance()
-                        cal.set(year, month, day)
-                        nextDateMillis = cal.timeInMillis
-                        prefs.edit { putLong(SharedPreferencesKeys.INSTRUMENT_REVISION_NEXT_DATE.key, nextDateMillis) }
-                        showDatePicker = false
+                            if (!it) {
+                                enableWarning = false
+                                prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_REVISION_WARNING.key, false) }
+                                enableMask = false
+                                prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key, false) }
+                            }
+                            
+                            try {
+                                ServiceManager.getInstance().ensureSystemApps()
+                                if (it && enableCustomIntegration) {
+                                    ServiceManager.getInstance().startClusterHeartbeat()
+                                }
+                            } catch (e: Exception) {
+                                Log.e("TelasTab", "Erro ao atualizar funções do cluster: ${e.message}")
+                            }
+                        }
+                    )
+                }
+
+                // Image 4 Example
+                val image4 = remember { 
+                    try {
+                        BitmapFactory.decodeFile("C:\\Users\\marce\\.gemini\\antigravity\\brain\\6ffae6a8-c34c-41a2-8637-3fbac551d5a1\\media__1773951437085.png")?.asImageBitmap()
+                    } catch (e: Exception) { null }
+                }
+                if (image4 != null) {
+                    Image(
+                        bitmap = image4,
+                        contentDescription = "Exemplo de Funções do Cluster",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 160.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+            }
+        }
+
+        // VIRTUAL CLUSTER CARD
+        val clusterAlpha = if (allClusterFunctionsEnabled) 1f else 0.4f
+        StyledCard(modifier = Modifier.padding(horizontal = 8.dp).alpha(clusterAlpha)) {
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Virtual Cluster", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.description, color = Color(0xFFB0B8C4), fontSize = 14.sp)
+                    }
+                    Switch(
+                        checked = enableMask,
+                        enabled = allClusterFunctionsEnabled,
+                        onCheckedChange = {
+                            enableMask = it
+                            prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key, it) }
+                        }
+                    )
+                }
+
+                // Image 5 Example
+                if (enableMask || !allClusterFunctionsEnabled) {
+                   val image5 = remember { 
+                        try {
+                            BitmapFactory.decodeFile("C:\\Users\\marce\\.gemini\\antigravity\\brain\\6ffae6a8-c34c-41a2-8637-3fbac551d5a1\\media__1773951531439.png")?.asImageBitmap()
+                        } catch (e: Exception) { null }
+                    }
+                    if (image5 != null) {
+                        Image(
+                            bitmap = image5,
+                            contentDescription = "Exemplo do Virtual Cluster",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 140.dp)
+                                .clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                }
+
+                if (enableMask && allClusterFunctionsEnabled) {
+                        HorizontalDivider(color = Color(0xFF3A3F47), thickness = 1.dp)
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            // Default App Selection
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("App Padrão", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                val pm = context.packageManager
+                                val selectedAppName = if (defaultApp.isEmpty()) "Nenhum" else {
+                                    try {
+                                        pm.getApplicationInfo(defaultApp, 0).let { pm.getApplicationLabel(it).toString() }
+                                    } catch (_: Exception) { defaultApp }
+                                }
+
+                                Box {
+                                    OutlinedButton(
+                                        onClick = { appExpanded = true },
+                                        enabled = allClusterFunctionsEnabled,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                                        border = BorderStroke(1.dp, Color(0xFF3A3F47)),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                    ) {
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                            Text(selectedAppName, fontSize = 14.sp, maxLines = 1)
+                                            Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+
+                                    DropdownMenu(
+                                        expanded = appExpanded && allClusterFunctionsEnabled,
+                                        onDismissRequest = { appExpanded = false },
+                                        modifier = Modifier.background(Color(0xFF1E2228)).border(1.dp, Color(0xFF3A3F47))
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Nenhum", color = Color.White) },
+                                            onClick = {
+                                                defaultApp = ""
+                                                prefs.edit { putString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "") }
+                                                appExpanded = false
+                                            }
+                                        )
+                                        configs.values.forEach { config ->
+                                            val name = try {
+                                                pm.getApplicationInfo(config.packageName, 0).let { pm.getApplicationLabel(it).toString() }
+                                            } catch (_: Exception) { config.packageName }
+
+                                            DropdownMenuItem(
+                                                text = { Text(name, color = Color.White) },
+                                                onClick = {
+                                                    defaultApp = config.packageName
+                                                    prefs.edit { putString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, config.packageName) }
+                                                    appExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Theme Selection
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Tema", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Box {
+                                    OutlinedButton(
+                                        onClick = { themeExpanded = true },
+                                        enabled = allClusterFunctionsEnabled,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                                        border = BorderStroke(1.dp, Color(0xFF3A3F47)),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
+                                    ) {
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                            Text(selectedTheme, fontSize = 14.sp)
+                                            Icon(Icons.Default.ExpandMore, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+
+                                    DropdownMenu(
+                                        expanded = themeExpanded && allClusterFunctionsEnabled,
+                                        onDismissRequest = { themeExpanded = false },
+                                        modifier = Modifier.background(Color(0xFF1E2228)).border(1.dp, Color(0xFF3A3F47))
+                                    ) {
+                                        listOf("Básico").forEach { theme ->
+                                            DropdownMenuItem(
+                                                text = { Text(theme, color = Color.White) },
+                                                onClick = {
+                                                    selectedTheme = theme
+                                                    prefs.edit { putString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, theme) }
+                                                    themeExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // AVISO DE REVISÃO CARD
+        val revisionAlpha = if (allClusterFunctionsEnabled) 1f else 0.4f
+        StyledCard(modifier = Modifier.padding(horizontal = 8.dp).alpha(revisionAlpha)) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Aviso de Revisão", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text("Acompanhamento de manutenção programada", color = Color(0xFFB0B8C4), fontSize = 14.sp)
+                    }
+                    Switch(
+                        checked = enableWarning,
+                        enabled = allClusterFunctionsEnabled,
+                        onCheckedChange = {
+                            enableWarning = it
+                            prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_REVISION_WARNING.key, it) }
+                        }
+                    )
+                }
+
+                if (enableWarning && allClusterFunctionsEnabled) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = Color(0xFF3A3F47), thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column {
+                            Text("Próxima Revisão", color = Color(0xFFB0B8C4), fontSize = 14.sp)
+                            val nextKmLabel = if (nextKm > 0) "${String.format("%,d", nextKm)} km" else "---"
+                            val nextDateLabel = if (nextDate > 0) dateFormatter.format(nextDate) else "---"
+                            Text("$nextKmLabel ou $nextDateLabel", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        }
+                        
+                        Button(
+                            onClick = {
+                                tempKm = ServiceManager.getInstance().totalOdometer.toString()
+                                tempDate = System.currentTimeMillis()
+                                showRegisterDialog = true
+                            },
+                            enabled = allClusterFunctionsEnabled,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Registrar Revisão", fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Collapsible History
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { expandedHistory = !expandedHistory }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Histórico de Manutenções (${revisionHistory.size})",
+                            color = Color(0xFF4A9EFF),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Icon(
+                            imageVector = if (expandedHistory) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = null,
+                            tint = Color(0xFF4A9EFF)
+                        )
+                    }
+
+                    AnimatedVisibility(visible = expandedHistory) {
+                        Column(modifier = Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (revisionHistory.isEmpty()) {
+                                Text("Nenhuma manutenção registrada", color = Color(0xFF636D77), fontSize = 14.sp, modifier = Modifier.padding(vertical = 8.dp))
+                            } else {
+                                revisionHistory.sortedByDescending { it.km }.forEach { entry ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(Color(0xFF1E2228), RoundedCornerShape(8.dp))
+                                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text("${String.format("%,d", entry.km)} km", color = Color.White, fontWeight = FontWeight.Bold)
+                                            Text(dateFormatter.format(entry.date), color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                val newHistory = revisionHistory.filter { it != entry }
+                                                revisionHistory = newHistory
+                                                saveRevisionHistory(prefs, newHistory)
+                                            }
+                                        ) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Excluir", tint = Color(0xFFFF4B4B), modifier = Modifier.size(20.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        DisplayAppConfigSection()
+    }
+
+    // Register Revision Dialog
+    if (showRegisterDialog) {
+        AlertDialog(
+            onDismissRequest = { showRegisterDialog = false },
+            containerColor = Color(0xFF1E2228),
+            titleContentColor = Color.White,
+            textContentColor = Color.White,
+            title = { Text("Registrar Manutenção", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(modifier = Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text("Informe os dados da revisão atual para calcular a próxima automaticamente.", color = Color(0xFFB0B8C4), fontSize = 14.sp)
+                    
+                    StyledTextField(
+                        value = tempKm,
+                        onValueChange = { if (it.isEmpty() || it.toIntOrNull() != null) tempKm = it },
+                        label = { Text("Kilometragem Atual") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    Column {
+                        Text("Data da Revisão", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = { showDatePickerForRegister = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                            border = BorderStroke(1.dp, Color(0xFF3A3F47)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(dateFormatter.format(tempDate))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val km = tempKm.toIntOrNull() ?: 0
+                        if (km > 0) {
+                            val newEntry = RevisionEntry(km, tempDate)
+                            val newHistory = revisionHistory + newEntry
+                            revisionHistory = newHistory
+                            saveRevisionHistory(prefs, newHistory)
+                            showRegisterDialog = false
+                        }
                     },
-                    calendar.get(Calendar.YEAR),
-                    calendar.get(Calendar.MONTH),
-                    calendar.get(Calendar.DAY_OF_MONTH)
-                )
-                dialog.setOnDismissListener { showDatePicker = false }
-                dialog.show()
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF))
+                ) {
+                    Text("Confirmar", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRegisterDialog = false }) {
+                    Text("Cancelar", color = Color(0xFFB0B8C4))
+                }
+            }
+        )
+    }
+
+    if (showDatePickerForRegister) {
+        val calendar = Calendar.getInstance()
+        calendar.timeInMillis = tempDate
+
+        LaunchedEffect(Unit) {
+            DatePickerDialog(
+                context,
+                { _, year, month, day ->
+                    val cal = Calendar.getInstance()
+                    cal.set(year, month, day)
+                    tempDate = cal.timeInMillis
+                    showDatePickerForRegister = false
+                },
+                calendar.get(Calendar.YEAR),
+                calendar.get(Calendar.MONTH),
+                calendar.get(Calendar.DAY_OF_MONTH)
+            ).apply {
+                setOnDismissListener { showDatePickerForRegister = false }
+                show()
             }
         }
     }
@@ -1480,21 +1749,20 @@ fun DisplayAppConfigSection() {
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        // App info row
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (appIcon != null) {
-                                val bitmap = (appIcon as? android.graphics.drawable.BitmapDrawable)?.bitmap
-                                if (bitmap != null) {
-                                    Image(
-                                        bitmap = android.graphics.Bitmap.createScaledBitmap(bitmap, 96, 96, true)
-                                            .asImageBitmap(),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(40.dp)
-                                    )
-                                }
-                                Spacer(Modifier.width(12.dp))
+                                AsyncImage(
+                                    model = appIcon,
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFF2A2F37)),
+                                    contentScale = ContentScale.Fit
+                                )
+                                Spacer(Modifier.width(16.dp))
                             }
-                            Column(modifier = Modifier.weight(1f)) {
+                            Column(modifier = Modifier.weight(4f)) {
                                 Text(appName, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                                 Text(displayLabel, color = Color(0xFFB0B8C4), fontSize = 12.sp)
                                 Text(
@@ -1503,65 +1771,174 @@ fun DisplayAppConfigSection() {
                                     fontSize = 11.sp
                                 )
                             }
-                        }
+                            Column(modifier = Modifier.weight(6f)) {
 
-                        // Action buttons row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            // Abrir aqui (main display for interaction)
-                            Button(
-                                onClick = { scope.launch { DisplayAppLauncher.launchOnMainDisplay(config) } },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3A3F47)),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Abrir aqui", color = Color.White, fontSize = 11.sp)
-                            }
-                            // Enviar para tela secundária
-                            Button(
-                                onClick = { scope.launch { DisplayAppLauncher.sendToDisplay(config) } },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF)),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.Send, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Enviar", color = Color.White, fontSize = 11.sp)
-                            }
-                            // Editar
-                            Button(
-                                onClick = {
-                                    editingPackage = config.packageName
-                                    showConfigDialog = true
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3A3F47)),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                            }
-                            // Matar app
-                            Button(
-                                onClick = { scope.launch { DisplayAppLauncher.killApp(config.packageName) } },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B2500)),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Icon(Icons.Default.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                            }
-                            // Remover config (kill + delete)
-                            Button(
-                                onClick = {
-                                    scope.launch { DisplayAppLauncher.killApp(config.packageName) }
-                                    DisplayAppLauncher.deleteConfig(config.packageName)
-                                    configs = DisplayAppLauncher.getAllConfigs()
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B2500)),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Icon(Icons.Default.Delete, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                // Action buttons row
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        // Abrir aqui (main display for interaction)
+                                        Button(
+                                            onClick = {
+                                                scope.launch {
+                                                    DisplayAppLauncher.launchOnMainDisplay(
+                                                        config
+                                                    )
+                                                }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = Color(
+                                                    0xFF3A3F47
+                                                )
+                                            ),
+                                            contentPadding = PaddingValues(
+                                                horizontal = 8.dp,
+                                                vertical = 4.dp
+                                            ),
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.PlayArrow,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Trazer", color = Color.White, fontSize = 12.sp)
+                                        }
+                                        // Enviar para tela secundária
+                                        Button(
+                                            onClick = {
+                                                scope.launch {
+                                                    DisplayAppLauncher.sendToDisplay(
+                                                        config
+                                                    )
+                                                }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = Color(
+                                                    0xFF4A9EFF
+                                                )
+                                            ),
+                                            contentPadding = PaddingValues(
+                                                horizontal = 8.dp,
+                                                vertical = 4.dp
+                                            ),
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.AutoMirrored.Filled.Send,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Enviar", color = Color.White, fontSize = 12.sp)
+                                        }
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        // Editar
+                                        Button(
+                                            onClick = {
+                                                editingPackage = config.packageName
+                                                showConfigDialog = true
+                                            },
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = Color(
+                                                    0xFF2A2F37
+                                                )
+                                            ),
+                                            contentPadding = PaddingValues(
+                                                horizontal = 8.dp,
+                                                vertical = 4.dp
+                                            ),
+                                            modifier = Modifier.weight(2f),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Edit,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Editar", color = Color.White, fontSize = 12.sp)
+                                        }
+                                        // Matar app
+                                        Button(
+                                            onClick = {
+                                                scope.launch {
+                                                    DisplayAppLauncher.killApp(
+                                                        config.packageName
+                                                    )
+                                                }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = Color(
+                                                    0x33FF4A4A
+                                                )
+                                            ),
+                                            contentPadding = PaddingValues(
+                                                horizontal = 8.dp,
+                                                vertical = 4.dp
+                                            ),
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Close,
+                                                contentDescription = null,
+                                                tint = Color(0xFFFF4A4A),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(
+                                                "Matar",
+                                                color = Color(0xFFFF4A4A),
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                        // Remover config (kill + delete)
+                                        Button(
+                                            onClick = {
+                                                scope.launch { DisplayAppLauncher.killApp(config.packageName) }
+                                                DisplayAppLauncher.deleteConfig(config.packageName)
+                                                configs = DisplayAppLauncher.getAllConfigs()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = Color(
+                                                    0x33FF4A4A
+                                                )
+                                            ),
+                                            contentPadding = PaddingValues(
+                                                horizontal = 8.dp,
+                                                vertical = 4.dp
+                                            ),
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Delete,
+                                                contentDescription = null,
+                                                tint = Color(0xFFFF4A4A),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(
+                                                "Remover",
+                                                color = Color(0xFFFF4A4A),
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -1689,65 +2066,88 @@ fun DisplayAppConfigDialog(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(20.dp)
+                    .padding(16.dp)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
                     if (existingConfig != null) "Editar App" else "Adicionar App",
                     color = Color.White,
-                    fontSize = 20.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
 
-                // App selector
-                Text("Aplicativo", color = Color(0xFFB0B8C4), fontSize = 14.sp)
-                Button(
-                    onClick = { showAppPicker = true },
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2F37)),
-                    shape = RoundedCornerShape(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        selectedApp?.label ?: "Selecionar app...",
-                        color = if (selectedApp != null) Color.White else Color(0xFF808080),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                // Display selector
-                Text("Tela de destino", color = Color(0xFFB0B8C4), fontSize = 14.sp)
-                ExposedDropdownMenuBox(
-                    expanded = displayDropdownExpanded,
-                    onExpandedChange = { displayDropdownExpanded = it }
-                ) {
-                    TextField(
-                        value = selectedDisplay.label,
-                        onValueChange = {},
-                        readOnly = true,
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = displayDropdownExpanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color(0xFF2A2F37),
-                            unfocusedContainerColor = Color(0xFF2A2F37),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedIndicatorColor = Color(0xFF4A9EFF),
-                            unfocusedIndicatorColor = Color(0xFF3A3F47)
-                        )
-                    )
-                    ExposedDropdownMenu(
-                        expanded = displayDropdownExpanded,
-                        onDismissRequest = { displayDropdownExpanded = false }
-                    ) {
-                        TargetDisplay.entries.forEach { display ->
-                            DropdownMenuItem(
-                                text = { Text(display.label, color = Color.White) },
-                                onClick = {
-                                    selectedDisplay = display
-                                    displayDropdownExpanded = false
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Aplicativo", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                        Button(
+                            onClick = { showAppPicker = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2F37)),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (selectedApp != null) {
+                                    AsyncImage(
+                                        model = selectedApp?.icon,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(24.dp).clip(RoundedCornerShape(4.dp)),
+                                        contentScale = ContentScale.Fit
+                                    )
+                                    Spacer(Modifier.width(8.dp))
                                 }
+                                Text(
+                                    selectedApp?.label ?: "Selecionar app...",
+                                    color = if (selectedApp != null) Color.White else Color(0xFF808080),
+                                    fontSize = 14.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Tela de destino", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                        ExposedDropdownMenuBox(
+                            expanded = displayDropdownExpanded,
+                            onExpandedChange = { displayDropdownExpanded = it }
+                        ) {
+                            TextField(
+                                value = selectedDisplay.label,
+                                onValueChange = {},
+                                readOnly = true,
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = displayDropdownExpanded) },
+                                modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color(0xFF2A2F37),
+                                    unfocusedContainerColor = Color(0xFF2A2F37),
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White,
+                                    focusedIndicatorColor = Color(0xFF4A9EFF),
+                                    unfocusedIndicatorColor = Color(0xFF3A3F47)
+                                )
                             )
+                            ExposedDropdownMenu(
+                                expanded = displayDropdownExpanded,
+                                onDismissRequest = { displayDropdownExpanded = false }
+                            ) {
+                                TargetDisplay.entries.forEach { display ->
+                                    DropdownMenuItem(
+                                        text = { Text(display.label, color = Color.White) },
+                                        onClick = {
+                                            selectedDisplay = display
+                                            displayDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -1759,37 +2159,53 @@ fun DisplayAppConfigDialog(
                     fontSize = 12.sp
                 )
 
-                // Position X slider
-                SliderWithLabel(
-                    label = "Posição X",
-                    value = posX,
-                    range = 0..resolution.first,
-                    onValueChange = { posX = it }
-                )
+                // Position sliders
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        SliderWithLabel(
+                            label = "Posição X",
+                            value = posX,
+                            range = -resolution.first..resolution.first,
+                            onValueChange = { posX = it }
+                        )
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        SliderWithLabel(
+                            label = "Posição Y",
+                            value = posY,
+                            range = -resolution.second..resolution.second,
+                            onValueChange = { posY = it }
+                        )
+                    }
+                }
 
-                // Position Y slider
-                SliderWithLabel(
-                    label = "Posição Y",
-                    value = posY,
-                    range = 0..resolution.second,
-                    onValueChange = { posY = it }
-                )
-
-                // Width slider
-                SliderWithLabel(
-                    label = "Largura",
-                    value = sizeW,
-                    range = 100..resolution.first,
-                    onValueChange = { sizeW = it }
-                )
-
-                // Height slider
-                SliderWithLabel(
-                    label = "Altura",
-                    value = sizeH,
-                    range = 100..resolution.second,
-                    onValueChange = { sizeH = it }
-                )
+                // Size sliders
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        SliderWithLabel(
+                            label = "Largura",
+                            value = sizeW,
+                            range = 10..resolution.first * 2,
+                            onValueChange = { sizeW = it },
+                            specialSnap = resolution.first
+                        )
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        SliderWithLabel(
+                            label = "Altura",
+                            value = sizeH,
+                            range = 10..resolution.second * 2,
+                            onValueChange = { sizeH = it },
+                            specialSnap = resolution.second
+                        )
+                    }
+                }
 
                 // Live preview status
                 if (previewActive && selectedApp != null) {
@@ -1861,19 +2277,27 @@ fun SliderWithLabel(
     label: String,
     value: Int,
     range: IntRange,
-    onValueChange: (Int) -> Unit
+    onValueChange: (Int) -> Unit,
+    step: Int = 10,
+    specialSnap: Int? = null
 ) {
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(label, color = Color(0xFFB0B8C4), fontSize = 14.sp)
-            Text("$value", color = Color.White, fontSize = 14.sp)
+            Text(label, color = Color(0xFFB0B8C4), fontSize = 12.sp)
+            Text("$value", color = Color.White, fontSize = 12.sp)
         }
         Slider(
             value = value.toFloat(),
-            onValueChange = { onValueChange(it.toInt()) },
+            onValueChange = { 
+                var snapped = (kotlin.math.round(it / step) * step).toInt()
+                if (specialSnap != null && kotlin.math.abs(snapped - specialSnap) <= step) {
+                    snapped = specialSnap
+                }
+                onValueChange(snapped.coerceIn(range))
+            },
             valueRange = range.first.toFloat()..range.last.toFloat(),
             modifier = Modifier.fillMaxWidth(),
             colors = SliderDefaults.colors(
@@ -1961,17 +2385,15 @@ fun AppPickerDialog(
                                 .padding(vertical = 8.dp, horizontal = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            val bitmap = (app.icon as? android.graphics.drawable.BitmapDrawable)?.bitmap
-                            if (bitmap != null) {
-                                Image(
-                                    bitmap = android.graphics.Bitmap.createScaledBitmap(bitmap, 96, 96, true)
-                                        .asImageBitmap(),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(36.dp)
-                                )
-                            } else {
-                                Box(modifier = Modifier.size(36.dp).background(Color(0xFF2A2F37), RoundedCornerShape(8.dp)))
-                            }
+                            AsyncImage(
+                                model = app.icon,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFF2A2F37)),
+                                contentScale = ContentScale.Fit
+                            )
                             Spacer(Modifier.width(12.dp))
                             Column {
                                 Text(app.label, color = Color.White, fontSize = 14.sp)
@@ -2237,14 +2659,14 @@ fun InstallAppsTab() {
                     val appList = mutableListOf<AppInfo>()
                     for (i in 0 until jsonArray.length()) {
                         val obj = jsonArray.getJSONObject(i)
-                        val iconUrl = obj.optString("appIcon", null)
+                        val iconUrl = obj.optString("appIcon", "")
                         appList.add(
                             AppInfo(
                                 obj.getString("appName"),
                                 obj.getString("appVersion"),
                                 obj.getString("appPackageName"),
                                 obj.getString("appLink"),
-                                if (!iconUrl.isNullOrEmpty() && iconUrl != "null") iconUrl else null
+                                if (iconUrl.isNotEmpty() && iconUrl != "null") iconUrl else null
                             )
                         )
                         // Debug log

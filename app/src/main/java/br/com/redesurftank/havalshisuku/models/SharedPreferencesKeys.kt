@@ -42,6 +42,7 @@ enum class SharedPreferencesKeys(val key: String, val description: String) {
     BLUETOOTH_STATE_ON_POWER_OFF("bluetoothStateOnPowerOff", "Estado do Bluetooth ao desligar o veículo"),
     ENABLE_SEAT_VENTILATION_ON_AC_ON("enableSeatVentilationOnAcOn", "Habilitar ventilação do banco do motorista ao ligar o ar-condicionado"),
     ENABLE_STEERING_WHEEL_CUSTOM_BUTTONS("enableSteeringWheelCustomButtons", "Habilitar botões personalizados no volante"),
+    PERSISTENT_BOTTOM_BAR("enable_persistent_bottom_bar", "Habilitar barra inferior persistente (Android 9)"),
     STEERING_WHEEL_CUSTOM_BUTON_1_ACTION("steeringWheelCustomButon1Action", "Ação do botão personalizado 1 do volante"),
     STEERING_WHEEL_CUSTOM_BUTON_2_ACTION("steeringWheelCustomButon2Action", "Ação do botão personalizado 2 do volante"),
     STEERING_WHEEL_CUSTOM_BUTON_1_ACTION_ORIGINAL("steeringWheelCustomButon1ActionOriginal", "Ação original do botão personalizado 1 do volante"),
@@ -63,9 +64,12 @@ enum class SharedPreferencesKeys(val key: String, val description: String) {
     PENDING_RESET_TARGET_VERSION("pendingResetTargetVersion", "Versão alvo para resetar dados ao voltar para canal estável"),
     SHOW_BETA_UPDATES("showBetaUpdates", "Mostrar atualizações do canal beta"),
     DISPLAY_APP_CONFIGS("displayAppConfigs", "Configurações de apps para telas secundárias"),
-    ENABLE_INSTRUMENT_MASK("enableInstrumentMask", "Habilitar máscara/overlay no painel de instrumentos"),
-    INSTRUMENT_MASK_DISPLAY_ID("instrumentMaskDisplayId", "ID da tela para a máscara (1 ou 3)"),
+    ENABLE_INSTRUMENT_MASK("enableInstrumentMask", "Habilitar Virtual Cluster no painel de instrumentos"),
+    VIRTUAL_CLUSTER_DISPLAY_ID("instrumentMaskDisplayId", "ID da tela para o Virtual Cluster (Fixado em 3)"),
     CURRENT_CLUSTER_TEMPLATE("currentClusterTemplate", "Template atual do cluster"),
-    CURRENT_CLUSTER_DISPLAY("currentClusterDisplay", "Modo de exibição do cluster")
+    CURRENT_CLUSTER_DISPLAY("currentClusterDisplay", "Modo de exibição do cluster"),
+    DEFAULT_DISPLAY_APP_PACKAGE("defaultDisplayAppPackage", "Pacote do app padrão para abrir no cluster"),
+    INSTRUMENT_REVISION_HISTORY("instrumentRevisionHistory", "Histórico de revisões realizadas"),
+    VIRTUAL_CLUSTER_THEME("virtualClusterTheme", "Tema do Virtual Cluster")
 
 }

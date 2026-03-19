@@ -44,7 +44,7 @@ object DisplayAppLauncher {
         getPrefs().edit()
             .putString(SharedPreferencesKeys.DISPLAY_APP_CONFIGS.key, gson.toJson(configs))
             .apply()
-        FloatingButtonManager.refresh()
+
     }
 
     fun deleteConfig(packageName: String) {
@@ -53,7 +53,7 @@ object DisplayAppLauncher {
         getPrefs().edit()
             .putString(SharedPreferencesKeys.DISPLAY_APP_CONFIGS.key, gson.toJson(configs))
             .apply()
-        FloatingButtonManager.refresh()
+
     }
 
     private fun sh(cmd: String): String {
@@ -93,6 +93,7 @@ object DisplayAppLauncher {
             } else {
                 Log.w(TAG, "Could not find stack for ${config.packageName} on display ${config.displayId}")
             }
+            notifyDisplayStateChanged(config.displayId)
         } catch (e: Exception) {
             Log.e(TAG, "Error launching app ${config.packageName}", e)
         }
@@ -120,6 +121,7 @@ object DisplayAppLauncher {
     suspend fun killApp(packageName: String) = withContext(Dispatchers.IO) {
         try {
             sh("am force-stop $packageName")
+            notifyDisplayStateChanged(3) // Check Display 3 specifically as it's our focus
         } catch (e: Exception) {
             Log.e(TAG, "Error killing $packageName", e)
         }
@@ -129,34 +131,44 @@ object DisplayAppLauncher {
      * Brings the app to the main display (0) for user interaction.
      * Uses am display move-stack + resize to fullscreen.
      */
-    suspend fun launchOnMainDisplay(config: DisplayAppConfig) = withContext(Dispatchers.IO) {
-        try {
-            val escapedActivity = config.activityName.replace("$", "\\$")
-            val taskInfo = findTaskForPackage(config.packageName)
+    suspend fun launchOnMainDisplay(config: DisplayAppConfig) = launchAnyApp(App.getContext(), config.packageName, config.activityName)
 
+    /**
+     * More robust launch for the main display using package manager intents.
+     */
+    suspend fun launchAnyApp(context: Context, packageName: String, activityName: String? = null) = withContext(Dispatchers.IO) {
+        try {
+            // First try to find if it's already on another display and move it
+            val taskInfo = findTaskForPackage(packageName)
             if (taskInfo != null && taskInfo.displayId != 0) {
                 Log.w(TAG, "Moving stack ${taskInfo.stackId} to display 0")
                 val result = sh("am display move-stack ${taskInfo.stackId} 0")
                 if (!result.contains("Exception") && !result.contains("Error")) {
-                    // Find the stack after move (ID may change) and resize to fullscreen
-                    val movedTask = findTaskForPackage(config.packageName)
+                    val movedTask = findTaskForPackage(packageName)
                     if (movedTask != null && movedTask.displayId == 0) {
                         sh("am stack resize ${movedTask.stackId} 0 0 1920 720")
-                        Log.w(TAG, "App moved to display 0 fullscreen, state preserved")
-                        FloatingButtonManager.refresh()
                         return@withContext
                     }
                 }
-                Log.w(TAG, "move-stack to display 0 failed, falling back")
             }
 
-            // Fallback or not running: force-stop + start on display 0
-            sh("am force-stop ${config.packageName}")
-            Thread.sleep(200)
-            sh("am start -n ${config.packageName}/$escapedActivity --display 0")
-            FloatingButtonManager.refresh()
+            // Standard intent launch is most reliable for the main display
+            val intent = context.packageManager.getLaunchIntentForPackage(packageName)
+            if (intent != null) {
+                Log.w(TAG, "Launching $packageName via Intent")
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                context.startActivity(intent)
+            } else if (activityName != null) {
+                // Fallback to am start if intent is somehow null
+                val escapedActivity = activityName.replace("$", "\\$")
+                sh("am force-stop $packageName")
+                Thread.sleep(200)
+                sh("am start -n $packageName/$escapedActivity --display 0")
+            } else {
+                Log.e(TAG, "Could not find launch intent for $packageName")
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Error launching on main display", e)
+            Log.e(TAG, "Error launching $packageName", e)
         }
     }
 
@@ -185,7 +197,7 @@ object DisplayAppLauncher {
             if (taskInfo == null) {
                 // App not running — launch fresh
                 launchApp(config)
-                FloatingButtonManager.refresh()
+
                 return@withContext
             }
 
@@ -194,7 +206,7 @@ object DisplayAppLauncher {
             if (tasksInStack > 1) {
                 Log.w(TAG, "Stack ${taskInfo.stackId} has $tasksInStack tasks, falling back to launchApp")
                 launchApp(config)
-                FloatingButtonManager.refresh()
+
                 return@withContext
             }
 
@@ -204,7 +216,7 @@ object DisplayAppLauncher {
             if (result.contains("Exception") || result.contains("Error")) {
                 Log.w(TAG, "move-stack failed: $result, falling back to launchApp")
                 launchApp(config)
-                FloatingButtonManager.refresh()
+
                 return@withContext
             }
 
@@ -216,7 +228,7 @@ object DisplayAppLauncher {
             }
 
             Log.w(TAG, "App moved to display ${config.displayId} with bounds, state preserved")
-            FloatingButtonManager.refresh()
+            notifyDisplayStateChanged(config.displayId)
         } catch (e: Exception) {
             Log.e(TAG, "Error sending to display", e)
         }
@@ -243,9 +255,35 @@ object DisplayAppLauncher {
                 }
             }
         }
+        notifyDisplayStateChanged(displayId)
     }
 
     // --- Stack parsing helpers ---
+
+    fun isAnyAppOnDisplay(displayId: Int): Boolean {
+        var currentDisplayId: Int? = null
+        for (line in getStackList().lines()) {
+            val stackMatch = Regex("""Stack id=(\d+).*displayId=(\d+)""").find(line)
+            if (stackMatch != null) {
+                currentDisplayId = stackMatch.groupValues[2].toIntOrNull()
+            }
+            if (currentDisplayId == displayId && Regex("""taskId=\d+:""").containsMatchIn(line)) {
+                return true
+            }
+        }
+        return false
+    }
+
+    fun notifyDisplayStateChanged(displayId: Int) {
+        if (displayId == 3) {
+            val isActive = isAnyAppOnDisplay(3)
+            Log.w(TAG, "Display 3 app state changed: isActive=$isActive")
+            ServiceManager.getInstance().dispatchServiceManagerEvent(
+                br.com.redesurftank.havalshisuku.models.ServiceManagerEventType.DISPLAY_3_APP_STATE_CHANGED,
+                isActive
+            )
+        }
+    }
 
     private fun getStackList(): String {
         return ShizukuUtils.runCommandAndGetOutput(arrayOf("sh", "-c", "am stack list 2>&1"))
@@ -338,7 +376,7 @@ object DisplayAppLauncher {
         } catch (e: Exception) {
             Log.e(TAG, "Error enabling freeform mode", e)
         }
-        FloatingButtonManager.initialize()
+
     }
 
     // Cooldown to prevent restart loops

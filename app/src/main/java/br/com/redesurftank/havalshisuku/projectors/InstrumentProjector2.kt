@@ -1,10 +1,13 @@
 package br.com.redesurftank.havalshisuku.projectors
 
+import kotlinx.coroutines.*
+
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.os.Bundle
+import android.util.Log
 import android.view.Display
 import android.view.View
 import android.view.WindowManager
@@ -28,11 +31,14 @@ import br.com.redesurftank.havalshisuku.models.screens.Screen
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 class InstrumentProjector2(outerContext: Context, display: Display) :
         BaseProjector(outerContext, display) {
     
+    private val TAG = "InstrumentProjector2"
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val clockRunnable = object : Runnable {
         override fun run() {
             val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
@@ -51,6 +57,7 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
     // Cached EV power values for kW calculation
     private var batteryVoltage = 0f
     private var batteryCurrent = 0f
+    private var isAnyAppOnDisplay3 = false
     
     private val prefsListener =
             SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -61,13 +68,13 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                                                 .key,
                                     SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key,
                                     SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key,
-                                    SharedPreferencesKeys.INSTRUMENT_MASK_DISPLAY_ID.key
+                                    SharedPreferencesKeys.VIRTUAL_CLUSTER_DISPLAY_ID.key
                                 )
                 ) {
                     ensureUi {
                         root.isVisible =
                                 shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn
-                        updateMaskVisibility()
+                        updateVirtualClusterVisibility()
                     }
                 }
             }
@@ -98,7 +105,8 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
         }
         setContentView(root)
         setupControlView(root)
-        updateMaskVisibility()
+        isAnyAppOnDisplay3 = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.isAnyAppOnDisplay(3)
+        updateVirtualClusterVisibility()
         setupDataListeners()
 
         root.isVisible = shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn
@@ -108,6 +116,7 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
         super.onStop()
         handler.removeCallbacks(clockRunnable)
         preferences.unregisterOnSharedPreferenceChangeListener(prefsListener)
+        scope.cancel()
     }
 
     private fun setupDataListeners() {
@@ -194,6 +203,9 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                 when (event) {
                     ServiceManagerEventType.CLUSTER_CARD_CHANGED -> {
                         val card = args[0] as Int
+                        evaluateJsIfReady(webView, "control('cardId', $card)")
+                        resizeActiveApp(card)
+                        
                         if (card == 1 || card == 3) {
                             MainUiManager.getInstance().handleCardChange(card)
                             updateValuesWebView()
@@ -226,6 +238,11 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                         val payload = args[0] as String
                         evaluateJsIfReady(webView, payload)
                     }
+                    ServiceManagerEventType.DISPLAY_3_APP_STATE_CHANGED -> {
+                        isAnyAppOnDisplay3 = args[0] as Boolean
+                        Log.w(TAG, "Display 3 app state changed in projector: $isAnyAppOnDisplay3")
+                        updateVirtualClusterVisibility()
+                    }
                 }
             }
         }
@@ -243,10 +260,27 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.allowContentAccess = true
+                addJavascriptInterface(WebInterface(), "Android")
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
                         view?.let {
+                            Log.d(TAG, "WebView finished loading")
+                            
+                            // Auto-launch default app if configured
+                            val defaultPackage = preferences.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "") ?: ""
+                            if (defaultPackage.isNotEmpty()) {
+                                val config = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()[defaultPackage]
+                                if (config != null) {
+                                    Log.d(TAG, "Auto-launching default app: $defaultPackage")
+                                    scope.launch {
+                                        br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.launchApp(config)
+                                    }
+                                }
+                            }
+                            
+                            // Apply pending JS or updates
+                            updateVirtualClusterVisibility()
                             webViewsLoaded[it] = true
                             updateValuesWebView()
                             pendingJsQueues[it]?.forEach { js -> it.evaluateJavascript(js, null) }
@@ -268,6 +302,7 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
         evaluateJsIfReady(webView, "control('power', ${sm.getData(CarConstants.CAR_HVAC_POWER_MODE.value)})")
         evaluateJsIfReady(webView, "control('recycle', ${sm.getData(CarConstants.CAR_HVAC_CYCLE_MODE.value)})")
         evaluateJsIfReady(webView, "control('auto', ${sm.getData(CarConstants.CAR_HVAC_AUTO_ENABLE.value)})")
+        evaluateJsIfReady(webView, "control('aion', ${sm.getData(CarConstants.CAR_HVAC_ANION_ENABLE.value)})")
         evaluateJsIfReady(webView, "control('inside_temp', ${sm.getData(CarConstants.CAR_BASIC_INSIDE_TEMP.value).toFloat().roundToInt()})")
         evaluateJsIfReady(webView, "control('outside_temp', ${sm.getData(CarConstants.CAR_BASIC_OUTSIDE_TEMP.value).toFloat().roundToInt()})")
         evaluateJsIfReady(webView, "control('onepedal', ${sm.getData(CarConstants.CAR_CONFIGURE_PEDAL_CONTROL_ENABLE.value) == "1"})")
@@ -276,13 +311,82 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
         evaluateJsIfReady(webView, "control('batteryPercent', ${sm.getData(CarConstants.CAR_EV_INFO_CUR_BATTERY_POWER_PERCENTAGE.value)})")
         evaluateJsIfReady(webView, "control('fuelRange', ${sm.getData(CarConstants.CAR_EV_INFO_FUEL_MODE_REMAIN_ODOMETER.value)})")
         evaluateJsIfReady(webView, "control('batteryRange', ${sm.getData(CarConstants.CAR_EV_INFO_ELECTRIC_MODE_REMAIN_ODOMETER.value)})")
-        evaluateJsIfReady(webView, "control('gearState', '${getGearLabel(sm.getData(CarConstants.CAR_BASIC_GEAR_STATUS.value))})")
+        evaluateJsIfReady(webView, "control('gearState', '${getGearLabel(sm.getData(CarConstants.CAR_BASIC_GEAR_STATUS.value))}')")
 
+        // Speed and Engine
+        val speedValue = sm.getData(CarConstants.CAR_BASIC_VEHICLE_SPEED.value)
+        val speedStr = speedValue.toString().split(".")[0]
+        evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.CAR_SPEED}', $speedStr)")
+        evaluateJsIfReady(webView, "control('engineRPM', ${sm.getData(CarConstants.CAR_BASIC_ENGINE_SPEED.value)})")
+
+        // Modes and Settings
+        val evMode = sm.getData(CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value)
+        evaluateJsIfReady(webView, "control('evMode', ${MainMenu.EvModeOptions.getLabel(evMode)})")
+
+        val drivingMode = sm.getData(CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.value)
+        val drivingModeLabel = MainMenu.DrivingModeOptions.getLabel(drivingMode)
+        evaluateJsIfReady(webView, "control('drivingMode', $drivingModeLabel)")
+        evaluateJsIfReady(webView, "control('evModeLabel', $drivingModeLabel)")
+
+        val steerMode = sm.getData(CarConstants.CAR_DRIVE_SETTING_STEERING_WHEEL_ASSIST_MODE.value)
+        evaluateJsIfReady(webView, "control('steerMode', ${MainMenu.SteerModeOptions.getLabel(steerMode)})")
+
+        val espStatus = sm.getData(CarConstants.CAR_DRIVE_SETTING_ESP_ENABLE.value)
+        evaluateJsIfReady(webView, "control('espStatus', ${MainMenu.EspOptions.getLabel(espStatus)})")
+
+        val regenLevel = sm.getData(CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL.value)
+        evaluateJsIfReady(webView, "control('regenMode', ${RegenScreen.RegenOptions.getLabel(regenLevel)})")
+
+        // Power and Regen Graph
+        val outputPower = sm.getData(CarConstants.CAR_EV_INFO_ENERGY_OUTPUT_PERCENTAGE.value)
+        val regenValue = kotlin.math.max(0.0f, -1 * outputPower.toFloat())
+        evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.EV_POWER_FACTOR}', $outputPower)")
+        evaluateJsIfReady(webView, "control('${RegenScreen.RegenOptions.REGEN_GRAPH_STATE_NAME}', $regenValue)")
+
+        // Battery KW Calculation
+        batteryVoltage = sm.getData(CarConstants.CAR_EV_INFO_POWER_BATTERY_VOLTAGE.value).toFloatOrNull() ?: 0f
+        batteryCurrent = sm.getData(CarConstants.CAR_EV_INFO_CUR_CHARGE_CURRENT.value).toFloatOrNull() ?: 0f
+        val kw = batteryVoltage * batteryCurrent / 1000f
+        evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.EV_POWER_KW}', $kw)")
     }
 
-    private fun updateMaskVisibility() {
+    private fun updateVirtualClusterVisibility() {
         val maskEnabled = preferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key, true)
-        evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.MASK_VISIBLE}', $maskEnabled)")
+        if (!maskEnabled) {
+            evaluateJsIfReady(webView, "control('mask', 0)")
+            return
+        }
+
+        val displayMode = preferences.getString(SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key, "Normal")
+        val maskState = when (displayMode) {
+            "Clean" -> 0
+            "Normal" -> 1
+            "Reduzido" -> 2
+            else -> if (isAnyAppOnDisplay3) 1 else 2
+        }
+        
+        Log.w(TAG, "Updating mask state: $maskState (mode=$displayMode, appOn3=$isAnyAppOnDisplay3)")
+        evaluateJsIfReady(webView, "control('mask', $maskState)")
+        evaluateJsIfReady(webView, "control('display', '$displayMode')")
+    }
+
+    private inner class WebInterface {
+        @android.webkit.JavascriptInterface
+        fun saveSetting(key: String, value: String) {
+            val prefKey = when (key) {
+                "currentClusterDisplay" -> SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key
+                "currentClusterTemplate" -> SharedPreferencesKeys.CURRENT_CLUSTER_TEMPLATE.key
+                else -> null
+            }
+
+            if (prefKey != null) {
+                preferences.edit().putString(prefKey, value).apply()
+                // Update visibility if display mode changed
+                if (key == "currentClusterDisplay") {
+                    ensureUi { updateVirtualClusterVisibility() }
+                }
+            }
+        }
     }
 
     private fun evaluateJsIfReady(webView: WebView?, js: String) {
@@ -306,13 +410,41 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
         ensureUi { root.visibility = View.VISIBLE }
     }
 
+    private fun resizeActiveApp(cardId: Int) {
+        val defaultPackage = preferences.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "") ?: ""
+        if (defaultPackage.isEmpty()) return
+        
+        val config = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()[defaultPackage] ?: return
+        
+        scope.launch {
+            val res = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getDisplayResolution(3)
+            val fullWidth = res.first
+            val fullHeight = res.second
+            
+
+            // For cardId 0 (Transparency) and 1 (Main Menu), cap width at 65% (or use config if even smaller)
+            val newWidth = if (cardId == 0 || cardId == 1) {
+                kotlin.math.min(config.width, (fullWidth * 0.65f).toInt())
+            } else {
+                config.width
+            }
+            
+            val newConfig = config.copy(
+                width = newWidth,
+                x = 0
+            )
+            
+            Log.d(TAG, "Resizing app $defaultPackage for cardId $cardId: width=$newWidth")
+            br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.resizeApp(newConfig)
+        }
+    }
+
     fun getGearLabel(gear: String?): String {
         val gearLabel = when(gear.toString().toIntOrNull()) {
-            1 -> "N"
             2 -> "D"
             3 -> "P"
             4 -> "R"
-            else -> "P"
+            else -> "N"
         }
         return gearLabel;
     }

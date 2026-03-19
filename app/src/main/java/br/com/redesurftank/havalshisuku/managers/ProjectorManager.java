@@ -41,8 +41,8 @@ public class ProjectorManager {
     private ProjectorManager() {
         sharedPreferences = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE);
 
-        int maskDisplayId = sharedPreferences.getInt("instrumentMaskDisplayId", 1);
-        int hudDisplayId = (maskDisplayId == 1) ? 3 : 1;
+        int maskDisplayId = 3;
+        int hudDisplayId = 1;
 
         projectorCreators.put(maskDisplayId, (ctx, disp) -> {
             instrumentProjector2 = new InstrumentProjector2(ctx, disp);
@@ -131,8 +131,8 @@ public class ProjectorManager {
         stopProjectors();
         
         // Re-read preferences and re-populate creators
-        int maskDisplayId = sharedPreferences.getInt("instrumentMaskDisplayId", 1);
-        int hudDisplayId = (maskDisplayId == 1) ? 3 : 1;
+        int maskDisplayId = 3;
+        int hudDisplayId = 1;
 
         projectorCreators.put(maskDisplayId, (ctx, disp) -> {
             instrumentProjector2 = new InstrumentProjector2(ctx, disp);

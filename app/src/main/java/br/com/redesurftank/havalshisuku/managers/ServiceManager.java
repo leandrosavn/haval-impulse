@@ -566,7 +566,6 @@ public class ServiceManager {
                     ShizukuUtils.runCommandAndGetOutput(new String[]{"sh", "-c", "settings put global enable_freeform_support 1"});
                     ShizukuUtils.runCommandAndGetOutput(new String[]{"sh", "-c", "settings put global force_resizable_activities 1"});
                     Log.d(TAG, "Freeform mode enabled for secondary display apps");
-                    FloatingButtonManager.INSTANCE.initialize();
                 } catch (Exception e) {
                     Log.e(TAG, "Error enabling freeform mode", e);
                 }
@@ -918,6 +917,8 @@ public class ServiceManager {
         }
         try {
             controlService.request("cmd.common.request.set", key, value);
+            // Notify local listeners immediately for responsive UI
+            OnDataChanged(key, value);
         } catch (RemoteException e) {
             Log.e(TAG, "Error updating data", e);
         }

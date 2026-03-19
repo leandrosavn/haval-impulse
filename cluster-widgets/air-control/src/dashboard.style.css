@@ -18,9 +18,9 @@
 
 /* Reduzido Mode */
 .display-reduzido {
-    --display-scale: 0.6;
-    --display-left-offset: -100px;
-    --display-right-offset: 100px;
+    --display-scale: 0.65;
+    --display-left-offset: -20px;
+    --display-right-offset: 20px;
 }
 
 /* Clean Mode */
@@ -39,7 +39,7 @@
 }
 
 /* Hide the menu container and right circle in clean mode */
-.display-clean .menu-positioned-container,
+.display-clean .dashboard-menu-container,
 .display-clean .mask-circle.right,
 .display-clean .mask-circle-border.right {
     opacity: 0 !important;
@@ -48,12 +48,13 @@
 }
 
 .display-clean .dashboard-speed-content {
-    transform: translate(142%, -145%) scale(0.8);
+    transform: translate(147%, -145%) scale(0.8);
     width: 500px;
     height: 160px;
     border-radius: 20px;
     transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-    background: radial-gradient(circle at center, rgba(0, 0, 0, 0.1) 20%, rgba(205, 216, 255, 0.2) 100%);
+    background: radial-gradient(circle at center, rgba(0, 0, 0, 0.3) 20%, rgba(205, 216, 255, 0.2) 100%);
+    backdrop-filter: blur(10px);
 }
 
 .display-clean .speed-inner-circle {
@@ -94,18 +95,62 @@
     /* Above content */
 }
 
-.content-container {
-    position: absolute;
+.no-app-mask-v {
+    position: fixed;
     top: 0;
     left: 0;
-    width: 1920px;
-    height: 720px;
-    overflow: hidden;
-    z-index: 100;
-    /* Between mask layers */
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 0;
+    background: linear-gradient(to right,
+            black 0%,
+            black 15%,
+            transparent 40%,
+            transparent 60%,
+            black 85%,
+            black 100%);
+    transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.menu-positioned-container {
+.no-app-mask-h {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 0;
+    background: linear-gradient(to bottom,
+            black 0%,
+            black 10%,
+            transparent 20%,
+            transparent 85%,
+            black 95%,
+            black 100%);
+    transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.partial-app-mask {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 10;
+    /* Behind UI, but obscures background app */
+    background: linear-gradient(to right,
+            transparent 0%,
+            transparent 50%,
+            rgba(0, 0, 0, 1) 65%,
+            transparent 66%,
+            transparent 100%);
+    opacity: 0;
+    transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dashboard-menu-container {
     position: absolute;
     left: calc(var(--mask-right-x) + var(--display-right-offset));
     top: var(--mask-center-y);
@@ -122,7 +167,7 @@
 }
 
 .mask-top-bar {
-background: linear-gradient(#000 60%,rgba(0,0,0,.5) 65%,rgba(0,0,0,.2) 100%);
+    background: linear-gradient(#000 60%, rgba(0, 0, 0, .5) 65%, rgba(0, 0, 0, .2) 100%);
     width: 100%;
     height: 135px;
     position: absolute;
@@ -267,7 +312,7 @@ background: linear-gradient(#000 60%,rgba(0,0,0,.5) 65%,rgba(0,0,0,.2) 100%);
     height: 380px;
     border: 2px solid rgba(160, 180, 255, 0.5);
     border-radius: 50%;
-    background: radial-gradient(circle,rgba(0,0,0,.8) 0%,rgba(0,0,0,.6) 80%,rgba(160,180,255,.6) 100%);
+    background: radial-gradient(circle, rgba(0, 0, 0, .8) 0%, rgba(0, 0, 0, .6) 80%, rgba(160, 180, 255, .6) 100%);
     box-shadow: 0 0 50px 10px #6477ff85;
     backdrop-filter: blur(10px) saturate(180%);
     z-index: 11;
@@ -438,6 +483,13 @@ background: linear-gradient(#000 60%,rgba(0,0,0,.5) 65%,rgba(0,0,0,.2) 100%);
     color: #A3AED0;
     font-variant-numeric: tabular-nums;
     text-align: left;
+}
+
+.dashboard-unit {
+    font-size: 26px;
+    font-weight: 500;
+    color: #A3AED0;
+    margin-left: 4px;
 }
 
 .fuel-icon,

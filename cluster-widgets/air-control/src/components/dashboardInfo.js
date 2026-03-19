@@ -6,6 +6,7 @@ const batteryIconBase64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d
 
 export function createDashboardInfo() {
     const container = div({ className: 'dashboard-info-container' });
+    const menuWrapper = div({ className: 'dashboard-menu-container' });
 
     // 1. Top Bar Elements (Clock, Gear, Mode)
     const topCenter = div({ className: 'dashboard-top-center' });
@@ -111,7 +112,7 @@ export function createDashboardInfo() {
     const fuelTop = div({
         className: 'gauge-top-info', children: [
             img({ className: 'fuel-icon', src: fuelIconBase64 }),
-            span({ className: 'fuel-range', children: [getState('fuelRange') + ' km'] }),
+            span({ className: 'fuel-range', children: [getState('fuelRange'), span({ className: 'dashboard-unit', children: [' km'] })] }),
             span({ className: 'fuel-percent', children: [getState('fuelPercent') + '%'] })
         ]
     });
@@ -140,7 +141,7 @@ export function createDashboardInfo() {
     const batteryTop = div({
         className: 'gauge-top-info', children: [
             img({ className: 'battery-icon', src: batteryIconBase64 }),
-            span({ className: 'battery-range', children: [getState('batteryRange') + ' km'] }),
+            span({ className: 'battery-range', children: [getState('batteryRange'), span({ className: 'dashboard-unit', children: [' km'] })] }),
             span({ className: 'battery-percent', children: [getState('batteryPercent') + '%'] })
         ]
     });
@@ -209,9 +210,13 @@ export function createDashboardInfo() {
     container.appendChild(externalTempContainer);
     container.appendChild(internalTempContainer);
     container.appendChild(bottomEvMode);
+    container.appendChild(menuWrapper);
 
-    const updateCleanModeVisibility = (visible) => {
-        const display = visible ? 'flex' : 'none';
+    const updateCleanModeVisibility = (maskState) => {
+        // mask = 0: Hide dashboard elements (Clean mode effect)
+        // mask = 1 or 2: Show dashboard elements
+        const shouldHide = maskState === 0;
+        const display = shouldHide ? 'none' : 'flex';
 
         topCenter.style.display = display;
         speedContainer.style.display = display;
@@ -283,21 +288,27 @@ export function createDashboardInfo() {
         updateBarSegments(batterySegments, val);
         batteryTop.querySelector('.battery-percent').textContent = val + '%';
     });
-    const sub7 = subscribe('fuelRange', val => fuelTop.querySelector('.fuel-range').textContent = val + ' km');
-    const sub8 = subscribe('batteryRange', val => batteryTop.querySelector('.battery-range').textContent = val + ' km');
+    const sub7 = subscribe('fuelRange', val => {
+        const rangeSpan = fuelTop.querySelector('.fuel-range');
+        if (rangeSpan && rangeSpan.childNodes[0]) rangeSpan.childNodes[0].textContent = val;
+    });
+    const sub8 = subscribe('batteryRange', val => {
+        const rangeSpan = batteryTop.querySelector('.battery-range');
+        if (rangeSpan && rangeSpan.childNodes[0]) rangeSpan.childNodes[0].textContent = val;
+    });
     const sub9 = subscribe('outside_temp', val => externalTempValue.textContent = val + '°C');
     const sub10 = subscribe('inside_temp', val => internalTempValue.textContent = val + '°C');
-    const sub11 = subscribe('maskVisible', val => updateCleanModeVisibility(val));
+    const sub11 = subscribe('mask', val => updateCleanModeVisibility(val));
 
     updateBarSegments(fuelSegments, getState('fuelPercent'));
     updateBarSegments(batterySegments, getState('batteryPercent'));
     updateSpeedRotation(getState('carSpeed'));
-    updateCleanModeVisibility(getState('maskVisible'));
+    updateCleanModeVisibility(getState('mask'));
 
     container.cleanup = () => {
         clearInterval(clockInterval);
         [sub0, sub1, sub2, sub3, sub4, sub5, sub6, sub7, sub8, sub9, sub10, sub11].forEach(un => un());
     };
 
-    return container;
+    return { container, menuWrapper };
 }

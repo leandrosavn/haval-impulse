@@ -14,7 +14,7 @@ public class DisplaySelectionScreen implements Screen {
     
     // The items mirror the frontend displaySelection.js
     private static final String[] ITEM_IDS = {
-        "sel_template",
+        "title_mask",
         "mode_normal",
         "mode_reduzido",
         "mode_clean"
@@ -38,6 +38,11 @@ public class DisplaySelectionScreen implements Screen {
                 if (focusedTemplateIndex >= ITEM_IDS.length) {
                     focusedTemplateIndex = 0;
                 }
+                // Skip title
+                if (ITEM_IDS[focusedTemplateIndex].equals("title_mask")) {
+                    focusedTemplateIndex++;
+                    if (focusedTemplateIndex >= ITEM_IDS.length) focusedTemplateIndex = 0;
+                }
                 updateFocus();
                 handleSelection(key);
                 break;
@@ -45,6 +50,11 @@ public class DisplaySelectionScreen implements Screen {
                 focusedTemplateIndex--;
                 if (focusedTemplateIndex < 0) {
                     focusedTemplateIndex = ITEM_IDS.length - 1;
+                }
+                // Skip title
+                if (ITEM_IDS[focusedTemplateIndex].equals("title_mask")) {
+                    focusedTemplateIndex--;
+                    if (focusedTemplateIndex < 0) focusedTemplateIndex = ITEM_IDS.length - 1;
                 }
                 updateFocus();
                 handleSelection(key);
@@ -109,7 +119,7 @@ public class DisplaySelectionScreen implements Screen {
     @Override
     public void initialize() {
         this.serviceManager = ServiceManager.getInstance();
-        focusedTemplateIndex = 0;
+        focusedTemplateIndex = 1; // Start on Normal, skip title
         serviceManager.dispatchServiceManagerEvent(ServiceManagerEventType.UPDATE_SCREEN, this);
         updateFocus();
     }

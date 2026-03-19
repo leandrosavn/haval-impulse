@@ -3,10 +3,11 @@ import { createMainMenu } from './components/mainMenu.js';
 import { createAcControlScreen, updateProgressRings as updateProgressRingsAC } from "./components/aircon/mainAcControl.js";
 import { createRegenScreen, updateProgressRings as updateProgressRingsRegen } from "./components/regen/regenControl.js";
 import { createGraphScreen } from "./components/graphs/graphs.js";
-import { createMask } from './components/mask.js';
+import { createMask } from './components/display/mask.js';
 import { createDashboardInfo } from './components/dashboardInfo.js';
-import { createDisplaySelectionScreen } from './components/displaySelection.js';
+import { createDisplaySelectionScreen } from './components/display/themeSelection.js';
 import { div } from './utils/createElement.js';
+import './dashboard.style.css';
 
 if (process.env.NODE_ENV === 'development') {
     import('./testing-utils.js');
@@ -15,11 +16,7 @@ if (process.env.NODE_ENV === 'development') {
 const appContainer = document.getElementById('app');
 let currentComponent = null;
 let maskComponent = null;
-
-// Create container for dynamic content to separate from persistent mask
-const contentContainer = div({ className: 'content-container' });
-const menuWrapper = div({ className: 'menu-positioned-container' });
-contentContainer.appendChild(menuWrapper);
+let menuWrapper = null;
 
 function initializeLayout() {
     if (!appContainer) return;
@@ -31,15 +28,17 @@ function initializeLayout() {
 
     appContainer.appendChild(mask.background);
 
-    // Add content container (z-index: 100)
-    appContainer.appendChild(contentContainer);
-
     // Add Dashboard Info (Gauges, Clock, etc.) (z-index: 140)
     const dashboardInfo = createDashboardInfo();
-    appContainer.appendChild(dashboardInfo);
+    menuWrapper = dashboardInfo.menuWrapper;
+    appContainer.appendChild(dashboardInfo.container);
 
     // Add mask foreground on top (z-index: 150)
     appContainer.appendChild(mask.foreground);
+
+    // Add no app mask on top (z-index: 200)
+    appContainer.appendChild(mask.noAppV);
+    appContainer.appendChild(mask.noAppH);
 }
 
 function render() {
@@ -55,7 +54,9 @@ function render() {
         currentComponent.cleanup();
     }
 
-    menuWrapper.innerHTML = '';
+    if (menuWrapper) {
+        menuWrapper.innerHTML = '';
+    }
 
     if (screen === 'main_menu') {
         currentComponent = createMainMenu();
@@ -74,7 +75,9 @@ function render() {
         const onMount = currentComponent.onMount;
         currentComponent = element;
 
-        menuWrapper.appendChild(element);
+        if (menuWrapper) {
+            menuWrapper.appendChild(element);
+        }
 
         if (onMount) {
             currentComponent.cleanup = onMount();
@@ -93,7 +96,9 @@ render();
 subscribe('cardId', (cardId) => {
     console.log('Actual Card:', cardId);
     // 0 = hide the right menu display
-    contentContainer.style.display = (cardId === 0) ? 'none' : 'block';
+    if (menuWrapper) {
+        menuWrapper.style.display = (cardId === 0) ? 'none' : 'block';
+    }
 
     if (cardId === 1) {
         // 1 = go to main regular menu
@@ -104,13 +109,6 @@ subscribe('cardId', (cardId) => {
     }
 });
 
-// Keyboard shortcuts
-window.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'k') {
-        const current = get('maskVisible');
-        setState('maskVisible', !current);
-    }
-});
 
 
 // Functions used by Kotlin to trigger interactions

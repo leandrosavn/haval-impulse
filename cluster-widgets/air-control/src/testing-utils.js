@@ -6,8 +6,13 @@ const focusableAreas = {
     ac_control: ['fan', 'temp'],
     regen: ['Baixo', 'Normal', 'Alto'],
     graph: ['evConsumption', 'gasConsumption', 'carSpeed'],
-    display_selection: ['sel_template', 'mode_normal', 'mode_reduzido', 'mode_clean']
+    display_selection: ['title_mask', 'mode_normal', 'mode_reduzido', 'mode_clean']
 };
+// If running under dev-controls (index.html), add a red background to help identify the environment
+if (window.location.pathname.endsWith('index.html') || window.location.pathname === '/' || window.location.pathname.endsWith('/')) {
+    document.body.style.backgroundColor = '#ff0000ff'; // Dark red to avoid blinding but still visible
+    console.log('[Dev-Controls] Environment detected - Setting red background');
+}
 
 document.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.altKey || e.metaKey) return;
@@ -16,6 +21,12 @@ document.addEventListener('keydown', (e) => {
     const currentScreen = currentState.screen;
     const currentCardId = (currentState.cardId !== undefined) ? currentState.cardId : 1;
     const cards = [0, 1, 3];
+
+    if (currentScreen === 'display_selection' && (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Enter')) {
+        if (stateManager.getState().display === 'Clean') {
+             window.control('display', 'Normal');
+        }
+    }
 
     if (e.key === 'ArrowRight') {
         const currentIndex = cards.indexOf(currentCardId);
@@ -188,23 +199,31 @@ document.addEventListener('keydown', (e) => {
     }
     else if (currentScreen === 'display_selection') {
         const controls = focusableAreas.display_selection;
-        const currentFocus = currentState.displayFocus || 'sel_template';
+        const currentFocus = currentState.displayFocus || 'mode_normal';
         const currentIndex = Math.max(0, controls.indexOf(currentFocus));
 
         if (e.key === 'ArrowUp') {
-            const prevIndex = (currentIndex - 1 + controls.length) % controls.length;
+            let prevIndex = (currentIndex - 1 + controls.length) % controls.length;
+            // Skip title
+            if (controls[prevIndex] === 'title_mask') {
+                prevIndex = (prevIndex - 1 + controls.length) % controls.length;
+            }
             window.focus(controls[prevIndex]);
         } else if (e.key === 'ArrowDown') {
-            const nextIndex = (currentIndex + 1) % controls.length;
+            let nextIndex = (currentIndex + 1) % controls.length;
+            // Skip title
+            if (controls[nextIndex] === 'title_mask') {
+                nextIndex = (nextIndex + 1) % controls.length;
+            }
             window.focus(controls[nextIndex]);
         } else if (e.key === 'Enter') {
-            const currentDisplay = currentState.display || 'Normal';
-            if (currentDisplay === 'Clean') {
-                window.control('display', 'Normal');
-                window.focus('mode_normal');
-            } else if (currentFocus.startsWith('mode_')) {
+            if (currentFocus.startsWith('mode_')) {
                 const newDisplay = currentFocus.replace('mode_', '');
-                window.control('display', newDisplay.charAt(0).toUpperCase() + newDisplay.slice(1));
+                const formattedDisplay = newDisplay.charAt(0).toUpperCase() + newDisplay.slice(1);
+                window.control('display', formattedDisplay);
+                if (window.Android && window.Android.saveSetting) {
+                    window.Android.saveSetting('currentClusterDisplay', formattedDisplay);
+                }
             }
         }
     }
@@ -215,6 +234,14 @@ document.addEventListener('keydown', (e) => {
         const currentIndex = gears.indexOf(currentGear);
         const nextIndex = (currentIndex + 1) % gears.length;
         setState('gearState', gears[nextIndex]);
+    }
+
+    if (e.key.toLowerCase() === 'k') {
+        const currentMask = stateManager.getState().mask || 0;
+        const nextMask = (currentMask + 1) % 3;
+        const maskNames = { 0: 'No Mask', 1: 'Partial Mask (App Active)', 2: 'Full Mask (No App)' };
+        console.log(`[Mask Simulation] Cycle -> Mask ${nextMask} (${maskNames[nextMask]})`);
+        setState('mask', nextMask);
     }
 });
 

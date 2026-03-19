@@ -73,6 +73,17 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
             startForeground(NOTIFICATION_ID, notification);
 
             var sharedPreferences = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE);
+            
+            // Start bottom bar as early as possible if enabled
+            if (sharedPreferences.getBoolean(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR.getKey(), false)) {
+                if (android.provider.Settings.canDrawOverlays(this)) {
+                    Log.w(TAG, "Starting persistent bottom bar...");
+                    Intent bottomBarIntent = new Intent(this, br.com.redesurftank.havalshisuku.services.BottomBarService.class);
+                    startService(bottomBarIntent);
+                } else {
+                    Log.e(TAG, "Overlay permission not granted, skipping persistent bottom bar.");
+                }
+            }
 
             // Checar se precisa resetar dados (rollback preview→estável)
             var pendingResetTarget = sharedPreferences.getString(SharedPreferencesKeys.PENDING_RESET_TARGET_VERSION.getKey(), "");
