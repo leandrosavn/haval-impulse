@@ -1,3 +1,5 @@
+import { logger } from './utils/logger.js';
+
 function StateManager(initialState) {
     this._state = {};
     for (var key in initialState) {
@@ -14,6 +16,7 @@ StateManager.prototype.get = function (key) {
 
 StateManager.prototype.set = function (key, value) {
     if (this._state[key] !== value) {
+        if (key != "evPowerKw_smoothed") logger.log(`State update: ${key} =`, value);
         this._state[key] = value;
         this._notifyListeners(key, value);
     }
@@ -110,7 +113,7 @@ var stateManager = new StateManager({
     batteryPercent: 0,
     fuelRange: 0,
     batteryRange: 0,
-    clockTime: '13:21',
+    clockTime: '--:--',
     gearState: 'P',
     evModeLabel: 'NORMAL',
     readyState: true,

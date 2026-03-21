@@ -101,7 +101,7 @@ fun DefaultAppSelectionSection() {
                             expanded = false
                         }
                     )
-                    configs.values.forEach { config ->
+                    for (config in configs) {
                         val appName = try {
                             pm.getApplicationInfo(config.packageName, 0).let { pm.getApplicationLabel(it).toString() }
                         } catch (_: Exception) { config.packageName }

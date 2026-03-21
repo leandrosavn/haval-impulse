@@ -46,7 +46,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
@@ -112,16 +111,16 @@ import com.google.gson.reflect.TypeToken
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.animation.AnimatedVisibility
 import android.content.SharedPreferences
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.painterResource
@@ -154,10 +153,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
@@ -167,7 +164,6 @@ import br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
 import br.com.redesurftank.havalshisuku.models.DisplayAppConfig
 import br.com.redesurftank.havalshisuku.models.TargetDisplay
 import org.json.JSONArray
-import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.BufferedReader
 import java.io.File
@@ -216,9 +212,18 @@ fun MainScreen(modifier: Modifier = Modifier) {
 
     var selectedItem by remember { mutableStateOf(0) }
 
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
+    val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
+    
+    // Check if width is 1920px (with some tolerance)
+    val isFullWidth = screenWidthPx >= 1918f && screenWidthPx <= 1922f
+    val startPadding = if (isFullWidth) with(density) { 100.toDp() } else 0.dp
+
     Row(
         modifier = modifier
             .fillMaxSize()
+            .padding(start = startPadding)
             .background(AppColors.Background)
     ) {
         // Fixed Side Menu
@@ -446,6 +451,7 @@ fun BasicSettingsTab() {
                 },
                 sliderValue = speedThreshold.toInt(),
                 sliderRange = 10..120,
+                sliderStep = 1,
                 onSliderChange = { newSpeed ->
                     speedThreshold = newSpeed.toFloat()
                     prefs.edit { putFloat(SharedPreferencesKeys.SPEED_THRESHOLD.key, newSpeed.toFloat()) }
@@ -462,6 +468,7 @@ fun BasicSettingsTab() {
                 },
                 sliderValue = closeSunroofSpeedThreshold.toInt(),
                 sliderRange = 10..120,
+                sliderStep = 1,
                 onSliderChange = { newSpeed ->
                     closeSunroofSpeedThreshold = newSpeed.toFloat()
                     prefs.edit { putFloat(SharedPreferencesKeys.SUNROOF_SPEED_THRESHOLD.key, newSpeed.toFloat()) }
@@ -716,10 +723,9 @@ fun BasicSettingsTab() {
                     if (checked) {
                         context.startService(serviceIntent)
                         Thread {
-                            val result = br.com.redesurftank.havalshisuku.utils.ShizukuUtils.runCommandAndGetOutput(arrayOf("sh", "-c", "wm overscan 0,0,0,50"))
-                            if (result.isEmpty()) {
-                                Log.w("MainActivity", "Não foi possível aplicar overscan. Shizuku está rodando?")
-                            }
+                            br.com.redesurftank.havalshisuku.utils.ShizukuUtils.runCommandAndGetOutput(arrayOf("sh", "-c", "wm size reset"))
+                            val overscan = prefs.getInt(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR_OVERSCAN.key, 60)
+                            br.com.redesurftank.havalshisuku.utils.ShizukuUtils.runCommandAndGetOutput(arrayOf("sh", "-c", "wm overscan 0,0,0,$overscan"))
                         }.start()
                     } else {
                         context.stopService(serviceIntent)
@@ -1237,7 +1243,7 @@ fun TelasTab() {
     var enableProjector by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key, false)) }
     var enableWarning by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_REVISION_WARNING.key, false)) }
     var enableCustomIntegration by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.key, false)) }
-    var enableMask by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key, false)) }
+    var enableMask by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, false)) }
     var enableCustomMenu by remember { mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_CUSTOM_MENU.key, false)) }
     var allClusterFunctionsEnabled by remember { mutableStateOf(enableProjector || enableCustomIntegration || enableCustomMenu) }
 
@@ -1310,7 +1316,7 @@ fun TelasTab() {
                                 enableWarning = false
                                 prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_REVISION_WARNING.key, false) }
                                 enableMask = false
-                                prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key, false) }
+                                prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, false) }
                             }
                             
                             try {
@@ -1352,14 +1358,14 @@ fun TelasTab() {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Virtual Cluster", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        Text(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.description, color = Color(0xFFB0B8C4), fontSize = 14.sp)
+                        Text(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.description, color = Color(0xFFB0B8C4), fontSize = 14.sp)
                     }
                     Switch(
                         checked = enableMask,
                         enabled = allClusterFunctionsEnabled,
                         onCheckedChange = {
                             enableMask = it
-                            prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key, it) }
+                            prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, it) }
                         }
                     )
                 }
@@ -1429,7 +1435,7 @@ fun TelasTab() {
                                                 appExpanded = false
                                             }
                                         )
-                                        configs.values.forEach { config ->
+                                        configs.forEach { config ->
                                             val name = try {
                                                 pm.getApplicationInfo(config.packageName, 0).let { pm.getApplicationLabel(it).toString() }
                                             } catch (_: Exception) { config.packageName }
@@ -1734,7 +1740,7 @@ fun DisplayAppConfigSection() {
                 )
             }
         } else {
-            configs.values.forEach { config ->
+            configs.forEach { config ->
                 val pm = context.packageManager
                 val appName = try {
                     pm.getApplicationInfo(config.packageName, 0).let { pm.getApplicationLabel(it).toString() }
@@ -1744,7 +1750,12 @@ fun DisplayAppConfigSection() {
                 } catch (_: Exception) { null }
                 val displayLabel = TargetDisplay.fromId(config.displayId)?.label ?: "Display ${config.displayId}"
 
-                StyledCard {
+                StyledCard(
+                    modifier = Modifier.clickable {
+                        editingPackage = config.packageName
+                        showConfigDialog = true
+                    }
+                ) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -1772,6 +1783,30 @@ fun DisplayAppConfigSection() {
                                 )
                             }
                             Column(modifier = Modifier.weight(6f)) {
+                                // Reordering arrows
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End
+                                ) {
+                                    IconButton(
+                                        onClick = {
+                                            DisplayAppLauncher.moveConfigUp(config.packageName)
+                                            configs = DisplayAppLauncher.getAllConfigs()
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.ExpandLess, contentDescription = "Subir", tint = Color(0xFF4A9EFF))
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            DisplayAppLauncher.moveConfigDown(config.packageName)
+                                            configs = DisplayAppLauncher.getAllConfigs()
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.ExpandMore, contentDescription = "Descer", tint = Color(0xFF4A9EFF))
+                                    }
+                                }
 
                                 // Action buttons row
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1949,7 +1984,7 @@ fun DisplayAppConfigSection() {
 
     if (showConfigDialog) {
         DisplayAppConfigDialog(
-            existingConfig = editingPackage?.let { configs[it] },
+            existingConfig = editingPackage?.let { pkg -> configs.find { it.packageName == pkg } },
             onDismiss = { showConfigDialog = false },
             onSave = { config ->
                 DisplayAppLauncher.saveConfig(config)
@@ -2077,6 +2112,8 @@ fun DisplayAppConfigDialog(
                     fontWeight = FontWeight.Bold
                 )
 
+                Spacer(Modifier.height(16.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -2084,6 +2121,7 @@ fun DisplayAppConfigDialog(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Aplicativo", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                        Spacer(Modifier.height(4.dp))
                         Button(
                             onClick = { showAppPicker = true },
                             modifier = Modifier.fillMaxWidth(),
@@ -2114,6 +2152,7 @@ fun DisplayAppConfigDialog(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Tela de destino", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                        Spacer(Modifier.height(4.dp))
                         ExposedDropdownMenuBox(
                             expanded = displayDropdownExpanded,
                             onExpandedChange = { displayDropdownExpanded = it }
@@ -2168,7 +2207,7 @@ fun DisplayAppConfigDialog(
                         SliderWithLabel(
                             label = "Posição X",
                             value = posX,
-                            range = -resolution.first..resolution.first,
+                            range = 0..resolution.first,
                             onValueChange = { posX = it }
                         )
                     }
@@ -2176,8 +2215,9 @@ fun DisplayAppConfigDialog(
                         SliderWithLabel(
                             label = "Posição Y",
                             value = posY,
-                            range = -resolution.second..resolution.second,
-                            onValueChange = { posY = it }
+                            range = 0..resolution.second,
+                            onValueChange = { posY = it },
+                            specialSnap = 135
                         )
                     }
                 }
@@ -2191,7 +2231,7 @@ fun DisplayAppConfigDialog(
                         SliderWithLabel(
                             label = "Largura",
                             value = sizeW,
-                            range = 10..resolution.first * 2,
+                            range = 10..1920,
                             onValueChange = { sizeW = it },
                             specialSnap = resolution.first
                         )
@@ -2200,9 +2240,9 @@ fun DisplayAppConfigDialog(
                         SliderWithLabel(
                             label = "Altura",
                             value = sizeH,
-                            range = 10..resolution.second * 2,
+                            range = 10..720,
                             onValueChange = { sizeH = it },
-                            specialSnap = resolution.second
+                            specialSnap = 510
                         )
                     }
                 }
@@ -2217,6 +2257,7 @@ fun DisplayAppConfigDialog(
                 }
 
                 // Action buttons
+                Spacer(Modifier.height(16.dp))
                 Button(
                     onClick = {
                         if (selectedApp != null) {
@@ -2278,7 +2319,7 @@ fun SliderWithLabel(
     value: Int,
     range: IntRange,
     onValueChange: (Int) -> Unit,
-    step: Int = 10,
+    step: Int = 1,
     specialSnap: Int? = null
 ) {
     Column {
@@ -2293,7 +2334,8 @@ fun SliderWithLabel(
             value = value.toFloat(),
             onValueChange = { 
                 var snapped = (kotlin.math.round(it / step) * step).toInt()
-                if (specialSnap != null && kotlin.math.abs(snapped - specialSnap) <= step) {
+                val snapTolerance = if (step == 1) 10 else step
+                if (specialSnap != null && kotlin.math.abs(snapped - specialSnap) <= snapTolerance) {
                     snapped = specialSnap
                 }
                 onValueChange(snapped.coerceIn(range))

@@ -1,5 +1,9 @@
 ## Disclaimer
 
+# Haval App Tool
+
+For developer-specific documentation and ADB commands, see [DEVELOPER_NOTES.md](file:///c:/Users/vanes/StudioProjects/haval-app-tool-multimidia/DEVELOPER_NOTES.md).
+
 This project is an unofficial educational initiative related to the Haval GWM multimedia system. It is not affiliated with, endorsed by, or connected to Haval, GWM, or any related entities.
 
 **Disclaimer (English):**  

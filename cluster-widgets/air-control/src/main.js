@@ -7,7 +7,11 @@ import { createMask } from './components/display/mask.js';
 import { createDashboardInfo } from './components/dashboardInfo.js';
 import { createDisplaySelectionScreen } from './components/display/themeSelection.js';
 import { div } from './utils/createElement.js';
+import { logger } from './utils/logger.js';
+import { initializeConstants } from './utils/constants.js';
 import './dashboard.style.css';
+
+initializeConstants();
 
 if (process.env.NODE_ENV === 'development') {
     import('./testing-utils.js');
@@ -19,7 +23,11 @@ let maskComponent = null;
 let menuWrapper = null;
 
 function initializeLayout() {
-    if (!appContainer) return;
+    logger.enter('initializeLayout');
+    if (!appContainer) {
+        logger.leave('initializeLayout');
+        return;
+    }
     appContainer.innerHTML = '';
 
     // Add mask background first (z-index: 50)
@@ -39,9 +47,11 @@ function initializeLayout() {
     // Add no app mask on top (z-index: 200)
     appContainer.appendChild(mask.noAppV);
     appContainer.appendChild(mask.noAppH);
+    logger.leave('initializeLayout');
 }
 
 function render() {
+    logger.enter('render', { screen: get('screen'), display: get('display') });
     const screen = get('screen');
     const displayMode = get('display') || 'Normal';
 
@@ -83,6 +93,7 @@ function render() {
             currentComponent.cleanup = onMount();
         }
     }
+    logger.leave('render');
 }
 
 initializeLayout();
@@ -94,16 +105,17 @@ render();
 
 // Handle Card ID transitions
 subscribe('cardId', (cardId) => {
+    logger.log('cardId change:', cardId);
     console.log('Actual Card:', cardId);
     // 0 = hide the right menu display
     if (menuWrapper) {
-        menuWrapper.style.display = (cardId === 0) ? 'none' : 'block';
+        //menuWrapper.style.display = (cardId == 0) ? 'none' : 'block';
     }
 
-    if (cardId === 1) {
+    if (cardId == 1) {
         // 1 = go to main regular menu
         setState('screen', 'main_menu');
-    } else if (cardId === 3) {
+    } else if (cardId == 3) {
         // 3 = set to AC menu
         setState('screen', 'aircon');
     }
@@ -113,10 +125,13 @@ subscribe('cardId', (cardId) => {
 
 // Functions used by Kotlin to trigger interactions
 window.showScreen = function (screenName) {
+    logger.enter('window.showScreen', screenName);
     setState('screen', screenName);
+    logger.leave('window.showScreen');
 };
 
 window.focus = function (item) {
+    logger.enter('window.focus', item);
     const screen = get('screen');
     if (screen === 'main_menu') {
         setState('focusedMenuItem', item);
@@ -125,14 +140,24 @@ window.focus = function (item) {
     } else if (screen === 'display_selection') {
         setState('displayFocus', item);
     }
+    logger.leave('window.focus');
 };
 
 window.control = function (key, value) {
-    setState(key, value);
+    logger.enter('window.control', { key, value });
+    let val = value;
+    // Automatically convert numeric strings to numbers for compatibility with components
+    if (typeof value === 'string' && value.trim() !== '' && !isNaN(value)) {
+        val = Number(value);
+    }
+    setState(key, val);
+    logger.leave('window.control');
 };
 
 window.cleanup = function () {
+    logger.enter('window.cleanup');
     if (currentComponent && currentComponent.cleanup) {
         currentComponent.cleanup();
     }
+    logger.leave('window.cleanup');
 };

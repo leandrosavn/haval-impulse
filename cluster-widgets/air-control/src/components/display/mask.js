@@ -32,34 +32,40 @@ export function createMask() {
     const updateVisibility = () => {
         const maskMode = get('mask'); // 0=none, 1=partial, 2=full
         const cardId = get('cardId');
+        const rightVisible = (cardId !== 0);
 
         // maskMode 0: All off
         // maskMode 1: Standard mask on. noAppMask off.
         // maskMode 2: Standard mask on + noAppMask on.
 
-        maskFg.style.opacity = (maskMode > 0) ? '1' : '0';
-        maskBg.style.opacity = (maskMode > 0) ? '1' : '0';
-        noAppMaskV.style.opacity = (maskMode === 2) ? '1' : '0';
-        noAppMaskH.style.opacity = (maskMode === 2) ? '1' : '0';
+        if (rightVisible) {
+            //maskFg.style.opacity = (maskMode > 0) ? '1' : '0';
+            //maskBg.style.opacity = (maskMode > 0) ? '1' : '0';
+            noAppMaskV.style.opacity = (maskMode === 2) ? '1' : '0';
+            noAppMaskH.style.opacity = (maskMode === 2) ? '1' : '0';
 
-        maskFg.style.pointerEvents = (maskMode > 0) ? 'auto' : 'none';
-        maskBg.style.pointerEvents = (maskMode > 0) ? 'auto' : 'none';
-        noAppMaskV.style.pointerEvents = (maskMode === 2) ? 'auto' : 'none';
-        noAppMaskH.style.pointerEvents = (maskMode === 2) ? 'auto' : 'none';
+            //maskFg.style.pointerEvents = (maskMode > 0) ? 'auto' : 'none';
+            //maskBg.style.pointerEvents = (maskMode > 0) ? 'auto' : 'none';
+            noAppMaskV.style.pointerEvents = (maskMode === 2) ? 'auto' : 'none';
+            noAppMaskH.style.pointerEvents = (maskMode === 2) ? 'auto' : 'none';
 
-        // Additional safeguard: ensure noAppMask is logically hidden if maskMode < 2
-        noAppMaskV.style.visibility = (maskMode === 2) ? 'visible' : 'hidden';
-        noAppMaskH.style.visibility = (maskMode === 2) ? 'visible' : 'hidden';
+            // Additional safeguard: ensure noAppMask is logically hidden if maskMode < 2
+            noAppMaskV.style.visibility = (maskMode === 2) ? 'visible' : 'hidden';
+            noAppMaskH.style.visibility = (maskMode === 2) ? 'visible' : 'hidden';
+
+        }
+
 
         if (maskMode === 1) {
             // Hide right circle if cardId is 0
-            const rightVisible = (cardId !== 0);
-            rightCircle.style.opacity = rightVisible ? '1' : '0';
-            rightCircleBorder.style.opacity = rightVisible ? '1' : '0';
-            
+            //rightCircle.style.opacity = rightVisible ? '1' : '0';
+            //rightCircleBorder.style.opacity = rightVisible ? '1' : '0';
+
             // Show partial app mask if cardId is 0 (Transparency Mode)
             partialAppMask.style.opacity = (!rightVisible) ? '1' : '0';
         } else {
+            //rightCircle.style.opacity = rightVisible ? '1' : '0';
+            //rightCircleBorder.style.opacity = rightVisible ? '1' : '0';
             partialAppMask.style.opacity = '0';
         }
     };

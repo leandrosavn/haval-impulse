@@ -64,12 +64,12 @@ enum class SharedPreferencesKeys(val key: String, val description: String) {
     PENDING_RESET_TARGET_VERSION("pendingResetTargetVersion", "Versão alvo para resetar dados ao voltar para canal estável"),
     SHOW_BETA_UPDATES("showBetaUpdates", "Mostrar atualizações do canal beta"),
     DISPLAY_APP_CONFIGS("displayAppConfigs", "Configurações de apps para telas secundárias"),
-    ENABLE_INSTRUMENT_MASK("enableInstrumentMask", "Habilitar Virtual Cluster no painel de instrumentos"),
+    ENABLE_VIRTUAL_CLUSTER("enableVirtualCluster", "Habilitar Virtual Cluster no painel de instrumentos"),
     VIRTUAL_CLUSTER_DISPLAY_ID("instrumentMaskDisplayId", "ID da tela para o Virtual Cluster (Fixado em 3)"),
     CURRENT_CLUSTER_TEMPLATE("currentClusterTemplate", "Template atual do cluster"),
     CURRENT_CLUSTER_DISPLAY("currentClusterDisplay", "Modo de exibição do cluster"),
     DEFAULT_DISPLAY_APP_PACKAGE("defaultDisplayAppPackage", "Pacote do app padrão para abrir no cluster"),
     INSTRUMENT_REVISION_HISTORY("instrumentRevisionHistory", "Histórico de revisões realizadas"),
-    VIRTUAL_CLUSTER_THEME("virtualClusterTheme", "Tema do Virtual Cluster")
-
+    VIRTUAL_CLUSTER_THEME("virtualClusterTheme", "Tema do Virtual Cluster"),
+    PERSISTENT_BOTTOM_BAR_OVERSCAN("persistentBottomBarOverscan", "Ajuste de margem inferior para a barra (overscan)")
 }

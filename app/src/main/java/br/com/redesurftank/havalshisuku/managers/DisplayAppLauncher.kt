@@ -26,34 +26,68 @@ object DisplayAppLauncher {
         App.getDeviceProtectedContext()
             .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
 
-    fun getAllConfigs(): Map<String, DisplayAppConfig> {
+    fun getAllConfigs(): List<DisplayAppConfig> {
         val json = getPrefs().getString(SharedPreferencesKeys.DISPLAY_APP_CONFIGS.key, null)
-            ?: return emptyMap()
+            ?: return emptyList()
         return try {
-            val type = object : TypeToken<Map<String, DisplayAppConfig>>() {}.type
+            val type = object : TypeToken<List<DisplayAppConfig>>() {}.type
             gson.fromJson(json, type)
         } catch (e: Exception) {
-            Log.e(TAG, "Error loading configs", e)
-            emptyMap()
+            // Fallback: try to load as Map for backward compatibility
+            try {
+                val mapType = object : TypeToken<Map<String, DisplayAppConfig>>() {}.type
+                val map: Map<String, DisplayAppConfig> = gson.fromJson(json, mapType)
+                map.values.toList()
+            } catch (e2: Exception) {
+                Log.e(TAG, "Error loading configs", e)
+                emptyList()
+            }
         }
     }
 
     fun saveConfig(config: DisplayAppConfig) {
-        val configs = getAllConfigs().toMutableMap()
-        configs[config.packageName] = config
+        val configs = getAllConfigs().toMutableList()
+        val index = configs.indexOfFirst { it.packageName == config.packageName }
+        if (index >= 0) {
+            configs[index] = config
+        } else {
+            configs.add(config)
+        }
         getPrefs().edit()
             .putString(SharedPreferencesKeys.DISPLAY_APP_CONFIGS.key, gson.toJson(configs))
             .apply()
-
     }
 
     fun deleteConfig(packageName: String) {
-        val configs = getAllConfigs().toMutableMap()
-        configs.remove(packageName)
+        val configs = getAllConfigs().toMutableList()
+        configs.removeAll { it.packageName == packageName }
         getPrefs().edit()
             .putString(SharedPreferencesKeys.DISPLAY_APP_CONFIGS.key, gson.toJson(configs))
             .apply()
+    }
 
+    fun moveConfigUp(packageName: String) {
+        val configs = getAllConfigs().toMutableList()
+        val index = configs.indexOfFirst { it.packageName == packageName }
+        if (index > 0) {
+            val config = configs.removeAt(index)
+            configs.add(index - 1, config)
+            getPrefs().edit()
+                .putString(SharedPreferencesKeys.DISPLAY_APP_CONFIGS.key, gson.toJson(configs))
+                .apply()
+        }
+    }
+
+    fun moveConfigDown(packageName: String) {
+        val configs = getAllConfigs().toMutableList()
+        val index = configs.indexOfFirst { it.packageName == packageName }
+        if (index >= 0 && index < configs.size - 1) {
+            val config = configs.removeAt(index)
+            configs.add(index + 1, config)
+            getPrefs().edit()
+                .putString(SharedPreferencesKeys.DISPLAY_APP_CONFIGS.key, gson.toJson(configs))
+                .apply()
+        }
     }
 
     private fun sh(cmd: String): String {
@@ -240,7 +274,8 @@ object DisplayAppLauncher {
      */
     private fun evictOtherAppsFromDisplay(displayId: Int, excludePackage: String) {
         val configs = getAllConfigs()
-        for ((pkg, cfg) in configs) {
+        for (cfg in configs) {
+            val pkg = cfg.packageName
             if (pkg == excludePackage) continue
             if (cfg.displayId != displayId) continue
             val task = findTaskForPackage(pkg) ?: continue
@@ -389,7 +424,7 @@ object DisplayAppLauncher {
      * fullscreen mode works fine after move-stack.
      */
     fun onAppWindowChanged(packageName: String) {
-        val config = getAllConfigs()[packageName] ?: return
+        val config = getAllConfigs().find { it.packageName == packageName } ?: return
         if (config.displayId == 0) return
 
         val now = System.currentTimeMillis()

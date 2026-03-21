@@ -158,7 +158,7 @@ fun SettingCard(
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                     }
-                    val stepSize = sliderStep ?: if (title.contains("volume", ignoreCase = true)) 1 else 5
+                    val stepSize = sliderStep ?: 1
                     val steps = ((sliderRange.last - sliderRange.first) / stepSize) - 1
 
                     val roundedValue = ((sliderValue / stepSize) * stepSize).toFloat()

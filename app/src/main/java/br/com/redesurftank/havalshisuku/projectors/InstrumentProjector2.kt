@@ -31,7 +31,7 @@ import br.com.redesurftank.havalshisuku.models.screens.Screen
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlin.math.min
+import kotlin.collections.get
 import kotlin.math.roundToInt
 
 class InstrumentProjector2(outerContext: Context, display: Display) :
@@ -58,26 +58,28 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
     private var batteryVoltage = 0f
     private var batteryCurrent = 0f
     private var isAnyAppOnDisplay3 = false
-    
+    private var currentCard = 0
+
+
     private val prefsListener =
-            SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-                if (key in
-                                listOf(
-                                    SharedPreferencesKeys
-                                                .ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION
-                                                .key,
-                                    SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key,
-                                    SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key,
-                                    SharedPreferencesKeys.VIRTUAL_CLUSTER_DISPLAY_ID.key
-                                )
-                ) {
-                    ensureUi {
-                        root.isVisible =
-                                shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn
-                        updateVirtualClusterVisibility()
-                    }
+        SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key in
+                listOf(
+                    SharedPreferencesKeys
+                        .ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION
+                        .key,
+                    SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key,
+                    SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key,
+                    SharedPreferencesKeys.VIRTUAL_CLUSTER_DISPLAY_ID.key
+                )
+            ) {
+                ensureUi {
+                    root.isVisible =
+                        shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn
+                    updateVirtualClusterVisibility()
                 }
             }
+        }
 
     private fun shouldShowProjector(): Boolean {
         return preferences.getBoolean(
@@ -202,12 +204,13 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
             ensureUi {
                 when (event) {
                     ServiceManagerEventType.CLUSTER_CARD_CHANGED -> {
-                        val card = args[0] as Int
-                        evaluateJsIfReady(webView, "control('cardId', $card)")
-                        resizeActiveApp(card)
+                        currentCard = args[0] as Int;
+                        evaluateJsIfReady(webView, "control('cardId', $currentCard)")
+                        resizeActiveApp(currentCard)
+                        updateVirtualClusterVisibility()
                         
-                        if (card == 1 || card == 3) {
-                            MainUiManager.getInstance().handleCardChange(card)
+                        if (currentCard == 1 || currentCard == 3) {
+                            MainUiManager.getInstance().handleCardChange(currentCard)
                             updateValuesWebView()
                         }
                     }
@@ -270,7 +273,7 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                             // Auto-launch default app if configured
                             val defaultPackage = preferences.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "") ?: ""
                             if (defaultPackage.isNotEmpty()) {
-                                val config = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()[defaultPackage]
+                                val config = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs().find { it.packageName == defaultPackage }
                                 if (config != null) {
                                     Log.d(TAG, "Auto-launching default app: $defaultPackage")
                                     scope.launch {
@@ -280,10 +283,13 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                             }
                             
                             // Apply pending JS or updates
-                            updateVirtualClusterVisibility()
-                            webViewsLoaded[it] = true
                             updateValuesWebView()
-                            pendingJsQueues[it]?.forEach { js -> it.evaluateJavascript(js, null) }
+                            webViewsLoaded[it] = true
+                            pendingJsQueues[it]?.let { list ->
+                                for (js in list) {
+                                    it.evaluateJavascript(js, null)
+                                }
+                            }
                             pendingJsQueues.remove(it)
                         }
                     }
@@ -351,23 +357,36 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
     }
 
     private fun updateVirtualClusterVisibility() {
-        val maskEnabled = preferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_MASK.key, true)
-        if (!maskEnabled) {
+        val clusterEnabled = preferences.getBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, true)
+        if (!clusterEnabled) {
             evaluateJsIfReady(webView, "control('mask', 0)")
             return
+        } else {
+            if (isAnyAppOnDisplay3) {
+                evaluateJsIfReady(webView, "control('mask', 1)")
+            } else {
+                evaluateJsIfReady(webView, "control('mask', 2)")
+            }
         }
 
-        val displayMode = preferences.getString(SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key, "Normal")
-        val maskState = when (displayMode) {
+        //val displayMode = preferences.getString(SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key, "Normal")
+
+/*        val maskState = when (displayMode) {
             "Clean" -> 0
             "Normal" -> 1
             "Reduzido" -> 2
             else -> if (isAnyAppOnDisplay3) 1 else 2
         }
-        
-        Log.w(TAG, "Updating mask state: $maskState (mode=$displayMode, appOn3=$isAnyAppOnDisplay3)")
-        evaluateJsIfReady(webView, "control('mask', $maskState)")
-        evaluateJsIfReady(webView, "control('display', '$displayMode')")
+
+        if (this.maskState != maskState) {
+            this.maskState = maskState
+            evaluateJsIfReady(webView, "control('mask', $maskState)")
+        }
+
+        if (this.displayMode != displayMode) {
+            this.displayMode = displayMode
+            evaluateJsIfReady(webView, "control('display', '$displayMode')")
+        }*/
     }
 
     private inner class WebInterface {
@@ -382,9 +401,9 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
             if (prefKey != null) {
                 preferences.edit().putString(prefKey, value).apply()
                 // Update visibility if display mode changed
-                if (key == "currentClusterDisplay") {
-                    ensureUi { updateVirtualClusterVisibility() }
-                }
+//                if (key == "currentClusterDisplay") {
+//                    ensureUi { updateVirtualClusterVisibility() }
+//                }
             }
         }
     }
@@ -414,27 +433,30 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
         val defaultPackage = preferences.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "") ?: ""
         if (defaultPackage.isEmpty()) return
         
-        val config = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()[defaultPackage] ?: return
+        val config = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs().find { it.packageName == defaultPackage } ?: return
         
         scope.launch {
             val res = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getDisplayResolution(3)
             val fullWidth = res.first
-            val fullHeight = res.second
             
 
-            // For cardId 0 (Transparency) and 1 (Main Menu), cap width at 65% (or use config if even smaller)
+            val newX = if (cardId == 0) {
+                kotlin.math.max(config.x, (fullWidth * 0.3f).toInt())
+            } else {
+                config.x
+            }
             val newWidth = if (cardId == 0 || cardId == 1) {
-                kotlin.math.min(config.width, (fullWidth * 0.65f).toInt())
+                kotlin.math.min(config.width, (fullWidth * 0.4f).toInt())
             } else {
                 config.width
             }
-            
+
             val newConfig = config.copy(
                 width = newWidth,
-                x = 0
+                x = newX
             )
             
-            Log.d(TAG, "Resizing app $defaultPackage for cardId $cardId: width=$newWidth")
+            Log.d(TAG, "Resizing app $defaultPackage for cardId $cardId: width=$newWidth x=$newX")
             br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.resizeApp(newConfig)
         }
     }

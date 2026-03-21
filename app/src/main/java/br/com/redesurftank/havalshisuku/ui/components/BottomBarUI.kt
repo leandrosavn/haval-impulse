@@ -17,8 +17,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.VolumeDown
-import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Air
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,8 +44,32 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.launch
 import br.com.redesurftank.havalshisuku.managers.ServiceManager
-import br.com.redesurftank.havalshisuku.models.CarConstants
 import br.com.redesurftank.havalshisuku.utils.ShizukuUtils
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import br.com.redesurftank.havalshisuku.models.CarConstants
+import android.content.Context
+import br.com.redesurftank.havalshisuku.ui.theme.Michroma
+import kotlinx.coroutines.CoroutineScope
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import br.com.redesurftank.havalshisuku.models.BottomBarState
+
+private val commonTextStyle = TextStyle(
+    color = Color.White,
+    fontSize = 20.sp,
+    fontFamily = Michroma,
+    fontWeight = FontWeight.Medium,
+    letterSpacing = 0.5.sp
+)
+
+private val labelStyle = TextStyle(
+    color = Color.LightGray,
+    fontSize = 10.sp,
+    fontFamily = Michroma,
+    fontWeight = FontWeight.Medium,
+    letterSpacing = 0.5.sp
+)
 
 @Composable
 fun BottomBarContent() {
@@ -85,87 +108,97 @@ fun BottomBarContent() {
         onDispose { serviceManager.removeDataChangedListener(listener) }
     }
 
-    val commonTextStyle = TextStyle(
-        color = Color.White,
-        fontSize = 14.sp,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 0.5.sp
-    )
-    val labelStyle = TextStyle(
-        color = Color.Gray,
-        fontSize = 10.sp,
-        fontWeight = FontWeight.Medium,
-        letterSpacing = 0.5.sp
-    )
-
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(BottomBarState.isVisible) {
+                detectVerticalDragGestures { change, dragAmount ->
+                    change.consume()
+                    if (BottomBarState.isVisible && dragAmount > 15f) {
+                        BottomBarState.isVisible = false
+                    } else if (!BottomBarState.isVisible && dragAmount < -15f) {
+                        BottomBarState.isVisible = true
+                    }
+                }
+            },
         contentAlignment = Alignment.BottomCenter
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp),
-            color = Color(0xF5131519),
-            shape = RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp),
-            tonalElevation = 0.dp
-        ) {
-            Row(
+        if (BottomBarState.isVisible) {
+            Surface(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .fillMaxWidth()
+                    .height(60.dp),
+                color = Color.Black,
+                shape = RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp),
+                tonalElevation = 0.dp
             ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
 
-                // 1. App Switcher (Leftmost 10%)
-                Box(modifier = Modifier.weight(0.10f)) {
-                    AppSwitcherSection()
-                }
-
-                val isACEnabled = hvacPower == "1"
-
-                // 2. AC Driver (15%)
-                Box(modifier = Modifier.weight(0.15f), contentAlignment = Alignment.Center) {
-                    TempControlSection("Motorista", driverTemp, isACEnabled, commonTextStyle, labelStyle) { delta ->
-                        val newTemp = (driverTemp.toFloatOrNull() ?: 22.0f) + delta
-                        serviceManager.updateData(CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.getValue(), String.format(java.util.Locale.US, "%.1f", newTemp))
+                    // 1. App Switcher (Leftmost 10%)
+                    Box(modifier = Modifier.weight(0.10f)) {
+                        AppSwitcherSection()
                     }
-                }
 
-                // 3. AC Fan Speed (15%)
-                Box(modifier = Modifier.weight(0.15f), contentAlignment = Alignment.Center) {
-                    FanControlSection(fanSpeed, isACEnabled, labelStyle) { delta ->
-                        val newSpeed = (fanSpeed + delta).coerceIn(1, 7)
-                        serviceManager.updateData(CarConstants.CAR_HVAC_FAN_SPEED.getValue(), newSpeed.toString())
+                    val isACEnabled = hvacPower == "1"
+
+                    // 2. AC Driver (15%)
+                    Box(modifier = Modifier.weight(0.15f), contentAlignment = Alignment.Center) {
+                        TempControlSection("Motorista", driverTemp, isACEnabled) { delta ->
+                            val newTemp = (driverTemp.toFloatOrNull() ?: 22.0f) + delta
+                            serviceManager.updateData(CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.getValue(), String.format(java.util.Locale.US, "%.1f", newTemp))
+                        }
                     }
-                }
 
-                // Shortcuts Area (20%)
-                Box(modifier = Modifier.weight(0.2f), contentAlignment = Alignment.Center) {
-                    CarSettingsSection(driveMode, powerModel, energyRecovery, steeringMode)
-                }
-
-                // 4. Volume (15%)
-                Box(modifier = Modifier.weight(0.15f), contentAlignment = Alignment.Center) {
-                    VolumeControlSection(label = "Volume", volume, commonTextStyle, labelStyle) { delta ->
-                        val newVol = (volume + delta).coerceIn(0, 30)
-                        serviceManager.updateData(CarConstants.SYS_SETTINGS_AUDIO_MEDIA_VOLUME.getValue(), newVol.toString())
+                    // Shortcuts Area (20%)
+                    Box(modifier = Modifier.weight(0.2f), contentAlignment = Alignment.Center) {
+                        CarSettingsSection(driveMode, powerModel, energyRecovery, steeringMode)
                     }
-                }
 
-                // 5. AC Passenger (15%)
-                Box(modifier = Modifier.weight(0.15f), contentAlignment = Alignment.Center) {
-                    TempControlSection("Passageiro", passTemp, isACEnabled, commonTextStyle, labelStyle) { delta ->
-                        val newTemp = (passTemp.toFloatOrNull() ?: 22.0f) + delta
-                        serviceManager.updateData(CarConstants.CAR_HVAC_PASS_TEMPERATURE.getValue(), String.format(java.util.Locale.US, "%.1f", newTemp))
+                    // 3. AC Fan Speed (15%)
+                    Box(modifier = Modifier.weight(0.15f), contentAlignment = Alignment.Center) {
+                        FanControlSection(fanSpeed, true) { delta ->
+                            val newSpeed = (fanSpeed + delta).coerceIn(0, 7)
+                            serviceManager.updateData(CarConstants.CAR_HVAC_FAN_SPEED.getValue(), newSpeed.toString())
+                            
+                            // If ventilation is 0, disable AC. If it goes from 0 to 1, enable AC.
+                            if (newSpeed == 0 && hvacPower == "1") {
+                                serviceManager.updateData(CarConstants.CAR_HVAC_POWER_MODE.getValue(), "0")
+                            } else if (newSpeed > 0 && hvacPower == "0") {
+                                serviceManager.updateData(CarConstants.CAR_HVAC_POWER_MODE.getValue(), "1")
+                            }
+                        }
                     }
-                }
 
-                // 6. Navigation (Rightmost 10%)
-                Box(modifier = Modifier.weight(0.1f)) {
-                    NavigationSection(scope)
+                    // 4. Volume (15%)
+                    Box(modifier = Modifier.weight(0.15f), contentAlignment = Alignment.Center) {
+                        VolumeControlSection(label = "Volume", volume) { delta ->
+                            val newVol = (volume + delta).coerceIn(0, 30)
+                            serviceManager.updateData(CarConstants.SYS_SETTINGS_AUDIO_MEDIA_VOLUME.getValue(), newVol.toString())
+                        }
+                    }
+
+                    // 5. AC Passenger (15%)
+                    Box(modifier = Modifier.weight(0.15f), contentAlignment = Alignment.Center) {
+                        TempControlSection("Passageiro", passTemp, isACEnabled) { delta ->
+                            val newTemp = (passTemp.toFloatOrNull() ?: 22.0f) + delta
+                            serviceManager.updateData(CarConstants.CAR_HVAC_PASS_TEMPERATURE.getValue(), String.format(java.util.Locale.US, "%.1f", newTemp))
+                        }
+                    }
+
+                    // 6. Navigation (Rightmost 10%)
+                    Box(modifier = Modifier.weight(0.1f)) {
+                        NavigationSection(scope)
+                    }
                 }
             }
+        } else {
+            // Trigger zone - visual indicator (optional, but keep it transparent as requested)
+            Box(modifier = Modifier.fillMaxSize().background(Color.Transparent))
         }
     }
 }
@@ -176,20 +209,25 @@ fun AppSwitcherSection() {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val configs = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()
-    // Select first by default if nothing selected
-    var selectedPackage by remember { mutableStateOf(configs.keys.firstOrNull() ?: "") }
+    
+    // Initialize if empty
+    if (br.com.redesurftank.havalshisuku.models.BottomBarState.selectedPackage.isEmpty()) {
+        br.com.redesurftank.havalshisuku.models.BottomBarState.selectedPackage = configs.firstOrNull()?.packageName ?: ""
+    }
+    
+    val selectedPackage = br.com.redesurftank.havalshisuku.models.BottomBarState.selectedPackage
     val showMenu = br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded
 
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = { 
-            configs[selectedPackage]?.let { scope.launch { br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.sendToDisplay(it) } }
+            configs.find { it.packageName == selectedPackage }?.let { scope.launch { br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.sendToDisplay(it) } }
         }) {
             Icon(Icons.Default.KeyboardArrowLeft, contentDescription = "Cluster", tint = Color.White)
         }
         Box(
             modifier = Modifier
                 .size(44.dp)
-                .background(Color(0xFF333D4D), RoundedCornerShape(4.dp))
+                .background(Color.Black, RoundedCornerShape(4.dp))
                 .clickable { br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded = !showMenu },
             contentAlignment = Alignment.Center
         ) {
@@ -197,7 +235,6 @@ fun AppSwitcherSection() {
                 AsyncImage(
                     model = ImageRequest.Builder(context)
                         .data(try { context.packageManager.getApplicationIcon(selectedPackage) } catch(e: Exception) { null })
-                        .crossfade(true)
                         .build(),
                     contentDescription = "App Icon",
                     modifier = Modifier.size(32.dp)
@@ -214,58 +251,51 @@ fun AppSwitcherSection() {
         }) {
             Icon(Icons.Default.KeyboardArrowRight, contentDescription = "MMI", tint = Color.White)
         }
-    
-        if (showMenu) {
-            Popup(
-                alignment = Alignment.BottomStart,
-                offset = androidx.compose.ui.unit.IntOffset(12 * context.resources.displayMetrics.density.toInt(), -50 * context.resources.displayMetrics.density.toInt()),
-                onDismissRequest = { br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded = false },
-                properties = PopupProperties(focusable = true, clippingEnabled = false)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(12.dp))
-                        .width(300.dp)
-                        .padding(12.dp)
-                ) {
-                    val appList = configs.toList()
-                    val columns = 3
-                    val rows = (appList.size + columns - 1) / columns
+    }
+}
 
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        for (r in 0 until rows) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                for (c in 0 until columns) {
-                                    val index = r * columns + c
-                                    if (index < appList.size) {
-                                        val (pkg, config) = appList[index]
-                                        AppGridItem(pkg, context, scope) {
-                                            selectedPackage = pkg
-                                            br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded = false
-                                        }
-                                    } else {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
-                                }
+@Composable
+fun AppMenuContent() {
+    val configs = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    
+    Box(
+        modifier = Modifier
+            .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(12.dp))
+            .width(300.dp)
+            .padding(12.dp)
+    ) {
+        val appList = configs.toList()
+        val columns = 3
+        val rows = (appList.size + columns - 1) / columns
+
+        Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+            for (r in 0 until rows) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    for (c in 0 until columns) {
+                        val index = r * columns + c
+                        if (index < appList.size) {
+                            val pkg = appList[index].packageName
+                            AppGridItem(pkg, context, scope) {
+                                br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded = false
                             }
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
                         }
                     }
                 }
             }
         }
-
-            }
+    }
 }
+
 @Composable
 fun CarSettingsSection(drive: String, ev: String, regen: String, steer: String) {
     val showSettings = br.com.redesurftank.havalshisuku.models.BottomBarState.isSettingsMenuExpanded
-    val serviceManager = br.com.redesurftank.havalshisuku.managers.ServiceManager.getInstance()
-    val context = br.com.redesurftank.App.getContext()
-
-
     Row(
         modifier = Modifier
             .wrapContentHeight()
@@ -282,63 +312,115 @@ fun CarSettingsSection(drive: String, ev: String, regen: String, steer: String) 
             Color.White, toggle)
             
         ShortcutItem("Modo EV", when(ev) { "0" -> "HEV"; "1" -> "EVP"; "3" -> "EV"; else -> "EV" }, 
-            when(ev) { "1" -> Color.Green; "3" -> Color.Blue; else -> Color.White }, toggle)
+            when(ev) { "1" -> Color.Green; "3" -> Color.Cyan; else -> Color.White }, toggle)
             
         ShortcutItem("Direção", when(steer) { "2" -> "COMF"; "0" -> "NORM"; "1" -> "SPRT"; else -> "STR" }, 
             Color.White, toggle)
     }
+}
 
-    if (showSettings) {
-        Popup(
-            alignment = Alignment.BottomCenter,
-            offset = androidx.compose.ui.unit.IntOffset(0, -50 * context.resources.displayMetrics.density.toInt()),
-            onDismissRequest = { br.com.redesurftank.havalshisuku.models.BottomBarState.isSettingsMenuExpanded = false },
-            properties = PopupProperties(focusable = true, clippingEnabled = false)
-        ) {
+@Composable
+fun SettingsMenuContent(drive: String, ev: String, regen: String, steer: String) {
+    val serviceManager = br.com.redesurftank.havalshisuku.managers.ServiceManager.getInstance()
+    Box(
+        modifier = Modifier
+            .background(Color.Black.copy(alpha = 0.95f), RoundedCornerShape(12.dp))
+            .width(480.dp)
+            .padding(16.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+            // Category: Drive Mode
+            SettingsCategoryRow("Modo de Condução", drive, listOf(
+                "2" to "Eco", "0" to "Normal", "1" to "Sport", "3" to "Neve", "4" to "Areia", "5" to "Lama"
+            )) { newVal -> serviceManager.updateData(CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.getValue(), newVal) }
+
+            // Category: EV Mode
+            SettingsCategoryRow("Modo EV", ev, listOf(
+                "0" to "HEV", "1" to "EV Prioritário", "3" to "EV"
+            )) { newVal -> serviceManager.updateData(CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.getValue(), newVal) }
+
+            // Category: Regen
+            SettingsCategoryRow("Modo de Regeneração", regen, listOf(
+                "2" to "Baixo", "0" to "Normal", "1" to "Alto"
+            )) { newVal -> serviceManager.updateData(CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL.getValue(), newVal) }
+
+            // Category: Steering
+            SettingsCategoryRow("Modo de Direção", steer, listOf(
+                "2" to "Conforto", "0" to "Normal", "1" to "Esporte"
+            )) { newVal -> serviceManager.updateData(CarConstants.CAR_DRIVE_SETTING_STEERING_WHEEL_ASSIST_MODE.getValue(), newVal) }
+
             Box(
                 modifier = Modifier
-                    .background(Color.Black.copy(alpha = 0.9f), RoundedCornerShape(12.dp))
-                    .width(420.dp)
-                    .padding(16.dp)
+                    .fillMaxWidth()
+                    .height(24.dp)
+                    .clickable { br.com.redesurftank.havalshisuku.models.BottomBarState.isSettingsMenuExpanded = false },
+                contentAlignment = Alignment.Center
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    // Category: Drive Mode
-                    SettingsCategoryRow("Modo de Condução", drive, listOf(
-                        "2" to "Eco", "0" to "Normal", "1" to "Sport", "3" to "Neve", "4" to "Areia", "5" to "Lama"
-                    )) { newVal -> serviceManager.updateData(CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.getValue(), newVal) }
-
-                    // Category: EV Mode
-                    SettingsCategoryRow("Modo EV", ev, listOf(
-                        "0" to "HEV", "1" to "EV Prioritário", "3" to "EV"
-                    )) { newVal -> serviceManager.updateData(CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.getValue(), newVal) }
-
-                    // Category: Regen
-                    SettingsCategoryRow("Modo de Regeneração", regen, listOf(
-                        "2" to "Baixo", "0" to "Normal", "1" to "Alto"
-                    )) { newVal -> serviceManager.updateData(CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL.getValue(), newVal) }
-
-                    // Category: Steering
-                    SettingsCategoryRow("Modo de Direção", steer, listOf(
-                        "2" to "Conforto", "0" to "Normal", "1" to "Esporte"
-                    )) { newVal -> serviceManager.updateData(CarConstants.CAR_DRIVE_SETTING_STEERING_WHEEL_ASSIST_MODE.getValue(), newVal) }
-
-                    Spacer(Modifier.height(8.dp))
-                    IconButton(
-                        onClick = { br.com.redesurftank.havalshisuku.models.BottomBarState.isSettingsMenuExpanded = false },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Fechar", tint = Color.White, modifier = Modifier.size(32.dp))
-                    }
-                }
+                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Fechar", tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(32.dp))
             }
         }
     }
 }
 
 @Composable
+fun BottomBarMenus() {
+    val serviceManager = br.com.redesurftank.havalshisuku.managers.ServiceManager.getInstance()
+    
+    var driveMode by remember { mutableStateOf(serviceManager.getData(CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.getValue()) ?: "0") }
+    var powerModel by remember { mutableStateOf(serviceManager.getData(CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.getValue()) ?: "0") }
+    var energyRecovery by remember { mutableStateOf(serviceManager.getData(CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL.getValue()) ?: "0") }
+    var steeringMode by remember { mutableStateOf(serviceManager.getData(CarConstants.CAR_DRIVE_SETTING_STEERING_WHEEL_ASSIST_MODE.getValue()) ?: "0") }
+
+    // Update states when data changes
+    DisposableEffect(Unit) {
+        val listener = object : br.com.redesurftank.havalshisuku.listeners.IDataChanged {
+            override fun onDataChanged(key: String, value: String) {
+                when (key) {
+                    CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.getValue() -> powerModel = value
+                    CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL.getValue() -> energyRecovery = value
+                    CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.getValue() -> driveMode = value
+                    CarConstants.CAR_DRIVE_SETTING_STEERING_WHEEL_ASSIST_MODE.getValue() -> steeringMode = value
+                }
+            }
+        }
+        serviceManager.addDataChangedListener(listener)
+        onDispose { serviceManager.removeDataChangedListener(listener) }
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize().padding(bottom = 72.dp),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom
+        ) {
+            // App Menu (Left side)
+            Box(modifier = Modifier.weight(0.15f), contentAlignment = Alignment.BottomStart) {
+                if (br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded) {
+                    AppMenuContent()
+                }
+            }
+            
+            // Settings Menu (Center)
+            Box(modifier = Modifier.weight(0.70f), contentAlignment = Alignment.BottomCenter) {
+                if (br.com.redesurftank.havalshisuku.models.BottomBarState.isSettingsMenuExpanded) {
+                    SettingsMenuContent(driveMode, powerModel, energyRecovery, steeringMode)
+                }
+            }
+
+            // Right side spacer
+            Spacer(modifier = Modifier.weight(0.15f))
+        }
+    }
+}
+
+
+@Composable
 fun SettingsCategoryRow(label: String, currentValue: String, options: List<Pair<String, String>>, onSelect: (String) -> Unit) {
     Column {
-        Text(text = label, color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text(text = label, style = labelStyle.copy(fontWeight = FontWeight.Bold))
         Spacer(Modifier.height(8.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -351,7 +433,7 @@ fun SettingsCategoryRow(label: String, currentValue: String, options: List<Pair<
                     modifier = Modifier.weight(1f),
                     color = if (isSelected) Color(0xFF2196F3).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f),
                     shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(
+                    border = BorderStroke(
                         width = 1.dp,
                         color = if (isSelected) Color(0xFF2196F3) else Color.Transparent
                     )
@@ -359,9 +441,10 @@ fun SettingsCategoryRow(label: String, currentValue: String, options: List<Pair<
                     Text(
                         text = valLabel,
                         color = if (isSelected) Color(0xFF2196F3) else Color.White,
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        fontFamily = Michroma,
+                        textAlign = TextAlign.Center,
                         modifier = Modifier.padding(vertical = 8.dp)
                     )
                 }
@@ -382,8 +465,9 @@ fun ShortcutItem(label: String, value: String, color: Color, onClick: () -> Unit
             color = Color.Gray,
             fontSize = 8.sp,
             lineHeight = 8.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.width(40.dp),
+            fontWeight = FontWeight.Normal,
+            fontFamily = Michroma,
+            modifier = Modifier.width(60.dp),
             textAlign = TextAlign.Center
         )
         ShortcutLabel(text = value, color = color, onClick = onClick)
@@ -395,13 +479,14 @@ fun ShortcutLabel(text: String, color: Color, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         color = Color.Transparent,
-        modifier = Modifier.padding(horizontal = 1.dp).width(40.dp)
+        modifier = Modifier.padding(horizontal = 1.dp).width(60.dp)
     ) {
         Text(
             text = text,
             color = color,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Normal,
+            fontFamily = Michroma,
             modifier = Modifier.padding(horizontal = 3.dp, vertical = 0.dp).fillMaxWidth(),
             textAlign = TextAlign.Center
         )
@@ -409,14 +494,14 @@ fun ShortcutLabel(text: String, color: Color, onClick: () -> Unit) {
 }
 
 @Composable
-fun TempControlSection(label: String, temp: String, isEnabled: Boolean, commonTextStyle: TextStyle, labelStyle: TextStyle, onValueChange: (Float) -> Unit) {
+fun TempControlSection(label: String, temp: String, isEnabled: Boolean, onValueChange: (Float) -> Unit) {
     val alpha = if (isEnabled) 1f else 0.4f
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.alpha(alpha)) {
         SmallButton(Icons.Default.Remove, isEnabled) { onValueChange(-0.5f) }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(120.dp)) {
             Text(text = label, style = labelStyle)
             val currentTemp = temp.toFloatOrNull() ?: 22.0f
-            val tempColor = if (currentTemp > 30f) Color.Red else Color.Blue
+            val tempColor = if (currentTemp > 30f) Color.Red else Color.White
             Text(
                 text = buildAnnotatedString {
                     withStyle(style = SpanStyle(color = tempColor)) {
@@ -433,13 +518,16 @@ fun TempControlSection(label: String, temp: String, isEnabled: Boolean, commonTe
 }
 
 @Composable
-fun FanControlSection(speed: Int, isEnabled: Boolean, labelStyle: TextStyle, onValueChange: (Int) -> Unit) {
+fun FanControlSection(speed: Int, isEnabled: Boolean, onValueChange: (Int) -> Unit) {
     val alpha = if (isEnabled) 1f else 0.4f
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.alpha(alpha)) {
         SmallButton(Icons.Default.Remove, isEnabled) { onValueChange(-1) }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "Ventilação", style = labelStyle)
-            FanSpeedIcon(speed = speed)
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(120.dp)) {
+            Text(text = "Ventilação", style = labelStyle.copy(fontSize = 10.sp))
+            Text(
+                text = speed.toString(),
+                style = commonTextStyle.copy(fontSize = 18.sp)
+            )
         }
         SmallButton(Icons.Default.Add, isEnabled) { onValueChange(1) }
     }
@@ -481,10 +569,10 @@ fun FanSpeedIcon(speed: Int) {
 }
 
 @Composable
-fun VolumeControlSection(label: String, volume: Int, commonTextStyle: TextStyle, labelStyle: TextStyle, onValueChange: (Int) -> Unit) {
+fun VolumeControlSection(label: String, volume: Int, onValueChange: (Int) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        SmallButton(Icons.AutoMirrored.Filled.VolumeDown) { onValueChange(-1) }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        SmallButton(Icons.Default.Remove) { onValueChange(-1) }
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(60.dp)) {
             Text(text = label, style = labelStyle)
             Text(
                 text = volume.toString(),
@@ -492,7 +580,7 @@ fun VolumeControlSection(label: String, volume: Int, commonTextStyle: TextStyle,
                 modifier = Modifier.padding(horizontal = 4.dp)
             )
         }
-        SmallButton(Icons.AutoMirrored.Filled.VolumeUp) { onValueChange(1) }
+        SmallButton(Icons.Default.Add) { onValueChange(1) }
     }
 }
 
@@ -524,23 +612,23 @@ fun NavIcon(icon: ImageVector, onClick: () -> Unit) {
     }
 }
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun SmallButton(icon: ImageVector, enabled: Boolean = true, onClick: () -> Unit) {
+fun SmallButton(icon: ImageVector, enabled: Boolean = true, iconSize: androidx.compose.ui.unit.Dp = 20.dp, onClick: () -> Unit) {
     Surface(
         onClick = if (enabled) onClick else ({}),
         shape = RoundedCornerShape(0.dp),
-        color = Color(0xFF0F0F0F),
-        modifier = Modifier.size(60.dp, 50.dp)
+        color = Color.Black.copy(alpha = 0.95f),
+        modifier = Modifier.size(70.dp, 60.dp)
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(iconSize))
         }
     }
 }
 
 @Composable
-fun AppGridItem(pkg: String, context: android.content.Context, scope: kotlinx.coroutines.CoroutineScope, onClick: () -> Unit) {
+fun AppGridItem(pkg: String, context: Context, scope: CoroutineScope, onClick: () -> Unit) {
     val appLabel = remember(pkg) {
         try {
             val info = context.packageManager.getApplicationInfo(pkg, 0)
@@ -556,6 +644,8 @@ fun AppGridItem(pkg: String, context: android.content.Context, scope: kotlinx.co
             .width(80.dp)
             .clickable { 
                 onClick()
+                // Update shared selection state
+                br.com.redesurftank.havalshisuku.models.BottomBarState.selectedPackage = pkg
                 // Launch immediately on selection
                 scope.launch { 
                     br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.launchAnyApp(context, pkg)
@@ -583,6 +673,7 @@ fun AppGridItem(pkg: String, context: android.content.Context, scope: kotlinx.co
             text = appLabel,
             color = Color.White,
             fontSize = 11.sp,
+            fontFamily = Michroma,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             lineHeight = 12.sp,
             maxLines = 2,
