@@ -6,8 +6,7 @@
     "> 0.5%",
     "last 5 versions",
     "not dead",
-    "chrome 50",
-    "android 4.4"
+    "chrome 80"
   ],
   "scripts": {
     "dev-controls": "parcel index.html",
