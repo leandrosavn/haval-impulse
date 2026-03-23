@@ -1,5 +1,5 @@
-import { setState, stateManager } from './state.js';
-import { menuItems } from './themes/padrao/components/mainMenu.js';
+import { setState, stateManager } from '../core/state.js';
+import { menuItems } from '../core/components/mainMenu.js';
 
 const focusableAreas = {
     main_menu: menuItems.map(item => item.id),

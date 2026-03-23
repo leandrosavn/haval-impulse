@@ -1,5 +1,5 @@
-import { getState, setState, subscribe } from '../../../../state.js';
-import { div, span, img } from '../../../../utils/createElement.js';
+import { getState, setState, subscribe } from '../../state.js';
+import { div, span, img } from '../../../utils/createElement.js';
 
 const iconNormal = `data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="#00A0E0" stroke-width="2"/><circle cx="8" cy="12" r="3" stroke="#00A0E0" stroke-width="1.5"/><circle cx="16" cy="12" r="3" stroke="#00A0E0" stroke-width="1.5"/></svg>')}`;
 const iconReduced = `data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="#00A0E0" stroke-width="2"/><circle cx="8" cy="12" r="1.5" stroke="#00A0E0" stroke-width="1.5"/><circle cx="16" cy="12" r="1.5" stroke="#00A0E0" stroke-width="1.5"/></svg>')}`;
@@ -226,4 +226,5 @@ export function createDisplaySelectionScreen() {
 
     return { element: main, cleanup };
 }
+
 

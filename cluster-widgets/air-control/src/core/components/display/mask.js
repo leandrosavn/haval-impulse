@@ -1,5 +1,5 @@
-import { getState as get, subscribe } from '../../../../state.js';
-import { div } from '../../../../utils/createElement.js';
+import { getState as get, subscribe } from '../../state.js';
+import { div } from '../../../utils/createElement.js';
 
 export function createMask() {
     // Background layer (Bars and Solid Circles) - z-index: 50
@@ -78,4 +78,5 @@ export function createMask() {
 
     return result;
 }
+
 

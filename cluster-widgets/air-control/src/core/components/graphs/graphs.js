@@ -1,5 +1,5 @@
-import { getState, setState, subscribe } from '../../../../state.js';
-import { div, img, span } from '../../../../utils/createElement.js';
+import { getState, setState, subscribe } from '../../state.js';
+import { div, img, span } from '../../../utils/createElement.js';
 
 import { Chart, registerables } from 'chart.js';
 import streamingPlugin from 'chartjs-plugin-streaming';
@@ -895,4 +895,5 @@ export function createGraphScreen() {
         cleanup
     };
 }
+
 

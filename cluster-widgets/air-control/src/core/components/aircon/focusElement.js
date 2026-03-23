@@ -1,4 +1,4 @@
-import { div as createDiv } from '../../../../utils/createElement.js';
+import { div as createDiv } from '../../../utils/createElement.js';
 
 export function createFocusElementWithChildren(props) {
     props = props || {};
@@ -42,3 +42,4 @@ export function createFocusElementWithChildren(props) {
     
     return div;
 }
+

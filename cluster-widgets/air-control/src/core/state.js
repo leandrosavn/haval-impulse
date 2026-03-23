@@ -59,8 +59,6 @@ StateManager.prototype._notifyListeners = function (key, value) {
 };
 
 var stateManager = new StateManager({
-    nightMode: false,
-    appInDash: true,
     // Main Menu state
     screen: 'main_menu',
     cardId: 1,
@@ -107,7 +105,8 @@ var stateManager = new StateManager({
     template: 'Normal',
     display: 'Normal',
     displayFocus: 'sel_template',
-    mask: 2,
+    nightMode: false,
+    appInDash: true,
     brightness: 100,
     batteryPercent: 0,
     fuelRange: 0,

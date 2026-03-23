@@ -1,10 +1,10 @@
 import { createStatusElement } from "./status.js";
-import { stateManager, subscribe, setState } from '../../../../state.js';
+import { stateManager, subscribe, setState } from '../../state.js';
 import { createTemperatureElement } from "./acTemperature.js";
 import { createFanElement } from "./fan.js";
 import { createTempInfoElement } from "./infoTemperature.js";
 //import { createImpulseAutoElement } from "./impulseAuto.js";
-import { div, span, img } from "../../../../utils/createElement.js";
+import { div, span, img } from "../../../utils/createElement.js";
 
 var acON = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAACXBIWXMAAAsTAAALEwEAmpwYAAABmUlEQVR4nN2US0oDQRCGSyVCQD2HBA8h6t5XVLxBjEHRC7hWFyq4CVMdFwlB5jRiFJWo4OMCEnxufumemkmi3ZPMuPOHhkmq6/+qX0X0v+VjmCpYiX4rwIxQOqbnpJJCnhSeugx/AvQ345EYi0mqHiLGUWSm0IgBNKL/GAe0g8F+Kj+UhHdiFAgYcAK0ocKamRtCYqWXGpp7mLTAuwGhKpgihQ+Jz9vN9WExngVQcKwOVkBQXFHiD1RGxpa8KuZnzr1UMQCdwzg38c6b11HBqQCK9iVSPEDLQ0k86rbkexM8wXhqgEJOAHe2FbyZoI9saoCPrMx5tSW3hD5KaVXFmHi82AA3Qs+lBjAmxOPaFqwLffMPgG3xqP4OKixHrUG3i6TyTYu5FI+866HdyoT1xACFDclt2h+alocFWeInMaYTmM+Qwpc8stlek/cjiIdS7HbpWFB5YM7Y7V1N0CH3Otr1BSlsmRtyjBEz9Lc+0PaeB+Z9tetQjDmzn22QazR7b4tLZWSIsUQKNWJcyWNsyXfN3Bbngf4XfQMPBJzW+8lHnAAAAABJRU5ErkJggg==";
 var acOFF = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAACXBIWXMAAAsTAAALEwEAmpwYAAABr0lEQVR4nN2US0oDQRCGR4OBgHoOEQ8h6t5XVLxBjCGiF8haXahnUILMKqsw9Xcgu1llIUaJEhV8XEDE52akpBqapHuSjLs0NEzP3/V/1dUPzxvq5vt+OgiCDT0GEHHXY9Z4TiJzIsoCeDYNOwEyflJKrQ6SdQrAiTYD0IwBNPU/IjoqlUqj/WR+LAGfAHJRFI24AGyolNqSuX+QWHNeqjZXSs126p0AI6k5AF8Su+wqTZqIXsQkZ5sDB0AgeQE8NhqNMVvwphhcuGqJGADHENEl6+bJM4PPJYO8dYlePED0gniUbeKD0KeSAmq12rQA7rtEIvpgMQzDTFJAGIYZmfNuA7yxWKlUJryErVqtTgrg1Qa4ZZGXmRRARDMCuLGJZRF3/gHYE4/TLhHAun4a+LkY1Nz3/RQRXcsmZ10X7U4mbCfIvigJtq0XTVaxIpO+Acz3a66UWiCiH45VSi32yuTQgBTiyiVlKWpzAPs9s+ErD+DAeK6viGiXT0i9Xh/nzt+8obrm2ryv51q3IAiWuJ6Ggau3e5bF1XizAKwBOAPQ4ssoF7LF//i0ODd0aNovv1MAVXvuRh4AAAAASUVORK5CYII=";
@@ -154,3 +154,4 @@ export function updateProgressRings() {
     tempRing.style.setProperty('--progress-angle', `${tempAngle}deg`);
   }
 }
+

@@ -1,14 +1,14 @@
 import { getState as get, setState, subscribe } from './state.js';
-import { themeEngine } from './core/themeEngine.js';
-import { style, theme as padraoTheme } from './themes/padrao/index.js';
-import { div } from './utils/createElement.js';
-import { logger } from './utils/logger.js';
-import { initializeConstants } from './utils/constants.js';
+import { themeEngine } from './themeEngine.js';
+import { style, theme as padraoTheme } from '../themes/padrao/index.js';
+import { div } from '../utils/createElement.js';
+import { logger } from '../utils/logger.js';
+import { initializeConstants } from '../utils/constants.js';
 
 initializeConstants();
 
 if (process.env.NODE_ENV === 'development') {
-    import('./testing-utils.js');
+    import('../utils/testing-utils.js');
 }
 
 const appContainer = document.getElementById('app');

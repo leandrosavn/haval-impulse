@@ -1,6 +1,6 @@
-import { stateManager, subscribe } from '../../../../state.js';
+import { stateManager, subscribe } from '../../state.js';
 import { createFocusElementWithChildren } from './focusElement.js';
-import { div, img, span } from '../../../../utils/createElement.js';
+import { div, img, span } from '../../../utils/createElement.js';
 import { updateProgressRings } from './mainAcControl.js'
 
 const ionColor = {
@@ -93,4 +93,5 @@ export function createFanElement() {
 
     return focusArea;
 }
+
 
