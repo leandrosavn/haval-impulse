@@ -1,5 +1,5 @@
-import {getState, subscribe} from '../../state.js';
-import {div, img, span} from '../../utils/createElement.js';
+import {getState, subscribe} from '../../../../state.js';
+import {div, img, span} from '../../../../utils/createElement.js';
 
 import { Chart, registerables } from 'chart.js';
 import streamingPlugin from 'chartjs-plugin-streaming';
@@ -12,108 +12,13 @@ export const regenItems = [
     {id: 'Baixo', displayLabel: 'BAIXO'},
 ];
 
-const regenChartController = {
-    chartInstance: null,
-    isInitialized: false,
-    watchdogTimer: null,
-    unsubscribeFromData: null,
-
-    init(canvasContext) {
-        if (this.isInitialized) return;
-
-        this.chartInstance = new Chart(canvasContext, {
-            type: 'line',
-            data: {
-                datasets: [{
-                    label: 'Regen Power',
-                    backgroundColor: 'rgba(0, 120, 255, 0.1)',
-                    borderColor: 'rgba(0, 195, 255, 0.3)',
-                    borderWidth: 2,
-                    pointRadius: 0,
-                    fill: true,
-                    tension: 0.3,
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: { enabled: true },
-                    streaming: {
-                        duration: 30000,
-                        refresh: 1000,
-                    }
-                },
-                scales: {
-                    x: { type: 'realtime', display: false },
-                    y: {
-                        min: -10,
-                        max: 110,
-                        grace: 20,
-                        display: true,
-                        ticks: {
-                            stepSize: 10,
-                            padding: 17,
-                            color: 'rgba(100,172,255,0.7)',
-                            callback: function(value, index, ticks) { return value >= 30 && value <= 70 ? value : ''; },
-
-                        },
-                        grid: {
-                          display: true,
-                          drawOnChartArea: true,
-                          drawTicks: true,
-                          color: 'rgba(0,160,255,0.1)'
-                        },
-                    }
-                }
-            }
-        });
-
-        this.isInitialized = true;
-        this.startDataSubscription();
-    },
-
-    startDataSubscription() {
-        if (!this.isInitialized || this.dataUpdater) return;
-
-        this.dataUpdater = setInterval(() => {
-            if (!this.chartInstance) return;
-
-            const data = this.chartInstance.data.datasets[0].data;
-            const newValue = getState('lastRegenValue') || 0;
-
-            data.push({
-                x: Date.now(),
-                y: newValue
-            });
-
-            while (data.length > 30) {
-                data.shift();
-            }
-
-            this.chartInstance.update('quiet');
-        }, 1000);
-    },
-
-    cleanup() {
-        if (this.dataUpdater) {
-            clearInterval(this.dataUpdater);
-            this.dataUpdater = null;
-        }
-        if(this.chartInstance) {
-            this.chartInstance.destroy();
-        }
-        this.isInitialized = false;
-        this.chartInstance = null;
-    }
-};
 
 export function createRegenScreen() {
-
     const regenStatus = getState('regenMode');
+    let chartInstance = null;
+    let dataUpdater = null;
 
-    var main = div({className: 'main-container'});
+    const main = div({className: 'main-container'});
     const container = div({className: 'regen-screen'});
 
     const regenProgressRing = div({className: 'regen-progress-ring'});
@@ -177,16 +82,88 @@ export function createRegenScreen() {
 
     innerRing.appendChild(divider);
 
-    setTimeout(() => {
-        const ctx = document.getElementById('regen-chart');
-        if (ctx) {
-            regenChartController.init(ctx);
-        }
-    }, 0);
+    const initChart = (canvasCtx) => {
+        if (chartInstance) return;
 
-    const updateFocus = (regenStatus) => {
+        const isNight = getState('nightMode') !== false;
+        const lineColor = isNight ? 'rgba(0, 195, 255, 0.3)' : 'rgba(37, 99, 235, 0.6)';
+        const fillColor = isNight ? 'rgba(0, 120, 255, 0.1)' : 'rgba(37, 99, 235, 0.15)';
+        const tickColor = isNight ? 'rgba(100,172,255,0.7)' : 'rgba(37, 99, 235, 0.8)';
+        const gridColor = isNight ? 'rgba(0,160,255,0.1)' : 'rgba(37, 99, 235, 0.1)';
+
+        chartInstance = new Chart(canvasCtx, {
+            type: 'line',
+            data: {
+                datasets: [{
+                    label: 'Regen Power',
+                    backgroundColor: fillColor,
+                    borderColor: lineColor,
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    fill: true,
+                    tension: 0.3,
+                    data: []
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: true },
+                    streaming: {
+                        duration: 30000,
+                        refresh: 1000,
+                    }
+                },
+                scales: {
+                    x: { type: 'realtime', display: false },
+                    y: {
+                        min: -10,
+                        max: 110,
+                        grace: 20,
+                        display: true,
+                        ticks: {
+                            stepSize: 10,
+                            padding: 17,
+                            color: tickColor,
+                            callback: function(value) { return value >= 30 && value <= 70 ? value : ''; },
+                        },
+                        grid: {
+                            display: true,
+                            drawOnChartArea: true,
+                            drawTicks: true,
+                            color: gridColor
+                        },
+                    }
+                }
+            }
+        });
+
+        dataUpdater = setInterval(() => {
+            if (!chartInstance) return;
+
+            const data = chartInstance.data.datasets[0].data;
+            const newValue = getState('lastRegenValue') || 0;
+
+            data.push({
+                x: Date.now(),
+                y: newValue
+            });
+
+            if (data.length > 30) {
+                data.shift();
+            }
+
+            if (chartInstance && chartInstance.ctx && chartInstance.canvas) {
+                chartInstance.update('quiet');
+            }
+        }, 1000);
+    };
+
+    const updateFocus = (status) => {
         Object.values(itemElements).forEach(el => {
-            if (el.id === regenStatus) {
+            if (el.id === status) {
                 el.classList.add('focused');
             } else {
                 el.classList.remove('focused');
@@ -205,31 +182,39 @@ export function createRegenScreen() {
             regenProgressRing
         ];
 
-        const onePedalLabel = document.getElementById('one-pedal-mode-label');
-
         if (isOnePedalActive) {
             elementsToHide.forEach(el => el.classList.add('hidden'));
-            if (onePedalLabel) onePedalLabel.classList.remove('hidden');
+            onePedalModeLabel.classList.remove('hidden');
         } else {
             elementsToHide.forEach(el => el.classList.remove('hidden'));
-            if (onePedalLabel) onePedalLabel.classList.add('hidden');
+            onePedalModeLabel.classList.add('hidden');
             updateFocus(getState('regenMode'));
         }
     };
     const unsubscribeOnePedal = subscribe('onepedal', toggleOnePedalView);
     toggleOnePedalView(getState('onepedal'));
 
-    main.cleanup = () => {
+    const cleanup = () => {
         unsubscribe();
         unsubscribeOnePedal();
-        regenChartController.cleanup();
+        if (dataUpdater) {
+            clearInterval(dataUpdater);
+            dataUpdater = null;
+        }
+        if (chartInstance) {
+            chartInstance.destroy();
+            chartInstance = null;
+        }
     };
 
     return {
         element: main,
-        onMount: () => { updateProgressRings(); }
+        cleanup,
+        onMount: () => { 
+            updateProgressRings(); 
+            initChart(canvas);
+        }
     };
-
 }
 
 

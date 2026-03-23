@@ -3,20 +3,17 @@
   "private": true,
   "version": "0.0.4",
   "browserslist": [
-    "> 0.5%",
-    "last 5 versions",
+    "last 3 versions",
     "not dead",
-    "chrome 80"
+    "chrome 80",
+    "android >= 9"
   ],
   "scripts": {
-    "dev-controls": "parcel index.html",
-    "dev": "parcel app-night.html",
-    "dev:light": "parcel app-light.html",
+    "dev": "parcel index.html",
+    "dev-controls": "npm run dev",
     "clear": "rimraf dist",
-    "build:night": "parcel build app-night.html --dist-dir dist --public-url ./ && node inline.js",
-    "build:light": "parcel build app-light.html --dist-dir dist --public-url ./ && node inline.js",
-    "build": "bun run clear && bun run build:night && bun run build:light",
-    "prerelease": "bun run build && cp dist/app-night.html ../../app/src/main/res/raw/app.html && cp dist/app-night.html ../../app/src/main/res/raw/app_night.html && cp dist/app-light.html ../../app/src/main/res/raw/app_light.html"
+    "build": "bun run clear && parcel build index.html --dist-dir dist --public-url ./ && node inline.js",
+    "prerelease": "bun run build && cp dist/index.html ../../app/src/main/res/raw/app.html && cp dist/app_night.html ../../app/src/main/res/raw/app_night.html && cp dist/app_light.html ../../app/src/main/res/raw/app_light.html"
   },
   "devDependencies": {
     "baseline-browser-mapping": "^2.9.14",

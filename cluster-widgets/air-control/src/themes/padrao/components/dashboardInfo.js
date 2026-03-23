@@ -1,6 +1,6 @@
-import { getState, setState, subscribe } from '../state.js';
-import { div, span, img } from '../utils/createElement.js';
-import { logger } from '../utils/logger.js';
+import { getState, setState, subscribe } from '../../../state.js';
+import { div, span, img } from '../../../utils/createElement.js';
+import { logger } from '../../../utils/logger.js';
 
 const fuelIconBase64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xLDEyTDUsOVYxNVoiLz48cGF0aCBkPSJNMjIsMTBWOGEyLDIsMCwwLDAtMi0yaC0zVjRhMiwyLDAsMCwwLTItMkg5QTIsMiwwLDAsMCw3LDR2MTZhMiwyLDAsMCwwLDIsMmg4YTIsMiwwLDAsMCwyLTJWMTJoMXY0YTIsMiwwLDAsMCw0LDBWMTBaTTksNGg4djZIOVptOCwxNkg5VjEyaDhaIi8+PC9zdmc+";
 const batteryIconBase64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjwhLS0gQm9keSAtLT48cGF0aCBkPSJNMyw2aDE4YzEuMSwwLDIsMC45LDIsMnYxMGMwLDEuMS0wLjksMi0yLDJIM2MtMS4xLDAtMi0wLjktMi0yVjhDMSw2LjksMS45LDYsMyw2eiBNMyw4djEwaDE4VjhIM3oiLz48IS0tIFBvbGVzIC0tPjxyZWN0IHg9IjUiIHk9IjMiIHdpZHRoPSI0IiBoZWlnaHQ9IjMiLz48cmVjdCB4PSIxNSIgeT0iMyIgd2lkdGg9IjQiIGhlaWdodD0iMyIvPjwhLS0gTWludXMgc2lnbiAoLSkgLS0+PHJlY3QgeD0iNiIgeT0iMTIiIHdpZHRoPSI0IiBoZWlnaHQ9IjMiLz48IS0tIFBsdXMgc2lnbiAoKykgLS0+PHBhdGggZD0iTTE2LDEwaC0ydjJoLTJ2MmgydjJoMnYtMmgydi0yaC0yVjEweiIvPjwvc3ZnPg==";
@@ -18,9 +18,7 @@ export function createDashboardInfo() {
 
     // Initial color setup
     const updateGearColor = (val) => {
-        if (val === 'P') gear.style.color = '#ff3b30'; // Red
-        else if (val === 'R') gear.style.color = '#ff9500'; // Orange
-        else gear.style.color = '#ffffff'; // White
+        gear.setAttribute('data-gear', val);
     };
     updateGearColor(gearValue);
 
@@ -28,13 +26,10 @@ export function createDashboardInfo() {
 
     const updateEvModeColor = (val) => {
         const lowerVal = String(val).toLowerCase();
-        if (lowerVal.includes('eco')) {
-            evMode.style.color = '#4CAF50';
-        } else if (lowerVal.includes('sport')) {
-            evMode.style.color = '#FF4D4D';
-        } else {
-            evMode.style.color = '#ffffff';
-        }
+        let mode = 'normal';
+        if (lowerVal.includes('eco')) mode = 'eco';
+        else if (lowerVal.includes('sport')) mode = 'sport';
+        evMode.setAttribute('data-ev-mode', mode);
     };
     updateEvModeColor(getState('evModeLabel'));
 
@@ -189,17 +184,14 @@ export function createDashboardInfo() {
         const cleanVal = String(val).toUpperCase().replace(/'/g, "");
         if (cleanVal === 'EV') {
             bottomEvLabel.textContent = 'EV';
-            bottomEvLabel.style.color = '#00beff'; // Blue
         } else if (cleanVal === 'EVP') {
             bottomEvLabel.textContent = 'EV';
-            bottomEvLabel.style.color = '#4CAF50'; // Green (EVP)
         } else if (cleanVal === 'HEV') {
             bottomEvLabel.textContent = 'HEV';
-            bottomEvLabel.style.color = '#ffffff'; // White (HEV)
         } else {
             bottomEvLabel.textContent = val;
-            bottomEvLabel.style.color = '#ffffff';
         }
+        bottomEvLabel.setAttribute('data-bottom-ev', cleanVal);
     };
     updateBottomEv(getState('evMode'));
 
@@ -214,21 +206,7 @@ export function createDashboardInfo() {
     container.appendChild(bottomEvMode);
     container.appendChild(menuWrapper);
 
-    const updateCleanModeVisibility = (maskState) => {
-        // mask = 0: Hide dashboard elements (Clean mode effect)
-        // mask = 1 or 2: Show dashboard elements
-        const shouldHide = maskState === 0;
-        const display = shouldHide ? 'none' : 'flex';
 
-        topCenter.style.display = display;
-        speedContainer.style.display = display;
-        bottomGauges.style.display = display;
-        bottomEvMode.style.display = display;
-
-        // Temperatures should stay visible
-        externalTempContainer.style.display = 'flex';
-        internalTempContainer.style.display = 'flex';
-    };
 
     // Subscriptions
     const updateBarSegments = (tracks, percent) => {
@@ -266,51 +244,50 @@ export function createDashboardInfo() {
         prevSpeed = speed;
     };
 
-    const sub0 = subscribe('clockTime', val => clock.textContent = val);
-    const sub1 = subscribe('gearState', val => {
-        gear.textContent = val;
-        updateGearColor(val);
-    });
-    const sub2 = subscribe('evModeLabel', val => {
-        evMode.textContent = val;
-        updateEvModeColor(val);
-    });
-    const sub4 = subscribe('evMode', val => {
-        updateBottomEv(val);
-    });
-    const sub3 = subscribe('carSpeed', val => {
-        speedValue.textContent = val;
-        updateSpeedRotation(val);
-    });
-    const sub5 = subscribe('fuelPercent', val => {
-        updateBarSegments(fuelSegments, val);
-        fuelTop.querySelector('.fuel-percent').textContent = val + '%';
-    });
-    const sub6 = subscribe('batteryPercent', val => {
-        updateBarSegments(batterySegments, val);
-        batteryTop.querySelector('.battery-percent').textContent = val + '%';
-    });
-    const sub7 = subscribe('fuelRange', val => {
-        const rangeSpan = fuelTop.querySelector('.fuel-range');
-        if (rangeSpan && rangeSpan.childNodes[0]) rangeSpan.childNodes[0].textContent = val;
-    });
-    const sub8 = subscribe('batteryRange', val => {
-        const rangeSpan = batteryTop.querySelector('.battery-range');
-        if (rangeSpan && rangeSpan.childNodes[0]) rangeSpan.childNodes[0].textContent = val;
-    });
-    const sub9 = subscribe('outside_temp', val => externalTempValue.textContent = val + '°C');
-    const sub10 = subscribe('inside_temp', val => internalTempValue.textContent = val + '°C');
-    const sub11 = subscribe('mask', val => updateCleanModeVisibility(val));
+    const subscriptions = [
+        subscribe('clockTime', val => clock.textContent = val),
+        subscribe('gearState', val => {
+            gear.textContent = val;
+            updateGearColor(val);
+        }),
+        subscribe('evModeLabel', val => {
+            evMode.textContent = val;
+            updateEvModeColor(val);
+        }),
+        subscribe('evMode', val => updateBottomEv(val)),
+        subscribe('carSpeed', val => {
+            speedValue.textContent = val;
+            updateSpeedRotation(val);
+        }),
+        subscribe('fuelPercent', val => {
+            updateBarSegments(fuelSegments, val);
+            fuelTop.querySelector('.fuel-percent').textContent = val + '%';
+        }),
+        subscribe('batteryPercent', val => {
+            updateBarSegments(batterySegments, val);
+            batteryTop.querySelector('.battery-percent').textContent = val + '%';
+        }),
+        subscribe('fuelRange', val => {
+            const rangeSpan = fuelTop.querySelector('.fuel-range');
+            if (rangeSpan && rangeSpan.childNodes[0]) rangeSpan.childNodes[0].textContent = val;
+        }),
+        subscribe('batteryRange', val => {
+            const rangeSpan = batteryTop.querySelector('.battery-range');
+            if (rangeSpan && rangeSpan.childNodes[0]) rangeSpan.childNodes[0].textContent = val;
+        }),
+        subscribe('outside_temp', val => externalTempValue.textContent = val + '°C'),
+        subscribe('inside_temp', val => internalTempValue.textContent = val + '°C')
+    ];
 
     updateBarSegments(fuelSegments, getState('fuelPercent'));
     updateBarSegments(batterySegments, getState('batteryPercent'));
     updateSpeedRotation(getState('carSpeed'));
-    updateCleanModeVisibility(getState('mask'));
 
-    container.cleanup = () => {
+    const cleanup = () => {
         clearInterval(clockInterval);
-        [sub0, sub1, sub2, sub3, sub4, sub5, sub6, sub7, sub8, sub9, sub10, sub11].forEach(un => un());
+        subscriptions.forEach(unsubscribe => unsubscribe());
     };
 
-    return { container, menuWrapper };
+    return { element: container, menuWrapper, cleanup };
 }
+

@@ -71,5 +71,6 @@ enum class SharedPreferencesKeys(val key: String, val description: String) {
     DEFAULT_DISPLAY_APP_PACKAGE("defaultDisplayAppPackage", "Pacote do app padrão para abrir no cluster"),
     INSTRUMENT_REVISION_HISTORY("instrumentRevisionHistory", "Histórico de revisões realizadas"),
     VIRTUAL_CLUSTER_THEME("virtualClusterTheme", "Tema do Virtual Cluster"),
+    VIRTUAL_CLUSTER_NIGHT_MODE("virtualClusterNightMode", "Modo Noturno do Virtual Cluster"),
     PERSISTENT_BOTTOM_BAR_OVERSCAN("persistentBottomBarOverscan", "Ajuste de margem inferior para a barra (overscan)")
 }

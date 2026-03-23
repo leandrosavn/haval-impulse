@@ -1,15 +1,9 @@
 import { getState as get, setState, subscribe } from './state.js';
-import { createMainMenu } from './components/mainMenu.js';
-import { createAcControlScreen, updateProgressRings as updateProgressRingsAC } from "./components/aircon/mainAcControl.js";
-import { createRegenScreen, updateProgressRings as updateProgressRingsRegen } from "./components/regen/regenControl.js";
-import { createGraphScreen } from "./components/graphs/graphs.js";
-import { createMask } from './components/display/mask.js';
-import { createDashboardInfo } from './components/dashboardInfo.js';
-import { createDisplaySelectionScreen } from './components/display/themeSelection.js';
+import { themeEngine } from './core/themeEngine.js';
+import { style, theme as padraoTheme } from './themes/padrao/index.js';
 import { div } from './utils/createElement.js';
 import { logger } from './utils/logger.js';
 import { initializeConstants } from './utils/constants.js';
-import './dashboard.style.css';
 
 initializeConstants();
 
@@ -21,6 +15,17 @@ const appContainer = document.getElementById('app');
 let currentComponent = null;
 let maskComponent = null;
 let menuWrapper = null;
+let dashboardCleanup = null;
+
+// Initial state from URL parameters
+const urlParams = new URLSearchParams(window.location.search);
+const modeParam = urlParams.get('mode');
+if (modeParam === 'light') {
+    setState('nightMode', false);
+} else if (modeParam === 'night') {
+    setState('nightMode', true);
+}
+
 
 function initializeLayout() {
     logger.enter('initializeLayout');
@@ -30,19 +35,24 @@ function initializeLayout() {
     }
     appContainer.innerHTML = '';
 
+    // Load default theme with initial nightMode
+    updateThemeStyles();
+
     // Add mask background first (z-index: 50)
+    const createMask = themeEngine.getComponent('mask');
     const mask = createMask();
     maskComponent = mask;
 
     appContainer.appendChild(mask.background);
 
-    // Add Dashboard Info (Gauges, Clock, etc.) (z-index: 140)
-    const dashboardInfo = createDashboardInfo();
-    menuWrapper = dashboardInfo.menuWrapper;
-    appContainer.appendChild(dashboardInfo.container);
+    // 1. Dashboard Info Layer
+    if (dashboardCleanup) dashboardCleanup();
+    const dashboardInfo = themeEngine.getComponent('dashboardInfo');
+    const { element: dashElement, menuWrapper: newMenuWrapper, cleanup: dashCleanup } = dashboardInfo();
+    appContainer.appendChild(dashElement);
 
-    // Add mask foreground on top (z-index: 150)
-    appContainer.appendChild(mask.foreground);
+    menuWrapper = newMenuWrapper;
+    dashboardCleanup = dashCleanup;
 
     // Add no app mask on top (z-index: 200)
     appContainer.appendChild(mask.noAppV);
@@ -57,7 +67,22 @@ function render() {
 
     // Update app class based on display mode
     if (appContainer) {
-        appContainer.className = (appContainer.className.split(' ').filter(c => !c.startsWith('display-')).join(' ') + ' display-' + displayMode.toLowerCase()).trim();
+        const isNight = get('nightMode');
+        console.log('[Debug] Rendering with nightMode:', isNight, 'screen:', screen);
+        let classes = appContainer.className.split(' ').filter(c => !c.startsWith('display-') && !c.startsWith('theme-') && c !== 'cluster-disabled' && c !== 'card-is-0');
+        classes.push('display-' + displayMode.toLowerCase());
+        classes.push(isNight ? 'theme-night' : 'theme-light');
+        
+        if (get('clusterEnabled') === false) {
+            classes.push('cluster-disabled');
+        }
+
+        if (get('cardId') === 0) {
+            classes.push('card-is-0');
+        }
+
+        appContainer.className = classes.join(' ').trim();
+        console.log('[Debug] App classes:', appContainer.className);
     }
 
     if (currentComponent && currentComponent.cleanup) {
@@ -68,30 +93,34 @@ function render() {
         menuWrapper.innerHTML = '';
     }
 
+    let componentResult = null;
     if (screen === 'main_menu') {
-        currentComponent = createMainMenu();
+        componentResult = themeEngine.getComponent('mainMenu')();
     } else if (screen === 'aircon') {
-        currentComponent = createAcControlScreen();
+        componentResult = themeEngine.getComponent('aircon')();
     } else if (screen === 'regen') {
-        currentComponent = createRegenScreen();
-    } else if (screen === 'graph') {
-        currentComponent = createGraphScreen();
+        componentResult = themeEngine.getComponent('regen')();
     } else if (screen === 'display_selection') {
-        currentComponent = createDisplaySelectionScreen();
+        componentResult = themeEngine.getComponent('displaySelection')();
+    } else if (screen === 'graph' || screen === 'graphs') {
+        componentResult = themeEngine.getComponent('graph')();
     }
 
-    if (currentComponent) {
-        const element = currentComponent.element || currentComponent;
-        const onMount = currentComponent.onMount;
-        currentComponent = element;
+    if (componentResult) {
+        const element = componentResult.element || componentResult;
+        const onMount = componentResult.onMount;
 
         if (menuWrapper) {
             menuWrapper.appendChild(element);
         }
 
         if (onMount) {
-            currentComponent.cleanup = onMount();
+            onMount();
         }
+        
+        currentComponent = componentResult;
+    } else {
+        currentComponent = null;
     }
     logger.leave('render');
 }
@@ -101,7 +130,19 @@ initializeLayout();
 // Start rendering and subscribe to listen for screen changes thus triggering new render
 subscribe('screen', render);
 subscribe('display', render);
+subscribe('nightMode', (isNight) => {
+    updateThemeStyles();
+    render();
+});
+subscribe('clusterEnabled', render);
+subscribe('cardId', render);
 render();
+
+function updateThemeStyles() {
+    const isNight = get('nightMode') !== false;
+    logger.log('[Theme] Updating theme styles for nightMode:', isNight);
+    themeEngine.loadTheme(padraoTheme, isNight);
+}
 
 // Handle Card ID transitions
 subscribe('cardId', (cardId) => {
@@ -109,7 +150,7 @@ subscribe('cardId', (cardId) => {
     console.log('Actual Card:', cardId);
     // 0 = hide the right menu display
     if (menuWrapper) {
-        //menuWrapper.style.display = (cardId == 0) ? 'none' : 'block';
+        menuWrapper.style.display = (cardId == 0) ? 'none' : 'block';
     }
 
     if (cardId == 1) {
@@ -120,8 +161,6 @@ subscribe('cardId', (cardId) => {
         setState('screen', 'aircon');
     }
 });
-
-
 
 // Functions used by Kotlin to trigger interactions
 window.showScreen = function (screenName) {

@@ -1,5 +1,5 @@
-import { stateManager, subscribe } from '../../state.js';
-import { div, img, span } from '../../utils/createElement.js';
+import { stateManager, subscribe } from '../../../../state.js';
+import { div, img, span } from '../../../../utils/createElement.js';
 import { updateProgressRings } from './mainAcControl.js'
 
 export function createImpulseAutoElement() {
@@ -127,3 +127,4 @@ export function createImpulseAutoElement() {
 
     return impulse_auto_container;
 }
+

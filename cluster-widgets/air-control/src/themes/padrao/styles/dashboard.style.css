@@ -1,13 +1,13 @@
-@import "./fonts/fonts.css";
+@import "../../../fonts/fonts.css";
 
 :root {
     --mask-radius: 228px;
     --mask-center-y: 430px;
     --mask-left-x: 290px;
     --mask-right-x: 1630px;
-    --mask-bg-color: rgba(0, 0, 0, 0.8);
-    --mask-border-color: #1d4ed8;
-    --mask-shadow: 0 0 60px rgba(0, 0, 0, 1);
+    --mask-bg-color: var(--mask-bg-color);
+    --mask-border-color: var(--primary-blue);
+    --mask-shadow: var(--mask-shadow);
 
     /* Display Mode Variables */
     --display-scale: 1;
@@ -38,10 +38,35 @@
     pointer-events: none !important;
 }
 
-/* Hide the menu container and right circle in clean mode */
 .display-clean .dashboard-menu-container,
 .display-clean .mask-circle.right,
 .display-clean .mask-circle-border.right {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+/* Cluster Disabled Mode */
+.cluster-disabled .dashboard-speed-container,
+.cluster-disabled .dashboard-top-center,
+.cluster-disabled .dashboard-bottom-gauges,
+.cluster-disabled .dashboard-bottom-ev-mode,
+.cluster-disabled .mask-circle,
+.cluster-disabled .mask-circle-border,
+.cluster-disabled .mask-top-bar,
+.cluster-disabled .mask-bottom-bar,
+.cluster-disabled .no-app-mask-v,
+.cluster-disabled .no-app-mask-h,
+.cluster-disabled .partial-app-mask {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+/* Card 0 Mode */
+.card-is-0 .dashboard-menu-container,
+.card-is-0 .mask-circle.right,
+.card-is-0 .mask-circle-border.right {
     opacity: 0 !important;
     visibility: hidden !important;
     pointer-events: none !important;
@@ -99,36 +124,36 @@
     position: fixed;
     top: 0;
     left: 0;
-    width: 100vw;
-    height: 100vh;
+    width: 1920px;
+    height: 720px;
     pointer-events: none;
     z-index: 0;
     background: linear-gradient(to right,
-            black 0%,
-            black 15%,
+            var(--mask-circle-bg) 0%,
+            var(--mask-circle-bg) 15%,
             transparent 40%,
             transparent 60%,
-            black 85%,
-            black 100%);
-    transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            var(--mask-circle-bg) 85%,
+            var(--mask-circle-bg) 100%);
+    transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1), width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .no-app-mask-h {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100vw;
-    height: 100vh;
+    width: 1920px;
+    height: 720px;
     pointer-events: none;
     z-index: 0;
     background: linear-gradient(to bottom,
-            black 0%,
-            black 10%,
+            var(--mask-circle-bg) 0%,
+            var(--mask-circle-bg) 10%,
             transparent 20%,
             transparent 85%,
-            black 95%,
-            black 100%);
-    transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            var(--mask-circle-bg) 95%,
+            var(--mask-circle-bg) 100%);
+    transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1), width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .partial-app-mask {
@@ -162,18 +187,18 @@
     /* Circular masking */
     border-radius: 50%;
     overflow: hidden;
-    background-color: black;
+    background-color: var(--mask-circle-bg);
     transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .mask-top-bar {
-    background: linear-gradient(#000 60%, rgba(0, 0, 0, .5) 65%, rgba(0, 0, 0, .2) 100%);
+    background: var(--mask-top-bar-bg);
     width: 100%;
     height: 135px;
     position: absolute;
     top: 0;
     left: 0;
-    box-shadow: 0 10px 80px #000;
+    box-shadow: 0 10px 80px var(--mask-circle-bg);
 }
 
 .mask-bottom-bar {
@@ -182,8 +207,8 @@
     left: 0;
     width: 100%;
     height: 80px;
-    background-color: rgba(0, 0, 0, 1);
-    box-shadow: 0 -15px 60px rgba(0, 0, 0, 1);
+    background-color: var(--mask-bottom-bar-bg);
+    box-shadow: 0 -15px 60px var(--mask-circle-bg);
 }
 
 .mask-circle {
@@ -191,7 +216,7 @@
     width: calc(var(--mask-radius) * 2);
     height: calc(var(--mask-radius) * 2);
     border-radius: 50%;
-    background-color: black;
+    background-color: var(--mask-circle-bg);
     box-shadow: var(--mask-shadow);
     top: calc(var(--mask-center-y) - var(--mask-radius));
     transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
@@ -200,7 +225,7 @@
 .mask-circle.left {
     left: calc(var(--mask-left-x) - var(--mask-radius) + var(--display-left-offset));
     transform: scale(var(--display-scale));
-    background: radial-gradient(circle at center, rgb(0 0 0 / 0%) 0%, rgb(0 0 0 / 100%) 70%, rgb(0 0 0 / 100%) 80%, rgb(0 0 0) 100%);
+    background: radial-gradient(circle at center, transparent 0%, var(--mask-circle-bg) 70%, var(--mask-circle-bg) 80%, var(--mask-circle-bg) 100%);
 }
 
 .mask-circle.right {
@@ -241,7 +266,7 @@
     height: 720px;
     pointer-events: none;
     font-family: 'Khand', sans-serif;
-    color: white;
+    color: var(--dashboard-text-color);
     z-index: 140;
     /* Above content (100) but below blue rings (150) */
 }
@@ -264,7 +289,7 @@
 }
 
 .dashboard-clock {
-    color: #ffffff;
+    color: var(--dashboard-text-color);
     width: 100px;
     text-align: center;
 }
@@ -277,7 +302,7 @@
 }
 
 .dashboard-ev-mode {
-    color: white;
+    color: var(--dashboard-text-color);
     text-transform: uppercase;
     width: 100px;
     text-align: center;
@@ -310,10 +335,10 @@
     transform: translate(-50%, -50%);
     width: 380px;
     height: 380px;
-    border: 2px solid rgba(160, 180, 255, 0.5);
+    border: 2px solid var(--dial-inner-border);
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(0, 0, 0, .8) 0%, rgba(0, 0, 0, .6) 80%, rgba(160, 180, 255, .6) 100%);
-    box-shadow: 0 0 50px 10px #6477ff85;
+    background: var(--dial-inner-bg);
+    box-shadow: var(--dial-shadow);
     backdrop-filter: blur(10px) saturate(180%);
     z-index: 11;
     transition: all .6s cubic-bezier(.4, 0, .2, 1);
@@ -409,7 +434,7 @@
 
 .dashboard-speed-metric {
     font-size: 26px;
-    color: #f3f6ff;
+    color: var(--dashboard-text-color);
     margin-top: -10px;
 }
 
@@ -652,3 +677,34 @@
 }
 
 /* Clean Mode Elements */
+
+/* Dynamic Color Styles */
+.dashboard-gear[data-gear="P"] {
+    color: #ff3b30; /* Red */
+}
+.dashboard-gear[data-gear="R"] {
+    color: #ff9500; /* Orange */
+}
+.dashboard-gear {
+    color: var(--text-main); /* Default theme color */
+}
+
+.dashboard-ev-mode[data-ev-mode="eco"] {
+    color: #4CAF50;
+}
+.dashboard-ev-mode[data-ev-mode="sport"] {
+    color: #FF4D4D;
+}
+.dashboard-ev-mode, .dashboard-ev-mode[data-ev-mode="normal"] {
+    color: var(--text-main);
+}
+
+.bottom-ev-label[data-bottom-ev="EV"] {
+    color: #00beff; /* Blue */
+}
+.bottom-ev-label[data-bottom-ev="EVP"] {
+    color: #4CAF50; /* Green */
+}
+.bottom-ev-label[data-bottom-ev="HEV"], .bottom-ev-label {
+    color: var(--text-main); /* Default theme color */
+}

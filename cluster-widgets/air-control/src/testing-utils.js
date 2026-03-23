@@ -1,5 +1,5 @@
 import { setState, stateManager } from './state.js';
-import { menuItems } from './components/mainMenu.js';
+import { menuItems } from './themes/padrao/components/mainMenu.js';
 
 const focusableAreas = {
     main_menu: menuItems.map(item => item.id),
@@ -10,8 +10,7 @@ const focusableAreas = {
 };
 // If running under dev-controls (index.html), add a red background to help identify the environment
 if (window.location.pathname.endsWith('index.html') || window.location.pathname === '/' || window.location.pathname.endsWith('/')) {
-    document.body.style.backgroundColor = '#ff0000ff'; // Dark red to avoid blinding but still visible
-    console.log('[Dev-Controls] Environment detected - Setting red background');
+    console.log('[Dev-Controls] Environment detected');
 }
 
 document.addEventListener('keydown', (e) => {
@@ -169,7 +168,9 @@ document.addEventListener('keydown', (e) => {
         const regenMode = currentState.regenMode;
 
         if (e.key === 'Enter') {
-            window.control('onepedal', !currentState.onepedal);
+            const nextValue = !currentState.onepedal;
+            console.log(`[Regen Simulation] Toggle onepedal via Enter -> ${nextValue}`);
+            window.control('onepedal', nextValue);
         } else if (e.key === 'ArrowUp') {
             const controls = focusableAreas.regen;
             const currentIndex = controls.indexOf(regenMode);
@@ -237,11 +238,22 @@ document.addEventListener('keydown', (e) => {
     }
 
     if (e.key.toLowerCase() === 'k') {
-        const currentMask = stateManager.getState().mask || 0;
-        const nextMask = (currentMask + 1) % 3;
-        const maskNames = { 0: 'No Mask', 1: 'Partial Mask (App Active)', 2: 'Full Mask (No App)' };
-        console.log(`[Mask Simulation] Cycle -> Mask ${nextMask} (${maskNames[nextMask]})`);
-        setState('mask', nextMask);
+        const currentAppInDash = stateManager.getState().appInDash;
+        const nextValue = !currentAppInDash;
+        console.log(`[Mask Simulation] Toggle appInDash -> ${nextValue}`);
+        setState('appInDash', nextValue);
+    }
+
+    if (e.key.toLowerCase() === 'm') {
+        const currentNightMode = stateManager.getState().nightMode;
+        console.log(`[Theme Simulation] Toggle nightMode -> ${!currentNightMode}`);
+        setState('nightMode', !currentNightMode);
+    }
+
+    if (e.key.toLowerCase() === 'o') {
+        const currentOnePedal = stateManager.getState().onepedal;
+        console.log(`[Mode Simulation] Toggle onepedal -> ${!currentOnePedal}`);
+        setState('onepedal', !currentOnePedal);
     }
 });
 

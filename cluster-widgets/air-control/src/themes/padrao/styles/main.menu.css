@@ -1,10 +1,8 @@
 @import "../../../fonts/fonts.css";
 
-
-
 .main-menu-container {
     background-color: transparent;
-    color: #ffffff;
+    color: var(--dashboard-text-color);
     height: 100%;
     width: 100%;
 }
@@ -14,10 +12,7 @@
     width: 452px;
     height: 452px;
 
-    background-image: radial-gradient(circle at center,
-        #0a2345 0%,
-        transparent 80%
-    );
+    background-image: var(--menu-bg-gradient);
     border-radius: 50%;
 
     --item-gap: 80px;
@@ -33,7 +28,7 @@
     transform: translateX(-50%);
     width: var(--line-width);
     height: 2px;
-    background-color: #5d9ef4;
+    background-color: var(--primary-blue);
     z-index: 100;
 }
 
@@ -68,7 +63,7 @@
 .menu-item.spacer {
     height: 2px;
     width: 200px;
-    background-color: #5d9ef4;
+    background-color: var(--primary-blue);
     padding: 0;
     opacity: 0.5;
     border-radius: 0;
@@ -98,7 +93,7 @@
     font-family: 'Khand', sans-serif;
     font-weight: 300;
     font-size: 36px;
-    color: #A3AED0;
+    color: var(--menu-item-text);
     white-space: nowrap;
     transition: all 0.3s ease;
 }
@@ -110,7 +105,7 @@
     background-color: transparent;
 }
 .menu-item.focused .menu-label {
-    color: #FFFFFF;
+    color: var(--menu-item-text-focused);
     font-size: 52px;
     font-weight: 300;
 }

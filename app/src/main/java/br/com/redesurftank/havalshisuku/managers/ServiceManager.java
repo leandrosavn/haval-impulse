@@ -123,7 +123,8 @@ public class ServiceManager {
             CarConstants.CAR_EV_INFO_POWER_BATTERY_VOLTAGE,
             CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE,
             CarConstants.CAR_EV_INFO_FUEL_MODE_REMAIN_ODOMETER,
-            CarConstants.CAR_EV_INFO_ELECTRIC_MODE_REMAIN_ODOMETER
+            CarConstants.CAR_EV_INFO_ELECTRIC_MODE_REMAIN_ODOMETER,
+            CarConstants.SYSTEM_SETTING_DAYNIGHT_THEME
     };
 
     private static final CarConstants[] KEYS_TO_SAVE = {

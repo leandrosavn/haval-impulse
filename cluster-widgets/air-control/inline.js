@@ -28,24 +28,38 @@ function processHtml(htmlPath, outputPath) {
     
     if (fs.existsSync(fullCssPath)) {
       var cssContent = fs.readFileSync(fullCssPath, 'utf8');
-      htmlContent = htmlContent.replace(cssMatch[0], '<style>' + cssContent + '</style>');
+      htmlContent = htmlContent.split(cssMatch[0]).join('<style>' + cssContent + '</style>');
       console.log('✅ CSS inlined:', cssPath);
     }
   }
 
   // Inline JavaScript
-  var jsRegex = /<script[^>]*src=([^>\s]+\.js)[^>]*><\/script>/g;
+  var jsRegex = /<script([^>]*)src=["']?([^"'\s>]+\.js)["']?([^>]*)><\/script>/g;
   var jsMatch;
   while ((jsMatch = jsRegex.exec(htmlContent)) !== null) {
-    var jsPath = jsMatch[1].replace(/['"]/g, '');
+    var beforeSrc = jsMatch[1];
+    var jsPath = jsMatch[2];
+    var afterSrc = jsMatch[3];
     
     var fullJsPath = path.join(__dirname, 'dist', jsPath);
     
     if (fs.existsSync(fullJsPath)) {
       var jsContent = fs.readFileSync(fullJsPath, 'utf8');
-      htmlContent = htmlContent.replace(jsMatch[0], '<script>' + jsContent + '</script>');
-      fs.unlinkSync(fullJsPath);
-      console.log('✅ JS inlined:', jsPath);
+      
+      // Reconstitute attributes, looking for type="module"
+      var attributes = (beforeSrc + ' ' + afterSrc).trim();
+      var isModule = attributes.includes('type="module"') || attributes.includes('type=module');
+      
+      var scriptTag = isModule ? '<script type="module">' : '<script>';
+      var replacement = scriptTag + jsContent + '</script>';
+      
+      // Use split/join to avoid $ special characters in jsContent when using .replace()
+      htmlContent = htmlContent.split(jsMatch[0]).join(replacement);
+      
+      if (fs.existsSync(fullJsPath)) {
+        fs.unlinkSync(fullJsPath);
+      }
+      console.log('✅ JS inlined:', jsPath + (isModule ? ' (as module)' : ''));
     }
   }
 
@@ -54,18 +68,18 @@ function processHtml(htmlPath, outputPath) {
   console.log(`✅ HTML gerado: ${outputPath}`);
 }
 
-// Processa os dois temas
-console.log('🚀 Iniciando build dos temas...');
+// Process index.html
+console.log('🚀 Iniciando build unificado...');
 
-// Night theme
-var nightHtmlPath = path.join(__dirname, 'dist', 'app-night.html');
-var nightOutputPath = path.join(__dirname, 'dist', 'app-night.html');
-processHtml(nightHtmlPath, nightOutputPath);
+var indexHtmlPath = path.join(__dirname, 'dist', 'index.html');
+var indexOutputPath = path.join(__dirname, 'dist', 'index.html');
+processHtml(indexHtmlPath, indexOutputPath);
 
-// Light theme  
-var lightHtmlPath = path.join(__dirname, 'dist', 'app-light.html');
-var lightOutputPath = path.join(__dirname, 'dist', 'app-light.html');
-processHtml(lightHtmlPath, lightOutputPath);
+// Create app_night.html and app_light.html copies for Android
+var unifiedHtmlContent = fs.readFileSync(indexOutputPath, 'utf8');
+fs.writeFileSync(path.join(__dirname, 'dist', 'app_night.html'), unifiedHtmlContent, 'utf8');
+fs.writeFileSync(path.join(__dirname, 'dist', 'app_light.html'), unifiedHtmlContent, 'utf8');
+console.log('✅ Cópias para Android criadas: app_night.html, app_light.html');
 
 // Remove pasta assets vazia
 var assetsDir = path.join(__dirname, 'dist', 'assets');
@@ -78,7 +92,7 @@ if (fs.existsSync(assetsDir)) {
 }
 
 // Remove arquivos CSS originais
-var cssFiles = ['night.style.css', 'light.style.css'];
+var cssFiles = ['night.style.css', 'light.style.css', 'style.css'];
 cssFiles.forEach(function(cssFile) {
   var cssPath = path.join(__dirname, 'dist', cssFile);
   if (fs.existsSync(cssPath)) {
@@ -87,6 +101,5 @@ cssFiles.forEach(function(cssFile) {
   }
 });
 
-console.log('🎉 Build completo! Arquivos gerados:');
-console.log('  📄 app-night.html (tema escuro)');
-console.log('  📄 app-light.html (tema claro)');
+console.log('🎉 Build completo! Arquivo gerado:');
+console.log('  📄 index.html (unificado)');

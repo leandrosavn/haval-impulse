@@ -287,3 +287,4 @@ class Ray {
         ctx.restore();
     }
 }
+

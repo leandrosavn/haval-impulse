@@ -1,6 +1,6 @@
-import { stateManager, subscribe } from '../../state.js';
+import { stateManager, subscribe } from '../../../../state.js';
 import { createFocusElementWithChildren } from './focusElement.js';
-import { div } from '../../utils/createElement.js';
+import { div } from '../../../../utils/createElement.js';
 import { updateProgressRings } from './mainAcControl.js'
 
 export function createTemperatureElement() {
@@ -61,3 +61,4 @@ export function createTemperatureElement() {
 
     return focusArea;
 }
+

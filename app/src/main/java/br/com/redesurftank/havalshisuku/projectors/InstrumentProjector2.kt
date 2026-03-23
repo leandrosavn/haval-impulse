@@ -196,6 +196,11 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                     CarConstants.CAR_BASIC_ENGINE_SPEED.value -> {
                         evaluateJsIfReady(webView, "control('engineRPM',$value)")
                     }
+                    CarConstants.SYSTEM_SETTING_DAYNIGHT_THEME.value -> {
+                        val isNight = value == "1"
+                        preferences.edit().putString(SharedPreferencesKeys.VIRTUAL_CLUSTER_NIGHT_MODE.key, isNight.toString()).apply()
+                        evaluateJsIfReady(webView, "control('nightMode', $isNight)")
+                    }
                 }
             }
         }
@@ -354,21 +359,31 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
         batteryCurrent = sm.getData(CarConstants.CAR_EV_INFO_CUR_CHARGE_CURRENT.value).toFloatOrNull() ?: 0f
         val kw = batteryVoltage * batteryCurrent / 1000f
         evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.EV_POWER_KW}', $kw)")
+
+        // Initial Theme from System Setting
+        val systemTheme = sm.getData(CarConstants.SYSTEM_SETTING_DAYNIGHT_THEME.value)
+        if (systemTheme != null && systemTheme.isNotEmpty()) {
+            val isNight = systemTheme == "1"
+            evaluateJsIfReady(webView, "control('nightMode', $isNight)")
+        }
     }
 
     private fun updateVirtualClusterVisibility() {
         val clusterEnabled = preferences.getBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, true)
-        if (!clusterEnabled) {
-            evaluateJsIfReady(webView, "control('mask', 0)")
-            return
-        } else {
-            if (isAnyAppOnDisplay3) {
-                evaluateJsIfReady(webView, "control('mask', 1)")
-            } else {
-                evaluateJsIfReady(webView, "control('mask', 2)")
-            }
+        evaluateJsIfReady(webView, "control('clusterEnabled', $clusterEnabled)")
+        evaluateJsIfReady(webView, "control('appInDash', $isAnyAppOnDisplay3)")
+        
+        val theme = preferences.getString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Básico") ?: "Básico"
+        val themeEngineName = when (theme) {
+            "Básico" -> "padrao"
+            else -> "padrao" 
         }
-
+        val isNightStr = preferences.getString(SharedPreferencesKeys.VIRTUAL_CLUSTER_NIGHT_MODE.key, "true") ?: "true"
+        val isNight = isNightStr == "true"
+        evaluateJsIfReady(webView, "control('nightMode', $isNight)")
+        
+        evaluateJsIfReady(webView, "control('theme', '$themeEngineName')")
+        
         //val displayMode = preferences.getString(SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key, "Normal")
 
 /*        val maskState = when (displayMode) {
@@ -376,17 +391,10 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
             "Normal" -> 1
             "Reduzido" -> 2
             else -> if (isAnyAppOnDisplay3) 1 else 2
-        }
-
-        if (this.maskState != maskState) {
-            this.maskState = maskState
-            evaluateJsIfReady(webView, "control('mask', $maskState)")
-        }
-
-        if (this.displayMode != displayMode) {
-            this.displayMode = displayMode
-            evaluateJsIfReady(webView, "control('display', '$displayMode')")
         }*/
+
+        val displayMode = preferences.getString(SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key, "Normal") ?: "Normal"
+        evaluateJsIfReady(webView, "control('display', '$displayMode')")
     }
 
     private inner class WebInterface {
@@ -395,15 +403,21 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
             val prefKey = when (key) {
                 "currentClusterDisplay" -> SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key
                 "currentClusterTemplate" -> SharedPreferencesKeys.CURRENT_CLUSTER_TEMPLATE.key
+                "virtualClusterNightMode" -> SharedPreferencesKeys.VIRTUAL_CLUSTER_NIGHT_MODE.key
                 else -> null
             }
 
             if (prefKey != null) {
                 preferences.edit().putString(prefKey, value).apply()
-                // Update visibility if display mode changed
-//                if (key == "currentClusterDisplay") {
-//                    ensureUi { updateVirtualClusterVisibility() }
-//                }
+                
+                // In dynamic CSS approach, we don't need to reload the WebView. 
+                // JS will subscribe to the state change and update the theme.
+                /*if (key == "virtualClusterNightMode") {
+                    ensureUi {
+                        Log.d(TAG, "Theme changed, reloading WebView for nightMode=$value")
+                        webView?.loadDataWithBaseURL(null, readRawHtml(context), "text/html", "UTF-8", null)
+                    }
+                }*/
             }
         }
     }
@@ -418,6 +432,7 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
     }
 
     fun readRawHtml(context: Context): String {
+        Log.d(TAG, "Loading base HTML from resource: app.html")
         return context.resources.openRawResource(R.raw.app).bufferedReader().use { it.readText() }
     }
 

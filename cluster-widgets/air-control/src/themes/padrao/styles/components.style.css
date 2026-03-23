@@ -1,0 +1,231 @@
+/* ============================================= */
+/*           COMMON COMPONENT LAYOUT             */
+/* ============================================= */
+
+/* --- Regen Screen --- */
+.regen-screen {
+  position: relative;
+  width: 452px;
+  height: 452px;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.regen-item {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 260px;
+  height: 80px;
+  margin-top: -40px;
+  margin-left: -130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 12px;
+  background-color: transparent;
+  border: 2px solid transparent;
+  border-radius: 30px;
+  transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.4s ease, background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.regen-label {
+  font-family: 'Khand', sans-serif;
+  font-weight: 100;
+  font-size: 50px;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+}
+
+.regen-outer-ring {
+  position: absolute;
+  width: 452px;
+  height: 452px;
+  border-radius: 50%;
+  -webkit-mask: radial-gradient(circle at center, transparent 196px, white 197px);
+  mask: radial-gradient(circle at center, transparent 196px, white 197px);
+  z-index: 0;
+}
+
+.regen-inner-ring {
+  position: absolute;
+  width: 392px;
+  height: 392px;
+  border-radius: 50%;
+  overflow: hidden;
+  z-index: 2;
+}
+
+.regen-inner-ring-shadow {
+  position: absolute;
+  width: 392px;
+  height: 392px;
+  border-radius: 50%;
+  z-index: 1;
+}
+
+.regen-selector-line {
+  position: absolute;
+  width: 385px;
+  height: 100px;
+  overflow: hidden;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  transition: transform 0.2s cubic-bezier(0.2, 1, 0.3, 1);
+  z-index: 3;
+}
+
+.regen-item[data-index="0"] { transform: translateY(-90px); opacity: 1; z-index: 10; }
+.regen-item[data-index="1"] { transform: translateY(0px); opacity: 1; z-index: 10; }
+.regen-item[data-index="2"] { transform: translateY(90px); opacity: 1; z-index: 10; }
+
+#regen-chart {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100% !important;
+  height: 103% !important;
+}
+
+/* --- Graph Screen --- */
+.dynamic-tooltip {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 200px;
+  pointer-events: none;
+  transition: all 0.4s ease-in-out;
+  z-index: 12;
+  font-family: 'Khand', sans-serif;
+}
+
+.dynamic-tooltip.primary {
+  top: 312px;
+  left: 275px;
+}
+
+.dynamic-tooltip.secondary {
+  top: 35px;
+  left: 310px;
+}
+
+.dynamic-tooltip .tooltip-value {
+  font-size: 60px;
+  font-weight: 300;
+}
+
+.dynamic-tooltip .tooltip-unity {
+  font-size: 24px;
+  font-weight: 100;
+  margin-top: -10px;
+}
+
+.dynamic-tooltip-line {
+  position: absolute;
+  left: 38px;
+  height: 0px;
+  transition: top 0.3s ease, opacity 0.3s ease, width 0.4s ease-in-out;
+  z-index: 11;
+}
+
+#graph-chart {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100% !important;
+  height: 105% !important;
+  z-index: 2;
+}
+
+.one-pedal-instruction {
+  text-align: center;
+  width: 200px;
+  font-size: 18px;
+  font-weight: 300;
+  line-height: 0.9;
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translate(-50%);
+  z-index: 5;
+}
+
+.one-pedal-mode-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: 'Khand', sans-serif;
+  font-weight: 100;
+  font-size: 50px;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+  z-index: 4;
+}
+
+.timer-tooltip {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 200px;
+  pointer-events: none;
+  transition: opacity 0.2s ease-in-out;
+  z-index: 12;
+  font-family: 'Khand', sans-serif;
+  top: 250px;
+  left: 0px;
+  opacity: 0;
+}
+
+.timer-tooltip.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.timer-tooltip-value {
+  top: 78px;
+  left: 12px;
+  width: 200px;
+  position: absolute;
+  font-size: 32px;
+  font-weight: 300;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.timer-tooltip-unity {
+  top: 64px;
+  left: 55px;
+  min-width: 80px;
+  position: absolute;
+  font-size: 18px;
+  font-weight: 100;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* --- AC Screen --- */
+.ac-outer-ring {
+  position: absolute;
+  width: 452px;
+  height: 452px;
+  border-radius: 50%;
+  z-index: 0;
+}
+
+.ac-inner-ring {
+  position: absolute;
+  width: 392px;
+  height: 392px;
+  border-radius: 50%;
+  z-index: 2;
+}

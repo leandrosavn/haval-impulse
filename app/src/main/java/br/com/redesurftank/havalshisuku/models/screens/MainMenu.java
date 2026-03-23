@@ -128,8 +128,8 @@ public class MainMenu implements Screen {
                                     CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE)
                     ),
                     new MenuItem(
-                            MenuItem.MENU_ID_AC_CONTROL,
-                            new MenuAction.NavigateTo(displaySelectionScreen)
+                            MenuItem.MENU_ID_STATS,
+                            new MenuAction.NavigateTo(graphScreen)
                     ),
                     new MenuItem(
                             MenuItem.MENU_ID_STEER_MODE,
@@ -141,8 +141,8 @@ public class MainMenu implements Screen {
                             new MenuAction.NavigateTo(regenScreen)
                     ),
                     new MenuItem(
-                            MenuItem.MENU_ID_STATS,
-                            new MenuAction.NavigateTo(graphScreen)
+                            MenuItem.MENU_ID_AC_CONTROL,
+                            new MenuAction.NavigateTo(displaySelectionScreen)
                     )
             );
         }
@@ -152,7 +152,7 @@ public class MainMenu implements Screen {
 
         // Set default initial position as middle of the menu
         String lastMenuOption = ServiceManager.getInstance().getSharedPreferences().getString(
-                SharedPreferencesKeys.LAST_CLUSTER_MENU_ITEM.getKey(), "option_4");
+                SharedPreferencesKeys.LAST_CLUSTER_MENU_ITEM.getKey(), "option_7");
         this.currentMenuItemIndex = IntStream.range(0, menuItems.size())
                 .filter(i -> menuItems.get(i).getId().equals(lastMenuOption))
                 .findFirst()
