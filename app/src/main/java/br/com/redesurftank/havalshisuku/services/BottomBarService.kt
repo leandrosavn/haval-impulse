@@ -43,7 +43,7 @@ class BottomBarService : LifecycleService() {
     // Hardcoded overrides for density-aware apps that auto-scale overscan
     private val OVERSCAN_OVERRIDES =
             mapOf(
-                    "com.google.android.youtube" to 30,
+                    "com.google.android.youtube" to 0,
                     "com.google.android.apps.maps" to 60,
                     "com.google.android.apps.youtube.music" to 60,
                     "com.google.android.apps.messaging" to 60

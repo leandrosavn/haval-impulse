@@ -21,6 +21,7 @@ export function initializeConstants() {
     window.Conforto = 'Conforto';
     window.Leve = 'Leve';
     window.Esporte = 'Esporte';
+    window.Esportiva = 'Esportiva';
 
     // Region/Display modes
     window.Reduzido = 'Reduzido';

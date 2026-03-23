@@ -71,12 +71,72 @@ function processHtml(htmlPath, outputPath) {
   console.log(`✅ HTML gerado: ${outputPath}`);
 }
 
+// Função para inlinear assets dinâmicos (CSS referenciados no JS)
+function inlineDynamicAssets(htmlPath) {
+  console.log(`🔍 Buscando assets dinâmicos em: ${htmlPath}`);
+  var htmlContent = fs.readFileSync(htmlPath, 'utf8');
+  var distDir = path.join(__dirname, 'dist');
+  var files = fs.readdirSync(distDir);
+  
+  var changed = false;
+  files.forEach(file => {
+    if (file.endsWith('.css') && !file.includes('.map')) {
+      // Se o nome do arquivo aparece no HTML (provavelmente dentro do JS inlined)
+      if (htmlContent.includes(file)) {
+        var filePath = path.join(distDir, file);
+        var content = fs.readFileSync(filePath, 'utf8');
+        var base64 = Buffer.from(content).toString('base64');
+        var dataUri = `data:text/css;base64,${base64}`;
+        
+        // Pattern 1: module.bundle.resolve("filename") [optionally with + "?" + Date.now()]
+        // We match up to the end of the expression (comma, semicolon, closing paren)
+        const escapedFile = file.replace(/\./g, '\\.');
+        const resolveRegex = new RegExp(`module\\.bundle\\.resolve\\((['"])${escapedFile}(['"])\\)([^,;\\n\\r)]*)`, 'g');
+        
+        if (resolveRegex.test(htmlContent)) {
+          console.log(`📦 Inlining dynamic asset (wrapped-robust): ${file}`);
+          // Replace the entire resolution call (including any appended query params) with just the Data URI
+          htmlContent = htmlContent.replace(resolveRegex, `"${dataUri}"`);
+          changed = true;
+        }
+        
+        // Pattern 2: importmap leading slash
+        const importMapRegex = new RegExp(`(['"]):\\s*(['"])/${escapedFile}(['"])`, 'g');
+        if (importMapRegex.test(htmlContent)) {
+          console.log(`📦 Inlining dynamic asset (regex-importmap): ${file}`);
+          htmlContent = htmlContent.replace(importMapRegex, `$1:$2${dataUri}$3`);
+          changed = true;
+        }
+
+        // Pattern 3: Fallback simple quoted string
+        const plainRegex = new RegExp(`(['"])([\\./]*)${escapedFile}(['"])`, 'g');
+        if (plainRegex.test(htmlContent)) {
+          console.log(`📦 Inlining dynamic asset (regex-plain): ${file}`);
+          htmlContent = htmlContent.replace(plainRegex, `$1${dataUri}$3`);
+          changed = true;
+        }
+        
+        // Remove o arquivo CSS original pois agora está inlined
+        fs.unlinkSync(filePath);
+      }
+    }
+  });
+  
+  if (changed) {
+    fs.writeFileSync(htmlPath, htmlContent, 'utf8');
+    console.log(`✅ Assets dinâmicos inlined em: ${htmlPath}`);
+  }
+}
+
 // Process index.html to app.html
 console.log('🚀 Iniciando build unificado...');
 
 var indexHtmlPath = path.join(__dirname, 'dist', 'index.html');
 var appOutputPath = path.join(__dirname, 'dist', 'app.html');
 processHtml(indexHtmlPath, appOutputPath);
+
+// Inline dynamic assets (css referenced in JS)
+inlineDynamicAssets(appOutputPath);
 
 // Copy to Android resources
 var androidRawPath = path.join(__dirname, '..', '..', 'app', 'src', 'main', 'res', 'raw', 'app.html');

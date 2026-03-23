@@ -37,10 +37,23 @@ export class ThemeEngine {
 
     loadStyles(styles) {
         styles.forEach(href => {
-            console.log('[ThemeEngine] Loading style:', href);
+            let processedHref = href;
+            
+            // Fix for Android WebView prepending asset path to Data URIs
+            // e.g. file:///android_asset/data:text/css;base64,...
+            if (href.includes('data:text/css;base64,')) {
+                const dataIndex = href.indexOf('data:text/css;base64,');
+                if (dataIndex > 0) {
+                    processedHref = href.substring(dataIndex);
+                    console.log('[ThemeEngine] Stripped prefix from Data URI:', href.substring(0, dataIndex));
+                }
+            }
+
+            console.log('[ThemeEngine] Loading style:', processedHref.substring(0, 50) + (processedHref.length > 50 ? '...' : ''));
+            
             const link = document.createElement('link');
             link.rel = 'stylesheet';
-            link.href = href;
+            link.href = processedHref;
             link.className = 'theme-stylesheet';
             document.head.appendChild(link);
             this.loadedStyles.push(link);
