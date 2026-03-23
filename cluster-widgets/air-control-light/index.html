@@ -9,7 +9,7 @@
     // Polyfill for Array.prototype.at (needed for older WebViews)
     if (!Array.prototype.at) {
       Object.defineProperty(Array.prototype, "at", {
-        value: function(n) {
+        value: function (n) {
           n = Math.trunc(n) || 0;
           if (n < 0) n += this.length;
           if (n < 0 || n >= this.length) return undefined;
@@ -20,13 +20,14 @@
       });
     }
   </script>
-    <link rel="stylesheet" href="./src/styles/night.style.css" />
-
+  <link rel="stylesheet" href="./src/fonts/fonts.css" />
+  <link rel="stylesheet" href="./src/styles/dashboard.style.css" />
+  <link rel="stylesheet" href="./src/styles/main.menu.css" />
 </head>
 
 <body>
   <div id="app"></div>
-  <script type="module" src="./src/core/main.js"></script>
+  <script type="module" src="./src/main-light.js"></script>
 </body>
 
 </html>

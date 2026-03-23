@@ -87,6 +87,9 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
         }
 
     private fun shouldShowProjector(): Boolean {
+        if (br.com.redesurftank.havalshisuku.services.ForegroundService.sIsLocalTestMode) {
+            return true
+        }
         return preferences.getBoolean(
                 SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key,
                 false
@@ -200,11 +203,6 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                     }
                     CarConstants.CAR_BASIC_ENGINE_SPEED.value -> {
                         evaluateJsIfReady(webView, "control('engineRPM',$value)")
-                    }
-                    CarConstants.SYSTEM_SETTING_DAYNIGHT_THEME.value -> {
-                        val isNight = value == "1"
-                        preferences.edit().putString(SharedPreferencesKeys.VIRTUAL_CLUSTER_NIGHT_MODE.key, isNight.toString()).apply()
-                        evaluateJsIfReady(webView, "control('nightMode', $isNight)")
                     }
                 }
             }
@@ -364,13 +362,6 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
         batteryCurrent = sm.getData(CarConstants.CAR_EV_INFO_CUR_CHARGE_CURRENT.value).toFloatOrNull() ?: 0f
         val kw = batteryVoltage * batteryCurrent / 1000f
         evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.EV_POWER_KW}', $kw)")
-
-        // Initial Theme from System Setting
-        val systemTheme = sm.getData(CarConstants.SYSTEM_SETTING_DAYNIGHT_THEME.value)
-        if (systemTheme != null && systemTheme.isNotEmpty()) {
-            val isNight = systemTheme == "1"
-            evaluateJsIfReady(webView, "control('nightMode', $isNight)")
-        }
     }
 
     private fun updateVirtualClusterVisibility() {
@@ -383,9 +374,7 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
             "Básico" -> "padrao"
             else -> "padrao" 
         }
-        val isNightStr = preferences.getString(SharedPreferencesKeys.VIRTUAL_CLUSTER_NIGHT_MODE.key, "true") ?: "true"
-        val isNight = isNightStr == "true"
-        evaluateJsIfReady(webView, "control('nightMode', $isNight)")
+        evaluateJsIfReady(webView, "control('nightMode', true)")
         
         evaluateJsIfReady(webView, "control('theme', '$themeEngineName')")
         

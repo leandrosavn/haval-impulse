@@ -346,7 +346,7 @@ fun SettingsMenuContent(drive: String, ev: String, regen: String, steer: String)
 
             // Category: Steering
             SettingsCategoryRow("Modo de Direção", steer, listOf(
-                "2" to "Conforto", "0" to "Normal", "1" to "Esporte"
+                "2" to "Conforto", "0" to "Normal", "1" to "Esportiva"
             )) { newVal -> serviceManager.updateData(CarConstants.CAR_DRIVE_SETTING_STEERING_WHEEL_ASSIST_MODE.getValue(), newVal) }
 
             Box(

@@ -41,11 +41,18 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
     private static final String TAG = "ForegroundService";
     private static final String CHANNEL_ID = "ForegroundServiceChannel";
     private static final int NOTIFICATION_ID = 1;
+    public static volatile boolean sIsLocalTestMode = false;
 
     private HandlerThread handlerThread;
     private Handler backgroundHandler;
     private Boolean isShizukuInitialized = false;
     private Boolean isServiceRunning = false;
+
+    private final Runnable timeoutRunnable = () -> {
+        if (!isShizukuInitialized) {
+            Log.e(TAG, "Shizuku initialization timed out. Retrying...");
+        }
+    };
 
     @Override
     public void onCreate() {
@@ -58,7 +65,12 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
 
     @Override
     public synchronized int onStartCommand(Intent intent, int flags, int startId) {
-        if (isServiceRunning) {
+        if (intent != null && intent.getBooleanExtra("localTestMode", false)) {
+            Log.w(TAG, "Local Test Mode enabled via Intent Extra");
+            sIsLocalTestMode = true;
+        }
+
+        if (isServiceRunning && !sIsLocalTestMode) {
             Log.w(TAG, "Service is already running, skipping start.");
             return START_STICKY; // Retorna imediatamente se o serviço já estiver rodando
         }
@@ -123,20 +135,27 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
                 }
             }
 
-            var shizukuLibLocation = sharedPreferences.getString("shizuku_lib_location", "");
-
-            final Runnable timeoutRunnable = () -> {
-                if (!isShizukuInitialized) {
-                    Log.w(TAG, "Timeout waiting for Shizuku binder, restarting service...");
-                    restart();
-                }
-            };
+            if (sIsLocalTestMode) {
+                Log.w(TAG, "Bypassing telnet and Shizuku initialization (Local Test Mode)");
+                backgroundHandler.post(this::shizukuBinderReceived);
+                return START_STICKY;
+            }
 
             backgroundHandler.post(new Runnable() {
                 @Override
                 public void run() {
                     try {
+                        var sharedPreferences = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE);
+                        String shizukuLibLocation = sharedPreferences.getString("shizuku_lib_location", "");
+                        
                         var telnetClient = new TelnetClientWrapper();
+                        if (sIsLocalTestMode) {
+                            Log.w(TAG, "Local Test Mode enabled while in telnet loop, breaking loop");
+                            telnetClient.disconnect();
+                            shizukuBinderReceived();
+                            return;
+                        }
+                        
                         telnetClient.connect("127.0.0.1", 23);
                         String filePath = "";
                         if (shizukuLibLocation.isEmpty()) {

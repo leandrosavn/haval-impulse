@@ -188,6 +188,15 @@ const val TAG = "HavalShisuku"
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Handle Local Test Mode flag from Android Studio / Launch Intent
+        if (intent != null && intent.getBooleanExtra("localTestMode", false)) {
+            Log.w(TAG, "Local Test Mode requested via Activity Intent Extra")
+            val serviceIntent = Intent(this, br.com.redesurftank.havalshisuku.services.ForegroundService::class.java)
+            serviceIntent.putExtra("localTestMode", true)
+            startForegroundService(serviceIntent)
+        }
+
         enableEdgeToEdge()
         setContent {
             HavalShisukuTheme {

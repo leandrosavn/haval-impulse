@@ -21,4 +21,14 @@ You can adjust the "Base" overscan value (default 60) for all apps (including de
 adb shell am broadcast -a br.com.redesurftank.havalshisuku.ACTION_UPDATE_OVERSCAN --ei value 60
 ```
 
+## Local Test Mode
+
+To enable testing on standard emulators or non-vehicle devices, use the following Android Studio launch flag (Intent Extra):
+
+```bash
+--ez localTestMode true
+```
+
+For more details on what is bypassed and how it works, see [.agents/local_testing.md](file:///c:/Users/marce/StudioProjects/haval-app-tool-multimidia/.agents/local_testing.md).
+
 *Note: The system multiplies this base value by the screen density (e.g., 4.0x) for standard apps, but uses the raw value for the whitelisted apps above.*

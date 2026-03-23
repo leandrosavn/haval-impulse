@@ -18,14 +18,12 @@ function processHtml(htmlPath, outputPath) {
   while ((cssMatch = cssRegex.exec(htmlContent)) !== null) {
     var cssPath = cssMatch[1].replace(/['"]/g, '');
     
-    // Converte caminho relativo para absoluto, removendo barra inicial se existir
-    var cleanCssPath = cssPath.startsWith('/') ? cssPath.substring(1) : cssPath;
+    // Converte caminho relativo para absoluto
     var fullCssPath;
-    
-    if (cleanCssPath.startsWith('src/')) {
-      fullCssPath = path.join(__dirname, cleanCssPath);
+    if (cssPath.startsWith('/src/')) {
+      fullCssPath = path.join(__dirname, cssPath.substring(1));
     } else {
-      fullCssPath = path.join(__dirname, 'dist', cleanCssPath);
+      fullCssPath = path.join(__dirname, 'dist', cssPath);
     }
     
     if (fs.existsSync(fullCssPath)) {
@@ -36,22 +34,16 @@ function processHtml(htmlPath, outputPath) {
   }
 
   // Inline JavaScript
-  var jsRegex = /<script\s+([^>]*?)src=["']?([^"'\s>]+\.js)["']?([^>]*?)><\/script>/gi;
+  var jsRegex = /<script([^>]*)src=["']?([^"'\s>]+\.js)["']?([^>]*)><\/script>/g;
   var jsMatch;
-  console.log('🔍 Buscando scripts para inlinear...');
   while ((jsMatch = jsRegex.exec(htmlContent)) !== null) {
-    console.log(`✨ Tag de script encontrada: ${jsMatch[0]}`);
     var beforeSrc = jsMatch[1];
     var jsPath = jsMatch[2];
     var afterSrc = jsMatch[3];
     
-    // Remove leading slash for local file resolution
-    var cleanJsPath = jsPath.startsWith('/') ? jsPath.substring(1) : jsPath;
-    var fullJsPath = path.join(__dirname, 'dist', cleanJsPath);
-    console.log(`🔍 Tentando inlinear JS: ${jsPath} -> ${fullJsPath}`);
+    var fullJsPath = path.join(__dirname, 'dist', jsPath);
     
       if (fs.existsSync(fullJsPath)) {
-        console.log(`✅ JS encontrado: ${fullJsPath}`);
         var jsContent = fs.readFileSync(fullJsPath, 'utf8');
         
         // Remove sourcemap comments to avoid browser trying to load missing files
@@ -140,14 +132,14 @@ function inlineDynamicAssets(htmlPath) {
 console.log('🚀 Iniciando build unificado...');
 
 var indexHtmlPath = path.join(__dirname, 'dist', 'index.html');
-var appOutputPath = path.join(__dirname, 'dist', 'app.html');
+var appOutputPath = path.join(__dirname, 'dist', 'app_light.html');
 processHtml(indexHtmlPath, appOutputPath);
 
 // Inline dynamic assets (css referenced in JS)
 inlineDynamicAssets(appOutputPath);
 
 // Copy to Android resources
-var androidRawPath = path.join(__dirname, '..', '..', 'app', 'src', 'main', 'res', 'raw', 'app.html');
+var androidRawPath = path.join(__dirname, '..', '..', 'app', 'src', 'main', 'res', 'raw', 'app_light.html');
 try {
   fs.copyFileSync(appOutputPath, androidRawPath);
   console.log(`✅ Copiado para Android: ${androidRawPath}`);
@@ -176,4 +168,4 @@ cssFiles.forEach(function(cssFile) {
 });
 
 console.log('🎉 Build completo! Arquivo gerado:');
-console.log('  📄 app.html (unificado)');
+console.log('  📄 app_light.html (unificado)');
