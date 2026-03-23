@@ -43,24 +43,27 @@ function processHtml(htmlPath, outputPath) {
     
     var fullJsPath = path.join(__dirname, 'dist', jsPath);
     
-    if (fs.existsSync(fullJsPath)) {
-      var jsContent = fs.readFileSync(fullJsPath, 'utf8');
-      
-      // Reconstitute attributes, looking for type="module"
-      var attributes = (beforeSrc + ' ' + afterSrc).trim();
-      var isModule = attributes.includes('type="module"') || attributes.includes('type=module');
-      
-      var scriptTag = isModule ? '<script type="module">' : '<script>';
-      var replacement = scriptTag + jsContent + '</script>';
-      
-      // Use split/join to avoid $ special characters in jsContent when using .replace()
-      htmlContent = htmlContent.split(jsMatch[0]).join(replacement);
-      
       if (fs.existsSync(fullJsPath)) {
-        fs.unlinkSync(fullJsPath);
+        var jsContent = fs.readFileSync(fullJsPath, 'utf8');
+        
+        // Remove sourcemap comments to avoid browser trying to load missing files
+        jsContent = jsContent.replace(/\/\/# sourceMappingURL=.*/g, '');
+        
+        // Reconstitute attributes, looking for type="module"
+        var attributes = (beforeSrc + ' ' + afterSrc).trim();
+        var isModule = attributes.includes('type="module"') || attributes.includes('type=module');
+        
+        var scriptTag = isModule ? '<script type="module">' : '<script>';
+        var replacement = scriptTag + jsContent + '</script>';
+        
+        // Use split/join to avoid $ special characters in jsContent when using .replace()
+        htmlContent = htmlContent.split(jsMatch[0]).join(replacement);
+        
+        if (fs.existsSync(fullJsPath)) {
+          fs.unlinkSync(fullJsPath);
+        }
+        console.log('✅ JS inlined:', jsPath + (isModule ? ' (as module)' : ''));
       }
-      console.log('✅ JS inlined:', jsPath + (isModule ? ' (as module)' : ''));
-    }
   }
 
   // Salva o HTML processado
@@ -68,18 +71,21 @@ function processHtml(htmlPath, outputPath) {
   console.log(`✅ HTML gerado: ${outputPath}`);
 }
 
-// Process index.html
+// Process index.html to app.html
 console.log('🚀 Iniciando build unificado...');
 
 var indexHtmlPath = path.join(__dirname, 'dist', 'index.html');
-var indexOutputPath = path.join(__dirname, 'dist', 'index.html');
-processHtml(indexHtmlPath, indexOutputPath);
+var appOutputPath = path.join(__dirname, 'dist', 'app.html');
+processHtml(indexHtmlPath, appOutputPath);
 
-// Create app_night.html and app_light.html copies for Android
-var unifiedHtmlContent = fs.readFileSync(indexOutputPath, 'utf8');
-fs.writeFileSync(path.join(__dirname, 'dist', 'app_night.html'), unifiedHtmlContent, 'utf8');
-fs.writeFileSync(path.join(__dirname, 'dist', 'app_light.html'), unifiedHtmlContent, 'utf8');
-console.log('✅ Cópias para Android criadas: app_night.html, app_light.html');
+// Copy to Android resources
+var androidRawPath = path.join(__dirname, '..', '..', 'app', 'src', 'main', 'res', 'raw', 'app.html');
+try {
+  fs.copyFileSync(appOutputPath, androidRawPath);
+  console.log(`✅ Copiado para Android: ${androidRawPath}`);
+} catch (err) {
+  console.error(`❌ Erro ao copiar para Android: ${err.message}`);
+}
 
 // Remove pasta assets vazia
 var assetsDir = path.join(__dirname, 'dist', 'assets');
@@ -102,4 +108,4 @@ cssFiles.forEach(function(cssFile) {
 });
 
 console.log('🎉 Build completo! Arquivo gerado:');
-console.log('  📄 index.html (unificado)');
+console.log('  📄 app.html (unificado)');

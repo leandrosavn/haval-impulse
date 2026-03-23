@@ -158,6 +158,12 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Check
+import br.com.redesurftank.havalshisuku.managers.ThemeManager
+import br.com.redesurftank.havalshisuku.models.ThemeVersionInfo
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
@@ -1261,6 +1267,14 @@ fun TelasTab() {
     var appExpanded by remember { mutableStateOf(false) }
     var themeExpanded by remember { mutableStateOf(false) }
     var configs by remember { mutableStateOf(br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()) }
+    
+    // Theme Management States
+    val themeManager = remember { ThemeManager.getInstance(context) }
+    var githubThemes by remember { mutableStateOf<List<br.com.redesurftank.havalshisuku.models.ThemeVersionInfo>>(emptyList()) }
+    var localThemes by remember { mutableStateOf(themeManager.getLocalThemes()) }
+    var activeCustomTheme by remember { mutableStateOf(prefs.getString(SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key, "") ?: "") }
+    var isSearchingThemes by remember { mutableStateOf(false) }
+    var downloadingTheme by remember { mutableStateOf<String?>(null) }
 
     // Date formatter
     val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
@@ -1479,15 +1493,172 @@ fun TelasTab() {
                                         onDismissRequest = { themeExpanded = false },
                                         modifier = Modifier.background(Color(0xFF1E2228)).border(1.dp, Color(0xFF3A3F47))
                                     ) {
-                                        listOf("Básico").forEach { theme ->
+                                        val themeOptions = listOf("Básico") + localThemes.map { it.name }
+                                        themeOptions.forEach { theme ->
                                             DropdownMenuItem(
                                                 text = { Text(theme, color = Color.White) },
                                                 onClick = {
-                                                    selectedTheme = theme
-                                                    prefs.edit { putString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, theme) }
+                                                    if (theme == "Básico") {
+                                                        selectedTheme = "Básico"
+                                                        activeCustomTheme = ""
+                                                        prefs.edit()
+                                                            .putString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Básico")
+                                                            .putString(SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key, "")
+                                                            .apply()
+                                                    } else {
+                                                        selectedTheme = theme
+                                                        activeCustomTheme = theme
+                                                        prefs.edit()
+                                                            .putString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Custom")
+                                                            .putString(SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key, theme)
+                                                            .apply()
+                                                    }
                                                     themeExpanded = false
                                                 }
                                             )
+                                        }
+                                    }
+                                }
+                                }
+
+                                HorizontalDivider(color = Color(0xFF3A3F47), thickness = 1.dp)
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Gestão de Temas Dinâmicos", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                    
+                                    IconButton(onClick = {
+                                        scope.launch {
+                                            isSearchingThemes = true
+                                            githubThemes = themeManager.fetchThemesFromGithub(br.com.redesurftank.havalshisuku.managers.ThemeManager.THEME_REPO_URL)
+                                            isSearchingThemes = false
+                                        }
+                                    }) {
+                                        if (isSearchingThemes) {
+                                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                                        } else {
+                                            Icon(Icons.Default.Refresh, contentDescription = "Buscar", tint = Color(0xFF4A9EFF))
+                                        }
+                                    }
+                                }
+
+                                if (githubThemes.isNotEmpty()) {
+                                    Text("Temas Disponíveis no GitHub", color = Color(0xFFB0B8C4), fontSize = 14.sp)
+                                    githubThemes.forEach { theme ->
+                                        val isDownloaded = localThemes.any { it.name == theme.name }
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(Color(0xFF1E2228), RoundedCornerShape(8.dp))
+                                                .padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(theme.name, color = Color.White, fontWeight = FontWeight.Bold)
+                                                Text("${theme.size / 1024} KB", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                                            }
+                                            
+                                            if (downloadingTheme == theme.name) {
+                                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                                            } else {
+                                                Button(
+                                                    onClick = {
+                                                        scope.launch {
+                                                            downloadingTheme = theme.name
+                                                            if (themeManager.downloadTheme(theme)) {
+                                                                localThemes = themeManager.getLocalThemes()
+                                                            }
+                                                            downloadingTheme = null
+                                                        }
+                                                    },
+                                                    enabled = !isDownloaded,
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = if (isDownloaded) Color(0xFF3A3F47) else Color(0xFF4A9EFF)
+                                                    )
+                                                ) {
+                                                    Text(if (isDownloaded) "Baixado" else "Baixar")
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (localThemes.isNotEmpty() || activeCustomTheme != "") {
+                                    HorizontalDivider(color = Color(0xFF3A3F47))
+                                    Text("Temas Locais (Ativar)", color = Color(0xFFB0B8C4), fontSize = 14.sp)
+                                    
+                                    // Internal Theme (Básico)
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                activeCustomTheme = ""
+                                                selectedTheme = "Básico"
+                                                prefs.edit().putString(SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key, "").apply()
+                                            }
+                                            .background(
+                                                if (activeCustomTheme == "") Color(0xFF4A9EFF).copy(alpha = 0.2f) else Color(0xFF1E2228),
+                                                RoundedCornerShape(8.dp)
+                                            )
+                                            .border(
+                                                1.dp,
+                                                if (activeCustomTheme == "") Color(0xFF4A9EFF) else Color.Transparent,
+                                                RoundedCornerShape(8.dp)
+                                            )
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("Básico (Embutido)", color = Color.White)
+                                        if (activeCustomTheme == "") {
+                                            Icon(Icons.Default.Check, contentDescription = "Ativo", tint = Color(0xFF4ADE80))
+                                        }
+                                    }
+
+                                    localThemes.forEach { file ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    activeCustomTheme = file.name
+                                                    selectedTheme = file.name
+                                                    prefs.edit().putString(SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key, file.name).apply()
+                                                }
+                                                .background(
+                                                    if (activeCustomTheme == file.name) Color(0xFF4A9EFF).copy(alpha = 0.2f) else Color(0xFF1E2228),
+                                                    RoundedCornerShape(8.dp)
+                                                )
+                                                .border(
+                                                    1.dp,
+                                                    if (activeCustomTheme == file.name) Color(0xFF4A9EFF) else Color.Transparent,
+                                                    RoundedCornerShape(8.dp)
+                                                )
+                                                .padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(file.name, color = Color.White, modifier = Modifier.weight(1f))
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                if (activeCustomTheme == file.name) {
+                                                    Icon(Icons.Default.Check, contentDescription = "Ativo", tint = Color(0xFF4ADE80))
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                }
+                                                IconButton(onClick = {
+                                                    if (themeManager.deleteTheme(file.name)) {
+                                                        localThemes = themeManager.getLocalThemes()
+                                                        if (activeCustomTheme == file.name) {
+                                                            activeCustomTheme = ""
+                                                            selectedTheme = "Básico"
+                                                            prefs.edit().putString(SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key, "").apply()
+                                                        }
+                                                    }
+                                                }) {
+                                                    Icon(Icons.Default.Delete, contentDescription = "Excluir", tint = Color(0xFFFF4B4B), modifier = Modifier.size(20.dp))
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1495,7 +1666,7 @@ fun TelasTab() {
                         }
                     }
                 }
-            }
+
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -1604,7 +1775,7 @@ fun TelasTab() {
                 }
             }
         }
-        
+
         Spacer(modifier = Modifier.height(16.dp))
         DisplayAppConfigSection()
     }

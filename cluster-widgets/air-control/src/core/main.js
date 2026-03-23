@@ -8,6 +8,7 @@ import { initializeConstants } from '../utils/constants.js';
 initializeConstants();
 
 if (process.env.NODE_ENV === 'development') {
+    document.body.style.backgroundColor = 'red';
     import('../utils/testing-utils.js');
 }
 

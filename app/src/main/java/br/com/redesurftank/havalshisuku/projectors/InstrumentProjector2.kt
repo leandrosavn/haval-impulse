@@ -70,10 +70,15 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                         .key,
                     SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key,
                     SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key,
-                    SharedPreferencesKeys.VIRTUAL_CLUSTER_DISPLAY_ID.key
+                    SharedPreferencesKeys.VIRTUAL_CLUSTER_DISPLAY_ID.key,
+                    SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key
                 )
             ) {
                 ensureUi {
+                    if (key == SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key) {
+                        Log.d(TAG, "Custom theme changed, reloading WebView")
+                        webView?.loadDataWithBaseURL("file:///android_asset/", readAppContent(context), "text/html", "UTF-8", null)
+                    }
                     root.isVisible =
                         shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn
                     updateVirtualClusterVisibility()
@@ -299,7 +304,7 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                         }
                     }
                 }
-                loadDataWithBaseURL(null, readRawHtml(context), "text/html", "UTF-8", null)
+                loadDataWithBaseURL("file:///android_asset/", readAppContent(context), "text/html", "UTF-8", null)
             }
             parent.addView(webView)
         }
@@ -431,7 +436,20 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
         }
     }
 
-    fun readRawHtml(context: Context): String {
+    private fun readAppContent(context: Context): String {
+        val customThemeName = preferences.getString(SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key, "") ?: ""
+        if (customThemeName.isNotEmpty()) {
+            try {
+                val themeFile = br.com.redesurftank.havalshisuku.managers.ThemeManager.getInstance(context).getThemeFile(customThemeName)
+                if (themeFile != null && themeFile.exists()) {
+                    Log.d(TAG, "Loading custom HTML from: ${themeFile.absolutePath}")
+                    return themeFile.readText()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error reading custom theme file, falling back to raw asset", e)
+            }
+        }
+        
         Log.d(TAG, "Loading base HTML from resource: app.html")
         return context.resources.openRawResource(R.raw.app).bufferedReader().use { it.readText() }
     }

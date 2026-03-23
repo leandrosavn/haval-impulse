@@ -8,8 +8,9 @@ This project follows a **Webview Frontend** architecture, designed to run within
 
 - **Frontend:** A web application built with HTML, CSS, and JavaScript, bundled using [Parcel](https://parceljs.org/).
 - **Theming:** Supports both `app-light.html` and `app-night.html` themes.
-- **Backend Communication:** The UI runs inside a webview in the main Android application. To ensure compatibility and performance in the car's environment, all CSS and JS assets are inlined into a single HTML file during the build process.
-- **Compatibility:** Targets Android 4.4 and Chrome 50 to maintain compatibility with the vehicle's hardware.
+- **CSS Architecture:** Uses a modular approach:
+  - `dashboard.style.css`: Contains all base layout and component styles (AC, Regen, Graphs) using CSS variables.
+  - `night.style.css` / `light.style.css`: Contains only the theme-specific `:root` variable definitions (colors, gradients, shadows).
 
 ## Local Testing
 
