@@ -56,6 +56,10 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.SmartDisplay
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Style
+import androidx.compose.material.icons.filled.Check
+
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -113,6 +117,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.animation.AnimatedVisibility
 import android.content.SharedPreferences
+import android.widget.Toast
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -145,6 +150,9 @@ import br.com.redesurftank.havalshisuku.ui.components.TwoColumnSettingsLayout
 import br.com.redesurftank.havalshisuku.ui.components.StyledTextField
 import br.com.redesurftank.havalshisuku.ui.theme.HavalShisukuTheme
 import br.com.redesurftank.havalshisuku.utils.FridaUtils
+import br.com.redesurftank.havalshisuku.managers.ThemeManager
+import br.com.redesurftank.havalshisuku.models.ThemeMetadata
+
 import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
@@ -1234,7 +1242,111 @@ fun saveRevisionHistory(prefs: SharedPreferences, history: List<RevisionEntry>) 
 }
 
 @Composable
+fun ThemeCard(
+    theme: ThemeMetadata,
+    isDownloaded: Boolean,
+    isDownloading: Boolean,
+    onInstall: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A)),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Thumbnail
+            Card(
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2228))
+            ) {
+                AsyncImage(
+                    model = theme.thumbnailUrl,
+                    contentDescription = theme.name,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    placeholder = painterResource(android.R.drawable.ic_menu_gallery),
+                    error = painterResource(android.R.drawable.ic_menu_report_image)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // Info
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = theme.name,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = theme.description,
+                    color = Color(0xFFB0B8C4),
+                    fontSize = 12.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 16.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Style,
+                        contentDescription = null,
+                        tint = Color(0xFF4A9EFF),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "v${theme.version}",
+                        color = Color(0xFF4A9EFF),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Action
+            Box(contentAlignment = Alignment.Center) {
+                if (isDownloading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = AppColors.Primary,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    IconButton(
+                        onClick = onInstall,
+                        enabled = !isDownloaded
+                    ) {
+                        Icon(
+                            imageVector = if (isDownloaded) Icons.Default.Check else Icons.Default.Download,
+                            contentDescription = if (isDownloaded) "Instalado" else "Instalar",
+                            tint = if (isDownloaded) Color(0xFF4CAF50) else Color.White
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun TelasTab() {
+
     val context = LocalContext.current
     val prefs = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
     val scope = rememberCoroutineScope()
@@ -1261,6 +1373,13 @@ fun TelasTab() {
     var appExpanded by remember { mutableStateOf(false) }
     var themeExpanded by remember { mutableStateOf(false) }
     var configs by remember { mutableStateOf(br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()) }
+    
+    // GitHub Themes States
+    var githubThemes by remember { mutableStateOf<List<ThemeMetadata>>(emptyList()) }
+    var localThemes by remember { mutableStateOf(ThemeManager.getInstance(context).getLocalThemes()) }
+    var isFetchingThemes by remember { mutableStateOf(false) }
+    var downloadingThemeName by remember { mutableStateOf<String?>(null) }
+
 
     // Date formatter
     val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
@@ -1280,6 +1399,20 @@ fun TelasTab() {
         while (true) {
             configs = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()
             kotlinx.coroutines.delay(5000)
+        }
+    }
+
+    // Fetch themes from GitHub
+    LaunchedEffect(Unit) {
+        if (githubThemes.isEmpty()) {
+            isFetchingThemes = true
+            try {
+                githubThemes = ThemeManager.getInstance(context).fetchThemesFromGithub(ThemeManager.THEME_REPO_URL)
+            } catch (e: Exception) {
+                Log.e("TelasTab", "Error fetching themes", e)
+            } finally {
+                isFetchingThemes = false
+            }
         }
     }
 
@@ -1479,12 +1612,20 @@ fun TelasTab() {
                                         onDismissRequest = { themeExpanded = false },
                                         modifier = Modifier.background(Color(0xFF1E2228)).border(1.dp, Color(0xFF3A3F47))
                                     ) {
-                                        listOf("Básico").forEach { theme ->
+                                        DropdownMenuItem(
+                                            text = { Text("Básico", color = Color.White) },
+                                            onClick = {
+                                                selectedTheme = "Básico"
+                                                prefs.edit { putString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Básico") }
+                                                themeExpanded = false
+                                            }
+                                        )
+                                        localThemes.forEach { theme ->
                                             DropdownMenuItem(
-                                                text = { Text(theme, color = Color.White) },
+                                                text = { Text(theme.name, color = Color.White) },
                                                 onClick = {
-                                                    selectedTheme = theme
-                                                    prefs.edit { putString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, theme) }
+                                                    selectedTheme = theme.name
+                                                    prefs.edit { putString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, theme.name) }
                                                     themeExpanded = false
                                                 }
                                             )
@@ -1496,6 +1637,84 @@ fun TelasTab() {
                     }
                 }
             }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // GITHUB THEMES SECTION
+        Column(modifier = Modifier.padding(horizontal = 8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Temas Disponíveis no GitHub", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text("Personalize seu cluster com novos visuais", color = Color(0xFFB0B8C4), fontSize = 14.sp)
+                }
+                IconButton(onClick = {
+                    isFetchingThemes = true
+                    scope.launch {
+                        try {
+                            githubThemes = ThemeManager.getInstance(context).fetchThemesFromGithub(ThemeManager.THEME_REPO_URL)
+                        } catch (e: Exception) {
+                            Log.e("TelasTab", "Error refreshing themes", e)
+                        } finally {
+                            isFetchingThemes = false
+                        }
+                    }
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Atualizar",
+                        tint = if (isFetchingThemes) AppColors.Primary else Color.White
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (isFetchingThemes && githubThemes.isEmpty()) {
+                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = AppColors.Primary)
+                }
+            } else if (githubThemes.isEmpty()) {
+                Text(
+                    "Nenhum tema encontrado ou erro ao carregar.",
+                    color = Color(0xFF636D77),
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(vertical = 16.dp)
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    githubThemes.forEach { theme ->
+                        val isDownloaded = localThemes.any { it.name == theme.name }
+                        
+                        ThemeCard(
+                            theme = theme,
+                            isDownloaded = isDownloaded,
+                            isDownloading = downloadingThemeName == theme.name,
+                            onInstall = {
+                                if (isDownloaded) return@ThemeCard
+                                downloadingThemeName = theme.name
+                                scope.launch {
+                                    try {
+                                        val success = ThemeManager.getInstance(context).downloadTheme(theme)
+                                        if (success) {
+                                            localThemes = ThemeManager.getInstance(context).getLocalThemes()
+                                            Toast.makeText(context, "Tema ${theme.name} instalado!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Erro ao baixar tema ${theme.name}", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } finally {
+                                        downloadingThemeName = null
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 

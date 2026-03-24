@@ -30,7 +30,7 @@ import kotlinx.coroutines.flow.collectLatest
 
 class BottomBarService : LifecycleService() {
 
-    private var windowManager: WindowManager? = null
+    private var mWindowManager: WindowManager? = null
     private var composeView: ComposeView? = null
     private var menuComposeView: ComposeView? = null
     private var params: WindowManager.LayoutParams? = null
@@ -41,13 +41,18 @@ class BottomBarService : LifecycleService() {
     private var lastPackage: String? = null
 
     // Hardcoded overrides for density-aware apps that auto-scale overscan
+    // These values are in DP and will be scaled by density
     private val OVERSCAN_OVERRIDES =
             mapOf(
                     "com.google.android.youtube" to 0,
-                    "com.google.android.apps.maps" to 60,
-                    "com.google.android.apps.youtube.music" to 60,
+                    "com.google.android.apps.maps" to 30,
+                    "com.google.android.apps.youtube.music" to 0,
                     "com.google.android.apps.messaging" to 60
             )
+
+    private val BOTTOM_BAR_BASE_HEIGHT_DP = 60f
+    private val REFERENCE_OVERSCAN = 60
+    private val BASE_OFFSET_Y = -60 // Starting point for y at 60 overscan
 
     override fun onCreate() {
         super.onCreate()
@@ -110,11 +115,20 @@ class BottomBarService : LifecycleService() {
     }
 
     private fun getOverscanForPackage(packageName: String, defaultOverscan: Int): Int {
-        // Return 60 for whitelisted apps, otherwise the density-scaled default
-        return OVERSCAN_OVERRIDES[packageName] ?: defaultOverscan
+        val density = this.resources.displayMetrics.density
+        // Return raw pixels for whitelisted apps (since user request is based on raw 0/60 values),
+        // otherwise return the density-scaled default.
+        // Note: wm overscan expects pixels.
+        val overrideRaw = OVERSCAN_OVERRIDES[packageName]
+        return overrideRaw ?: defaultOverscan
     }
 
     private fun applyOverscan(value: Int) {
+        val wm = mWindowManager ?: return
+        val cv = composeView ?: return
+        val lp = params ?: return
+        val density = this.resources.displayMetrics.density
+
         if (!BottomBarState.isVisible) {
             Log.d(
                     "BottomBarService",
@@ -125,6 +139,17 @@ class BottomBarService : LifecycleService() {
         }
         Log.d("BottomBarService", "Applying dynamic overscan: $value for app: $lastPackage")
         ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,$value"))
+
+        // Dynamic y logic: if current override is 0 (unscaled), shift UP from starting point.
+        // If FLAG_LAYOUT_NO_LIMITS coordinate system follows logical bottom,
+        // y = -value (pixels) will keep it at the physical bottom edge.
+        lp.y = -value
+
+        try {
+            wm.updateViewLayout(cv, lp)
+        } catch (e: Exception) {
+            Log.e("BottomBarService", "Error updating window layout during overscan change", e)
+        }
     }
 
     private fun observeVisibility() {
@@ -136,7 +161,7 @@ class BottomBarService : LifecycleService() {
     }
 
     private fun updateBarVisibility(visible: Boolean) {
-        val wm = windowManager ?: return
+        val wm = mWindowManager ?: return
         val cv = composeView ?: return
         val lp = params ?: return
 
@@ -149,8 +174,9 @@ class BottomBarService : LifecycleService() {
             val storedDefault =
                     prefs.getInt(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR_OVERSCAN.key, 60)
             val overscanValue = (storedDefault * density).toInt()
-            lp.height = (60 * density).toInt()
-            lp.y = -60
+            lp.height = (BOTTOM_BAR_BASE_HEIGHT_DP * density).toInt()
+            // Keep bar at physical bottom regardless of overscan by setting y = -overscanValue
+            lp.y = -overscanValue
             ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,$overscanValue"))
         } else {
             lp.height = (20 * density).toInt()
@@ -173,7 +199,7 @@ class BottomBarService : LifecycleService() {
     }
 
     private fun updateMenuWindow(show: Boolean) {
-        val wm = windowManager ?: return
+        val wm = mWindowManager ?: return
         val mv = menuComposeView ?: return
         val mp = menuParams ?: return
 
@@ -195,7 +221,7 @@ class BottomBarService : LifecycleService() {
     }
 
     private fun showBottomBar() {
-        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        mWindowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val themedContext = ContextThemeWrapper(this, R.style.Theme_HavalShisuku)
 
         composeView =
@@ -209,7 +235,7 @@ class BottomBarService : LifecycleService() {
                         .also { it.setupForService() }
 
         val density = resources.displayMetrics.density
-        val barHeight = (60 * density).toInt()
+        val barHeight = (BOTTOM_BAR_BASE_HEIGHT_DP * density).toInt()
         val menuHeight = (500 * density).toInt()
 
         val layoutType =
@@ -231,7 +257,11 @@ class BottomBarService : LifecycleService() {
                         )
                         .apply {
                             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                            y = -60
+                            // On show, we derive y from the currently applied overscan value if
+                            // possible,
+                            // but setting it to -defaultOverscan below in show logic.
+                            // For initial params, we can use 0 and it will be updated.
+                            y = 0
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                                 layoutInDisplayCutoutMode =
                                         WindowManager.LayoutParams
@@ -260,13 +290,17 @@ class BottomBarService : LifecycleService() {
 
         if (android.provider.Settings.canDrawOverlays(this)) {
             try {
-                windowManager?.addView(composeView, params)
+                mWindowManager?.addView(composeView, params)
                 val prefs =
                         br.com.redesurftank.App.getDeviceProtectedContext()
                                 .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
                 val storedDefault =
                         prefs.getInt(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR_OVERSCAN.key, 60)
                 val overscanValue = (storedDefault * density).toInt()
+                val lp = params
+                if (lp != null) {
+                    lp.y = -overscanValue
+                }
 
                 ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "size", "reset"))
                 ShizukuUtils.runCommandAndGetOutput(
@@ -310,9 +344,9 @@ class BottomBarService : LifecycleService() {
         ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "size", "reset"))
         ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,0"))
         try {
-            composeView?.let { windowManager?.removeView(it) }
+            composeView?.let { mWindowManager?.removeView(it) }
             if (isMenuWindowAdded) {
-                menuComposeView?.let { windowManager?.removeView(it) }
+                menuComposeView?.let { mWindowManager?.removeView(it) }
             }
         } catch (e: Exception) {}
     }

@@ -271,7 +271,6 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.allowContentAccess = true
-                addJavascriptInterface(WebInterface(), "Android")
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
@@ -387,33 +386,8 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
             else -> if (isAnyAppOnDisplay3) 1 else 2
         }*/
 
-        val displayMode = preferences.getString(SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key, "Normal") ?: "Normal"
-        evaluateJsIfReady(webView, "control('display', '$displayMode')")
-    }
-
-    private inner class WebInterface {
-        @android.webkit.JavascriptInterface
-        fun saveSetting(key: String, value: String) {
-            val prefKey = when (key) {
-                "currentClusterDisplay" -> SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key
-                "currentClusterTemplate" -> SharedPreferencesKeys.CURRENT_CLUSTER_TEMPLATE.key
-                "virtualClusterNightMode" -> SharedPreferencesKeys.VIRTUAL_CLUSTER_NIGHT_MODE.key
-                else -> null
-            }
-
-            if (prefKey != null) {
-                preferences.edit().putString(prefKey, value).apply()
-                
-                // In dynamic CSS approach, we don't need to reload the WebView. 
-                // JS will subscribe to the state change and update the theme.
-                /*if (key == "virtualClusterNightMode") {
-                    ensureUi {
-                        Log.d(TAG, "Theme changed, reloading WebView for nightMode=$value")
-                        webView?.loadDataWithBaseURL(null, readRawHtml(context), "text/html", "UTF-8", null)
-                    }
-                }*/
-            }
-        }
+        //val displayMode = preferences.getString(SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key, "Normal") ?: "Normal"
+        //evaluateJsIfReady(webView, "control('display', '$displayMode')")
     }
 
     private fun evaluateJsIfReady(webView: WebView?, js: String) {

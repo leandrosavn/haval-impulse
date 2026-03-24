@@ -123,6 +123,11 @@
   --display-left-offset: 0px;
   --display-right-offset: 0px;
   --display-opacity: 1;
+
+  /* --- 9. MASK BACKGROUNDS --- */
+  --mask-top-bar-bg: var(--bg-mask-80);
+  --mask-bottom-bar-bg: var(--bg-mask-80);
+  --mask-circle-bg: var(--bg-black-100);
 }
 
 
@@ -2279,7 +2284,7 @@ canvas.graph-chart {
 .mask-top-bar {
   background: var(--mask-top-bar-bg);
   width: 100%;
-  height: 135px;
+  height: 125px;
   position: absolute;
   top: 0;
   left: 0;

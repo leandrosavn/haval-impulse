@@ -123,6 +123,11 @@
   --display-left-offset: 0px;
   --display-right-offset: 0px;
   --display-opacity: 1;
+
+  /* --- 9. MASK BACKGROUNDS --- */
+  --mask-top-bar-bg: var(--bg-mask-80);
+  --mask-bottom-bar-bg: var(--bg-mask-100);
+  --mask-circle-bg: var(--bg-black-100);
 }
 
 
@@ -2217,10 +2222,10 @@ canvas.graph-chart {
   z-index: 0;
   background: linear-gradient(to right,
       var(--mask-circle-bg) 0%,
-      var(--mask-circle-bg) 15%,
+      var(--mask-circle-bg) 28%,
       transparent 40%,
       transparent 60%,
-      var(--mask-circle-bg) 85%,
+      var(--mask-circle-bg) 72%,
       var(--mask-circle-bg) 100%);
   transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1), width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -2279,7 +2284,7 @@ canvas.graph-chart {
 .mask-top-bar {
   background: var(--mask-top-bar-bg);
   width: 100%;
-  height: 135px;
+  height: 125px;
   position: absolute;
   top: 0;
   left: 0;
