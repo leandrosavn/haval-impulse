@@ -64,7 +64,7 @@ export function createDashboardInfo() {
 
         if (isMainTrail) {
             trailLoader.style.borderWidth = '3px';
-            trailLoader.style.borderColor = '#FFF transparent transparent transparent';
+            trailLoader.style.borderColor = 'var(--text-main) transparent transparent transparent';
         } else {
             trailLoader.style.borderWidth = '15px';
             // Apply a blue tint that increases towards the tail

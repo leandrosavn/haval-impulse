@@ -53,12 +53,12 @@ export const graphList = [
                 smoothFactor: 100, // Join data close by 100ms
                 unity: 'kWatts',
                 yAxisID: 'y',
-                lineColor: '#ffffff',
-                lineColorLight: '#2563eb', // Blue
-                positiveColor: '#ffffff',
-                positiveColorLight: '#2563eb', // Blue
-                negativeColor: '#00ff88',
-                negativeColorLight: '#059669' // Emerald
+                lineColor: '--text-main',
+                lineColorLight: '--blue-600',
+                positiveColor: '--text-main',
+                positiveColorLight: '--blue-600',
+                negativeColor: '--color-green',
+                negativeColorLight: '--color-emerald'
             },
             {
                 label: 'Média',
@@ -68,7 +68,7 @@ export const graphList = [
                 smooth: true,
                 unity: 'kWavg',
                 yAxisID: 'y1',
-                lineColor: '#00c3ff',
+                lineColor: '--color-light-cyan',
                 lineColorLight: '#0369a1' // Deep Sky Blue (readable on white)
             }
         ]
@@ -96,8 +96,8 @@ export const graphList = [
                 smoothFactor: 100, // Join data close by 100ms
                 unity: 'KWh/100km',
                 yAxisID: 'y',
-                lineColor: '#ffffff',
-                lineColorLight: '#2563eb', // Blue
+                lineColor: '--text-main',
+                lineColorLight: '--blue-600',
                 valueFilter: 'positive'
             },
             {
@@ -108,7 +108,7 @@ export const graphList = [
                 yAxisID: 'y1',
                 idleKey: 'gasConsumptionIdle',
                 idleUnity: 'l/100km',
-                lineColor: '#ff5500',
+                lineColor: '--color-orange',
                 valueFilter: 'positive'
             },
             {
@@ -120,7 +120,7 @@ export const graphList = [
                 unity: 'KWh/100km',
                 yAxisID: 'y2',
                 followAxis: 'y',
-                lineColor: '#00c3ff',
+                lineColor: '--color-light-cyan',
                 lineColorLight: '#0369a1', // Deep Sky Blue for white background contrast
                 valueFilter: 'positive'
             }
@@ -148,8 +148,8 @@ export const graphList = [
                 smooth: true,
                 unity: 'km/h',
                 yAxisID: 'y',
-                lineColor: '#ffffff',
-                lineColorLight: '#2563eb' // Blue
+                lineColor: '--text-main',
+                lineColorLight: '--blue-600'
             },
             {
                 label: 'Consumo',
@@ -157,7 +157,7 @@ export const graphList = [
                 smooth: true,
                 unity: 'km/L',
                 yAxisID: 'y1',
-                lineColor: '#ff5500'
+                lineColor: '--color-orange'
             }
         ]
     },
@@ -167,10 +167,15 @@ const historicalData = {};
 
 const getChartColor = (dataset, colorType, isNight = null) => {
     const night = isNight !== null ? isNight : true;
+    let colorVal = dataset[colorType];
     if (!night && dataset[`${colorType}Light`]) {
-        return dataset[`${colorType}Light`];
+        colorVal = dataset[`${colorType}Light`];
     }
-    return dataset[colorType];
+    if (colorVal && colorVal.startsWith('--')) {
+        const computed = getComputedStyle(document.documentElement).getPropertyValue(colorVal).trim();
+        if (computed) return computed;
+    }
+    return colorVal;
 };
 
 const addDataPoint = (dataKey, value, datasetConfig = {}) => {
@@ -693,10 +698,10 @@ export function createGraphScreen() {
                     x: { type: 'realtime', display: false, realtime: { duration: HISTORY_DURATION, refresh: 250 } },
                     y: {
                         min: -20, max: 120,
-                        ticks: { display: true, mirror: true, padding: 0, stepSize: 20, color: 'rgba(100,172,255,0.7)' },
-                        grid: { display: true, drawOnChartArea: true, drawTicks: false, color: (ctx) => (ctx.tick.value === 0 ? 'rgba(0, 195, 255, 1)' : 'rgba(0,160,255,0.3)'), lineWidth: (ctx) => (ctx.tick.value === 0 ? 4 : 1) },
+                        ticks: { display: true, mirror: true, padding: 0, stepSize: 20, color: getComputedStyle(document.documentElement).getPropertyValue('--color-ring-blue-70').trim() || 'rgba(100,172,255,0.7)' },
+                        grid: { display: true, drawOnChartArea: true, drawTicks: false, color: (ctx) => (ctx.tick.value === 0 ? getComputedStyle(document.documentElement).getPropertyValue('--color-cyan-20').trim() || 'rgba(0, 195, 255, 1)' : getComputedStyle(document.documentElement).getPropertyValue('--color-blue-30').trim() || 'rgba(0,160,255,0.3)'), lineWidth: (ctx) => (ctx.tick.value === 0 ? 4 : 1) },
                     },
-                    y1: { id: 'y1', position: 'right', min: 0, max: 200, ticks: { display: true, mirror: true, padding: 0, align: 'start', stepSize: 2, color: 'rgba(0, 255, 187, 0.5)' }, grid: { drawOnChartArea: false } },
+                    y1: { id: 'y1', position: 'right', min: 0, max: 200, ticks: { display: true, mirror: true, padding: 0, align: 'start', stepSize: 2, color: getComputedStyle(document.documentElement).getPropertyValue('--color-cyan-20').trim() || 'rgba(0, 255, 187, 0.5)' }, grid: { drawOnChartArea: false } },
                     y2: { id: 'y2', display: false, grid: { drawOnChartArea: false } }
                 }
             }

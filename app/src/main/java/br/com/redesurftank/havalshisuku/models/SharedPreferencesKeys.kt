@@ -76,5 +76,6 @@ enum class SharedPreferencesKeys(val key: String, val description: String) {
     CUSTOM_THEME_REPO_URL_PROD("customThemeRepoUrlProd", "URL do Repositório de Temas (Prod)"),
     CUSTOM_THEME_REPO_URL_DEV("customThemeRepoUrlDev", "URL do Repositório de Temas (Dev)"),
     CUSTOM_THEME_REPO_ENV("customThemeRepoEnv", "Ambiente do Repositório (Prod/Dev)"),
-    ACTIVE_CUSTOM_THEME("activeCustomTheme", "Tema Dinâmico Ativo")
+    ACTIVE_CUSTOM_THEME("activeCustomTheme", "Tema Dinâmico Ativo"),
+    LOCAL_TEST_MODE("localTestMode", "Habilitar modo de teste local (ignora telnet/Frida)")
 }

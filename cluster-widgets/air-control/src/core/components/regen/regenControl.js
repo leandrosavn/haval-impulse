@@ -85,11 +85,11 @@ export function createRegenScreen() {
     const initChart = (canvasCtx) => {
         if (chartInstance) return;
 
-        const isNight = true;
-        const lineColor = isNight ? 'rgba(0, 195, 255, 0.3)' : 'rgba(37, 99, 235, 0.6)';
-        const fillColor = isNight ? 'rgba(0, 120, 255, 0.1)' : 'rgba(37, 99, 235, 0.15)';
-        const tickColor = isNight ? 'rgba(100,172,255,0.7)' : 'rgba(37, 99, 235, 0.8)';
-        const gridColor = isNight ? 'rgba(0,160,255,0.1)' : 'rgba(37, 99, 235, 0.1)';
+        const style = getComputedStyle(document.documentElement);
+        const lineColor = style.getPropertyValue('--color-cyan-20').trim() || 'rgba(0, 195, 255, 0.3)';
+        const fillColor = style.getPropertyValue('--color-dial-blue-20').trim() || 'rgba(0, 120, 255, 0.1)';
+        const tickColor = style.getPropertyValue('--color-ring-blue-70').trim() || 'rgba(100,172,255,0.7)';
+        const gridColor = style.getPropertyValue('--color-blue-glow-20').trim() || 'rgba(0,160,255,0.1)';
 
         chartInstance = new Chart(canvasCtx, {
             type: 'line',

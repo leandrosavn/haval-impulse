@@ -9,12 +9,17 @@ var recycleOut = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8BAMAAADI
 var recycleIn = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8BAMAAADI0sRBAAAAJ1BMVEV6pf97nfh7o/12kO5bjPJlf+leVZZlk/ZHcExejvJgj/P//+0A/9FP0Or/AAAADXRSTlMeDBMG/QMBVQDLlQEBuyPuOwAAAtFJREFUOMt9Vc1q20AQHpaAcU6VdOpttQRMchPCL1AWjHw18RtYl/ZgjCEkTxBoDyEITG+mGIzzALkk51z6Uv1m9kerFvfDyDv7zcyORrMz9Ojw4+21BW4Dlix9PNLj93dZ/cZjdZuAFT7ovX1tv7bRsnaY8hp79NE6rBISWEyFp7a3XNQD8AGgl6uULASBp8GZVeZRVY6ntrcsiqwqooLwBM8LYSORKpAzraLbsiyNccuCaWY9lefG4AeFsoTI1otgCiOQeSkKePBeTT5e2UuRs4OCxJa9emitw1JoPlgkpUhddtba5ufLURk5H9ZZTkIq0pc2oFmzf9BZ9snu4ZJIjWyPZgP7jGCsoUuMg1uM7h5OnicO+t7OmR0HNXjCMQ3OJ45LH+wTjDp+BoCfm5xgrDWYNW2dDw8F/gnWiJp1G8S1jqTGS97bRmiOeotgZ9HSqRzshtg3jU78LsFY+/9r0Mi0I1PfTmsM2uibTtJw6iM7uj+hDdjmZc1JmXv77U4iuLCKDCLeud0OaneMrdu5sIbMtd17n6OuT/ku0FsbgwkxRhrOuzRXo9Q5h6b7bES40OjGPtMk/Q7DFyP7BSp7Ogeh1+fYEZxfn6VReb/+Q+MrbujKxi80hKIDvveVPZ49emboM2oKJT7IKL8LisU+G6SFRSXlEmvc17xCzpHoGemJTbHnjNo9qhDXp8PxKGUtkBqer3HZlDYZas2MxWLj7iFfUgljhksGOnfijinlLvClV8cd44s/OTU7lVx99dA1ezZmGrw2/yCXBkRJa8jzPDNeKtkW3aGSZmXEVexdxvWuoqbat6w8k2bFbMaauXQuik1tANHkvlYXKZ+0x6KoxLryW9yFpdGGjomhQK4ZV9KhK9eXnVTwyHA9ldd1kY6C0M//mhHTab/kabAK3X4aR9Ri6sVlS8lou20Hk44nGYWdpWchuNkjgh9UPb6lwtsfbTVCnXvwUeQAAAAASUVORK5CYII=";
 
 export function createStatusElement() {
+    const style = getComputedStyle(document.documentElement);
+    const primaryActiveColor = style.getPropertyValue('--blue-600').trim() || '#2563eb';
+    const secondaryActiveColor = style.getPropertyValue('--text-glow-blue').trim() || '#00beff';
+    const inactiveColor = style.getPropertyValue('--text-gray').trim() || '#9ca3af';
+
     const isAutoOn = stateManager.get('auto') === 1;
     const isRecycleIn = stateManager.get('recycle') === 1;
     const isMaxAuto = stateManager.get('maxauto') === 1;
 
     var autoModeIconElement = img({
-        src: autoModeIcon(isAutoOn ? '#2563eb' : '#9ca3af'),
+        src: autoModeIcon(isAutoOn ? primaryActiveColor : inactiveColor),
         className: 'w-32 h-32',
     });
     var recycleIconElement = img({
@@ -58,7 +63,7 @@ export function createStatusElement() {
 
     var unsubscribeAuto = subscribe('auto', function(newAuto) {
         const isAutoOn = newAuto === 1;
-        autoModeIconElement.src = autoModeIcon(isAutoOn ? '#00beff' : '#9ca3af');
+        autoModeIconElement.src = autoModeIcon(isAutoOn ? secondaryActiveColor : inactiveColor);
         autoModeLabel.className = isAutoOn ? 'text-white' : 'text-gray';
     });
 

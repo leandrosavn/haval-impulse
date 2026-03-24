@@ -71,22 +71,98 @@ if (!Array.prototype.at) Object.defineProperty(Array.prototype, "at", {
 }
 
 :root {
-  --primary-blue: #3b82f6;
   --bg-dark: #000;
   --text-main: #fff;
+  --color-transparent: #0000;
+  --primary-blue: #3b82f6;
+  --blue-400: #60a5fa;
+  --blue-600: #2563eb;
+  --blue-700: #1d4ed8;
+  --color-needle: #0051ff;
+  --color-ac-blue: #006dff;
+  --color-ac-dark-blue: #053477;
+  --color-temp: #4d97ff;
+  --text-light-blue: #afd3ff;
+  --color-ring-glow: #00a0ff;
+  --color-ring-accent: #4a90e2;
+  --text-glow-blue: #00beff;
+  --color-success: #3bf676;
+  --color-green-main: #4caf50;
+  --color-green: #0f8;
+  --color-emerald: #10b981;
+  --color-green-alt: #4cd964;
+  --color-danger: red;
+  --color-red-light: #ff4d4d;
+  --color-red-alt: #ff3b30;
+  --color-power-off: #ff4500;
+  --color-orange: #f50;
+  --color-orange-alt: #ff9500;
+  --color-cyan: #00b7ff;
+  --color-light-cyan: #00c3ff;
+  --text-gray: #9ca3af;
+  --gray-500: #6b7280;
+  --menu-bg: #0a2345;
+  --menu-text: #a3aed0;
+  --text-cold-gray: #b0b8c4;
+  --color-power-glow: #edbba8;
+  --color-impulse: #9ac2ff;
+  --color-ring-bg: #0074ff44;
+  --color-light-bg: #e7ebff;
+  --color-cyan-glow: #00aeff85;
+  --color-green-glow: #00ff8885;
+  --dial-shadow-color: #6477ff85;
+  --color-blue-glow-20: #006aff20;
+  --color-ac-divider: #4d97ff6b;
+  --color-theme-blue: #00a0e0;
+  --shadow-theme-blue: #00a0e080;
+  --bg-black-100: #000;
+  --bg-mask-80: #000c;
+  --bg-black-80: #000c;
+  --bg-black-70: #000000b3;
+  --bg-black-60: #0009;
+  --bg-black-50: #00000080;
+  --shadow-black-50: #00000080;
+  --bg-black-30: #0000004d;
+  --bg-black-20: #0003;
+  --shadow-black-10: #0000001a;
+  --shadow-black-5: #0000000d;
+  --color-white-80: #fffc;
+  --color-white-30: #ffffff4d;
+  --color-white-20: #fff3;
+  --color-white-15: #ffffff26;
   --accent-glow: #3b82f680;
-  --mask-bg-color: #000c;
-  --mask-circle-bg: black;
-  --mask-top-bar-bg: linear-gradient(#000 60%, #00000080 65%, #0003 100%);
-  --mask-bottom-bar-bg: #000;
-  --mask-shadow: 0 0 60px #000;
-  --dial-inner-bg: radial-gradient(circle, #000c 0%, #0009 80%, #a0b4ff99 100%);
-  --dial-inner-border: #a0b4ff80;
-  --dial-shadow: 0 0 50px 10px #6477ff85;
-  --menu-bg-gradient: radial-gradient(circle at center, #0a2345 0%, transparent 80%);
-  --menu-item-text: #a3aed0;
-  --menu-item-text-focused: #fff;
-  --dashboard-text-color: white;
+  --dial-gradient-blue: #a0b4ff99;
+  --dial-border: #a0b4ff80;
+  --shadow-blue-30: #3080ff4d;
+  --glow-blue-80: #1d4ed8cc;
+  --glow-blue-70: #1d4ed8b3;
+  --glow-blue-60: #1d4ed899;
+  --glow-blue-40: #1d4ed866;
+  --glow-blue-20: #1d4ed833;
+  --color-tick-blue: #5580a5cc;
+  --color-blue-20: #0078ff33;
+  --color-blue-dark-80: #00fc;
+  --color-ring-blue-70: #00a0ffb3;
+  --color-cyan-20: #00c3ff33;
+  --color-blue-30: #0078ff4d;
+  --color-purple-20: #cdd8ff33;
+  --color-dial-blue-20: #a0b4ff33;
+  --mask-radius: 228px;
+  --mask-center-y: 430px;
+  --mask-left-x: 290px;
+  --mask-right-x: 1630px;
+  --mask-bg-color: var(--bg-mask-80);
+  --mask-border-color: var(--primary-blue);
+  --mask-shadow: 0 0 60px var(--bg-black-100);
+  --dial-inner-bg: radial-gradient(circle, var(--bg-black-80) 0%, var(--bg-black-60) 80%, var(--dial-gradient-blue) 100%);
+  --dial-inner-border: var(--dial-border);
+  --dial-shadow: 0 0 50px 10px var(--dial-shadow-color);
+  --menu-bg-gradient: radial-gradient(circle at center, var(--menu-bg) 0%, var(--color-transparent) 80%);
+  --dashboard-text-color: var(--text-main);
+  --display-scale: 1;
+  --display-left-offset: 0px;
+  --display-right-offset: 0px;
+  --display-opacity: 1;
 }
 
 * {
@@ -109,8 +185,8 @@ button {
 }
 
 .main-container {
-  color: #fff;
-  background-color: #000;
+  background-color: var(--bg-dark);
+  color: var(--text-main);
   width: 456px;
   height: 456px;
 }
@@ -257,32 +333,32 @@ button {
 }
 
 .text-white {
-  color: #fff;
-  text-shadow: 0 0 8px #00beff;
+  color: var(--text-main);
+  text-shadow: 0 0 8px var(--text-glow-blue);
 }
 
 .text-gray {
-  color: #9ca3af;
+  color: var(--text-gray);
 }
 
 .text-blue {
-  color: #afd3ff;
+  color: var(--text-light-blue);
 }
 
 .bg-blue-500 {
-  background-color: #60a5fa;
+  background-color: var(--blue-400);
 }
 
 .bg-blue-600 {
-  background-color: #2563eb;
+  background-color: var(--blue-600);
 }
 
 .bg-blue-700 {
-  background-color: #1d4ed8;
+  background-color: var(--blue-700);
 }
 
 .bg-gray-500 {
-  background-color: #6b7280;
+  background-color: var(--gray-500);
 }
 
 .text-36 {
@@ -335,8 +411,10 @@ button {
 }
 
 .focus-active {
+  box-shadow: 0 0 0 2px var(--accent-glow);
+  -webkit-box-shadow: 0 0 0 2px var(--accent-glow);
+  -moz-box-shadow: 0 0 0 2px var(--accent-glow);
   transform: scale(1.3);
-  box-shadow: 0 0 0 2px #3b82f680;
 }
 
 .focus-inactive {
@@ -347,30 +425,37 @@ button {
 }
 
 .shadow-default {
-  box-shadow: 0 10px 15px -3px #0000001a, 0 4px 6px -2px #0000000d;
+  box-shadow: 0 10px 15px -3px var(--shadow-black-10), 0 4px 6px -2px var(--shadow-black-5);
+  -webkit-box-shadow: 0 10px 15px -3px var(--shadow-black-10), 0 4px 6px -2px var(--shadow-black-5);
+  -moz-box-shadow: 0 10px 15px -3px var(--shadow-black-10), 0 4px 6px -2px var(--shadow-black-5);
 }
 
 .shadow-focus {
-  box-shadow: 0 10px 15px -3px #3080ff4d, 0 4px 6px -2px #0000000d;
+  box-shadow: 0 10px 15px -3px var(--shadow-blue-30), 0 4px 6px -2px var(--shadow-black-5);
+  -webkit-box-shadow: 0 10px 15px -3px var(--shadow-blue-30), 0 4px 6px -2px var(--shadow-black-5);
+  -moz-box-shadow: 0 10px 15px -3px var(--shadow-blue-30), 0 4px 6px -2px var(--shadow-black-5);
 }
 
 .glow-effect {
-  box-shadow: 0 0 20px #1d4ed899, 0 0 40px #1d4ed866, 0 0 60px #1d4ed833, 0 10px 15px -3px #0000001a, 0 4px 6px -2px #0000000d;
+  box-shadow: 0 0 20px var(--glow-blue-60), 0 0 40px var(--glow-blue-40), 0 0 60px var(--glow-blue-20), 0 10px 15px -3px var(--shadow-black-10), 0 4px 6px -2px var(--shadow-black-5);
+  -webkit-box-shadow: 0 0 20px var(--glow-blue-60), 0 0 40px var(--glow-blue-40), 0 0 60px var(--glow-blue-20), 0 10px 15px -3px var(--shadow-black-10), 0 4px 6px -2px var(--shadow-black-5);
+  -moz-box-shadow: 0 0 20px var(--glow-blue-60), 0 0 40px var(--glow-blue-40), 0 0 60px var(--glow-blue-20), 0 10px 15px -3px var(--shadow-black-10), 0 4px 6px -2px var(--shadow-black-5);
 }
 
 .power-focus {
-  -webkit-border: 2px solid #1d4ed8cc !important;
-  -moz-border: 2px solid #1d4ed8cc !important;
+  border: 2px solid var(--glow-blue-80) !important;
+  -webkit-border: 2px solid var(--glow-blue-80) !important;
+  -moz-border: 2px solid var(--glow-blue-80) !important;
   -o-transition: all .3s ease !important;
-  border: 2px solid #1d4ed8cc !important;
   transition: all .3s !important;
   transform: scale(1.05) !important;
 }
 
 .gradient-line {
-  background: -webkit-linear-gradient(top, #60a5fa 0%, #3b82f6 50%, #0000 100%);
-  background: -moz-linear-gradient(top, #60a5fa 0%, #3b82f6 50%, #0000 100%);
-  background: -o-linear-gradient(top, #60a5fa 0%, #3b82f6 50%, #0000 100%);
+  background: linear-gradient(to bottom, var(--blue-400) 0%, var(--primary-blue) 50%, transparent 100%);
+  background: -webkit-linear-gradient(top, var(--blue-400) 0%, var(--primary-blue) 50%, transparent 100%);
+  background: -moz-linear-gradient(top, var(--blue-400) 0%, var(--primary-blue) 50%, transparent 100%);
+  background: -o-linear-gradient(top, var(--blue-400) 0%, var(--primary-blue) 50%, transparent 100%);
 }
 
 .auto-mode-container {
@@ -396,7 +481,7 @@ button {
 
 .maxauto-icon-container {
   z-index: 3;
-  color: #3bf676;
+  color: var(--color-success);
   justify-content: space-between;
   align-items: center;
   font-family: Khand, sans-serif;
@@ -411,7 +496,7 @@ button {
 
 .impulse-auto-icon-container {
   z-index: 3;
-  color: #9ac2ff;
+  color: var(--color-impulse);
   text-align: center;
   justify-content: space-between;
   align-items: center;
@@ -441,7 +526,7 @@ button {
 }
 
 .temp-info-label {
-  color: #4d97ff;
+  color: var(--color-temp);
   font-family: Khand;
   font-size: 20px;
   font-weight: 300;
@@ -449,7 +534,7 @@ button {
 
 .temp-info-value-left {
   text-align: left;
-  color: #4d97ff;
+  color: var(--color-temp);
   font-size: 30px;
   font-weight: 300;
   transform: translateY(-12px);
@@ -457,28 +542,28 @@ button {
 
 .temp-info-value-right {
   text-align: right;
-  color: #4d97ff;
+  color: var(--color-temp);
   font-size: 30px;
   font-weight: 300;
   transform: translateY(-12px);
 }
 
 .ac-outer-ring {
-  z-index: 0;
-  background: radial-gradient(circle, #fff 50%, #006dff 100%);
-  border: 3px solid #1d4ed8;
-  border-radius: 50%;
+  border: 3px solid var(--blue-700);
   width: 452px;
   height: 452px;
+  box-shadow: 0 0 15px var(--glow-blue-70);
+  background: radial-gradient(circle, var(--text-main) 50%, var(--color-ac-blue) 100%);
+  z-index: 0;
+  border-radius: 50%;
   animation: 10s infinite alternate pulse-glow;
   position: absolute;
-  box-shadow: 0 0 15px #1d4ed8b3;
 }
 
 .ac-inner-ring {
+  border: 3px solid var(--color-ac-dark-blue);
+  background: radial-gradient(circle, var(--menu-bg) 0%, var(--bg-dark) 100%);
   z-index: 2;
-  background: radial-gradient(circle, #0a2345 0%, #000 100%);
-  border: 3px solid #053477;
   border-radius: 50%;
   width: 392px;
   height: 392px;
@@ -486,31 +571,31 @@ button {
 }
 
 .ac-inner-ring-shadow {
+  box-shadow: 0 0 12px 5px var(--shadow-black-50);
   z-index: 1;
   border-radius: 50%;
   width: 392px;
   height: 392px;
   position: absolute;
-  box-shadow: 0 0 12px 5px #00000080;
 }
 
 @keyframes pulse-glow {
   0% {
-    box-shadow: inset 0 0 50px #60a5fa;
+    box-shadow: inset 0 0 50px var(--blue-400);
   }
 
   50% {
-    box-shadow: inset 0 0 #60a5fa;
+    box-shadow: inset 0 0 0px var(--blue-400);
   }
 
   100% {
-    box-shadow: inset 0 0 50px #60a5fa;
+    box-shadow: inset 0 0 50px var(--blue-400);
   }
 }
 
 .ac-divider-line {
+  background-color: var(--color-ac-divider);
   z-index: 2;
-  background-color: #4d97ff6b;
   width: 392px;
   height: 2px;
   position: absolute;
@@ -520,7 +605,7 @@ button {
 }
 
 .ac-power-icon {
-  color: #9ca3af;
+  color: var(--text-gray);
   z-index: 3;
   font-size: 24px;
   position: absolute;
@@ -530,8 +615,8 @@ button {
 }
 
 .ac-power-icon.off {
-  color: #ff4500;
-  text-shadow: 0 0 5px #edbba8;
+  color: var(--color-power-off);
+  text-shadow: 0 0 5px var(--color-power-glow);
 }
 
 .ac-labels-container {
@@ -543,7 +628,7 @@ button {
 }
 
 .ac-label {
-  color: #2563eb;
+  color: var(--blue-600);
   transform-origin: center;
   text-align: center;
   width: 24px;
@@ -557,7 +642,7 @@ button {
 }
 
 .ac-label.active {
-  color: red;
+  color: var(--color-danger);
   font-size: 22px;
   font-weight: bold;
   transform: scale(1.1);
@@ -638,9 +723,9 @@ button {
 }
 
 .impulse-auto-divider-top {
+  background-color: var(--color-ac-divider);
   z-index: 2;
   opacity: 0;
-  background-color: #4d97ff6b;
   width: 300px;
   height: 2px;
   transition: opacity .5s;
@@ -651,9 +736,9 @@ button {
 }
 
 .impulse-auto-divider-bottom {
+  background-color: var(--color-ac-divider);
   z-index: 2;
   opacity: 0;
-  background-color: #4d97ff6b;
   width: 300px;
   height: 2px;
   transition: opacity .5s;
@@ -710,7 +795,7 @@ button {
 
 #fan-progress-ring:before {
   content: "";
-  background: conic-gradient(var(--progress-color, #60a5fa) 0deg var(--progress-angle, 0deg), transparent var(--progress-angle, 0deg) 360deg);
+  background: conic-gradient(var(--progress-color, var(--blue-400)) 0deg var(--progress-angle, 0deg), transparent var(--progress-angle, 0deg) 360deg);
   width: 100%;
   height: 100%;
   filter: drop-shadow(0 0 8px var(--progress-color, white));
@@ -723,7 +808,7 @@ button {
 
 #temp-progress-ring:before {
   content: "";
-  background: conic-gradient(transparent 0deg var(--progress-angle, 0deg), #00beff var(--progress-angle, 0deg), var(--progress-color, #3b82f6) 360deg);
+  background: conic-gradient(transparent 0deg var(--progress-angle, 0deg), var(--text-glow-blue) var(--progress-angle, 0deg), var(--progress-color, var(--primary-blue)) 360deg);
   border-radius: 50%;
   width: 100%;
   height: 100%;
@@ -734,14 +819,14 @@ button {
 }
 
 #fan-progress-ring {
-  --progress-color: #fff;
-  text-shadow: 0 0 8px #00beff;
+  --progress-color: var(--text-main);
+  text-shadow: 0 0 8px var(--text-glow-blue);
   transform: translate(-50%, -50%)rotate(270deg);
 }
 
 #temp-progress-ring {
-  --progress-color: #0051ff;
-  text-shadow: 0 0 8px #00beff;
+  --progress-color: var(--color-needle);
+  text-shadow: 0 0 8px var(--text-glow-blue);
   transform: translate(-50%, -50%)rotate(-90deg);
 }
 
@@ -757,15 +842,15 @@ button {
 }
 
 .regen-item {
-  text-shadow: 0 0 10px #fff3;
+  width: 260px;
+  height: 80px;
+  text-shadow: 0 0 10px var(--color-white-20);
   background-color: #0000;
   border: 2px solid #0000;
   border-radius: 30px;
   justify-content: center;
   align-items: center;
   gap: 20px;
-  width: 260px;
-  height: 80px;
   margin-top: -40px;
   margin-left: -130px;
   padding: 12px;
@@ -777,7 +862,7 @@ button {
 }
 
 .regen-label {
-  color: #5580a5cc;
+  color: var(--color-tick-blue);
   white-space: nowrap;
   font-family: Khand, sans-serif;
   font-size: 50px;
@@ -786,26 +871,26 @@ button {
 }
 
 .regen-item.focused .regen-label {
-  color: #fff;
-  text-shadow: 0 0 10px #fffc;
+  color: var(--text-main);
+  text-shadow: 0 0 10px var(--color-white-80);
   font-weight: 300;
 }
 
 .regen-outer-ring {
-  z-index: 0;
-  border: 3px solid #1d4ed8;
-  border-radius: 50%;
+  border: 3px solid var(--blue-700);
   width: 452px;
   height: 452px;
+  box-shadow: 0 0 15px var(--glow-blue-70);
+  z-index: 0;
+  border-radius: 50%;
   position: absolute;
-  box-shadow: 0 0 15px #1d4ed8b3;
   mask: radial-gradient(circle, #0000 196px, #fff 197px);
 }
 
 .regen-inner-ring {
+  border: 3px solid var(--color-ac-dark-blue);
+  background: radial-gradient(circle, var(--menu-bg) 0%, var(--bg-dark) 90%);
   z-index: 2;
-  background: radial-gradient(circle, #0a2345 0%, #000 90%);
-  border: 3px solid #053477;
   border-radius: 50%;
   width: 392px;
   height: 392px;
@@ -814,21 +899,21 @@ button {
 }
 
 .regen-inner-ring-shadow {
+  box-shadow: 0 0 12px 5px var(--shadow-black-50);
   z-index: 1;
   border-radius: 50%;
   width: 392px;
   height: 392px;
   position: absolute;
-  box-shadow: 0 0 12px 5px #00000080;
 }
 
 .regen-selector-line {
+  background-color: var(--color-blue-20);
   width: 385px;
   height: 100px;
   transition: transform .2 s cubic-bezier(.2, 1, .3, 1);
-  filter: drop-shadow(0 0 10px #00fc);
+  filter: drop-shadow(0 0 10px var(--color-blue-dark-80));
   z-index: 3;
-  background-color: #0078ff33;
   position: absolute;
   top: 50%;
   left: 50%;
@@ -884,7 +969,7 @@ canvas.regen-chart {
 
 .one-pedal-instruction {
   text-align: center;
-  color: #4d97ff;
+  color: var(--color-temp);
   width: 150px;
   font-size: 18px;
   font-weight: 300;
@@ -896,9 +981,9 @@ canvas.regen-chart {
 }
 
 .one-pedal-mode-label {
-  color: #fff;
+  color: var(--text-main);
   white-space: nowrap;
-  text-shadow: 0 0 10px #fffc;
+  text-shadow: 0 0 10px var(--color-white-80);
   letter-spacing: 1px;
   z-index: 4;
   font-family: Khand, sans-serif;
@@ -954,10 +1039,10 @@ canvas.regen-chart {
 }
 
 .graph-title-label {
-  color: #fff;
+  color: var(--text-main);
   white-space: nowrap;
   letter-spacing: 2px;
-  text-shadow: 0 0 8px #000;
+  text-shadow: 0 0 8px var(--bg-black-100);
   z-index: 10;
   font-family: Khand, sans-serif;
   font-size: 32px;
@@ -994,7 +1079,7 @@ canvas.regen-chart {
 }
 
 .graph-bullet {
-  background-color: #ffffff4d;
+  background-color: var(--color-white-30);
   border-radius: 50%;
   width: 10px;
   height: 10px;
@@ -1002,26 +1087,26 @@ canvas.regen-chart {
 }
 
 .graph-bullet.active {
-  background-color: #00a0ff;
+  background-color: var(--color-ring-glow);
+  box-shadow: 0 0 10px var(--color-ring-blue-70);
   transform: scale(1.2);
-  box-shadow: 0 0 10px #00a0ffb3;
 }
 
 .graph-outer-ring {
-  z-index: 5;
-  border: 3px solid #1d4ed8;
-  border-radius: 50%;
+  border: 3px solid var(--blue-700);
   width: 452px;
   height: 452px;
+  box-shadow: 0 0 15px var(--glow-blue-70);
+  z-index: 5;
+  border-radius: 50%;
   position: absolute;
-  box-shadow: 0 0 15px #1d4ed8b3;
   mask: radial-gradient(circle, #0000 196px, #fff 197px);
 }
 
 .graph-inner-border {
+  border: 2px solid var(--color-ring-bg);
   z-index: 4;
   pointer-events: none;
-  border: 2px solid #0074ff44;
   border-radius: 50%;
   width: 424px;
   height: 424px;
@@ -1045,7 +1130,7 @@ canvas.regen-chart {
 
 .graph-power-rpm-ring:before {
   content: "";
-  background: conic-gradient(from 0deg, transparent 0deg, transparent var(--p-start, 0deg), #4a90e2 var(--p-start, 0deg), #4a90e2 var(--p-end, 0deg), red var(--r-start, 0deg), red var(--r-end, 0deg), transparent var(--r-end, 0deg), transparent 360deg);
+  background: conic-gradient(from 0deg, transparent 0deg, transparent var(--p-start, 0deg), var(--color-ring-accent) var(--p-start, 0deg), var(--color-ring-accent) var(--p-end, 0deg), var(--color-danger) var(--r-start, 0deg), var(--color-danger) var(--r-end, 0deg), transparent var(--r-end, 0deg), transparent 360deg);
   border-radius: 50%;
   width: 100%;
   height: 100%;
@@ -1077,11 +1162,12 @@ canvas.regen-chart {
 }
 
 .graph-vertical-label {
+  background-color: var(--bg-black-70);
+  box-shadow: 0 4px 4px var(--bg-black-50);
   transform-origin: center;
   opacity: 0;
   white-space: nowrap;
-  text-shadow: 0 0 6px #000c, 0 0 3px;
-  background-color: #000000b3;
+  text-shadow: 0 0 6px var(--bg-mask-80), 0 0 3px currentColor;
   border-radius: 12px;
   flex-direction: row;
   justify-content: center;
@@ -1091,7 +1177,6 @@ canvas.regen-chart {
   font-family: Khand, sans-serif;
   transition: transform 1s cubic-bezier(.2, 1, .3, 1), opacity .5s, color .3s;
   display: flex;
-  box-shadow: 0 4px 4px #00000080;
 }
 
 .graph-vertical-label .unit {
@@ -1102,7 +1187,7 @@ canvas.regen-chart {
 }
 
 .graph-vertical-label.power {
-  color: #fff;
+  color: var(--text-main);
   font-size: 36px;
   font-weight: 300;
   line-height: 1;
@@ -1111,7 +1196,7 @@ canvas.regen-chart {
 }
 
 .graph-vertical-label.power.regen {
-  color: #0f8;
+  color: var(--color-green);
 }
 
 .graph-vertical-label.power .symbol {
@@ -1121,7 +1206,7 @@ canvas.regen-chart {
 }
 
 .graph-vertical-label.rpm {
-  color: #fff;
+  color: var(--text-main);
   margin-top: 20px;
   margin-left: 25px;
   font-size: 36px;
@@ -1140,36 +1225,37 @@ canvas.regen-chart {
 }
 
 #graph-rpm-bar-svg {
-  stroke: #fff;
-  filter: drop-shadow(0 0 4px #0009) drop-shadow(0 0 1px #fff) drop-shadow(0 0 8px #fff);
+  stroke: var(--text-main);
+  filter: drop-shadow(0 0 4px var(--bg-black-60)) drop-shadow(0 0 1px var(--text-main)) drop-shadow(0 0 8px var(--text-main));
 }
 
 #graph-power-bar-svg {
-  stroke: #00b7ff;
-  filter: drop-shadow(0 0 4px #0009) drop-shadow(0 0 1px #00c3ff) drop-shadow(0 0 8px #00aeff85);
+  stroke: var(--color-cyan);
+  filter: drop-shadow(0 0 4px var(--bg-black-60)) drop-shadow(0 0 1px var(--color-light-cyan)) drop-shadow(0 0 8px var(--color-cyan-glow));
   transition: stroke .3s;
 }
 
 #graph-power-bar-svg.regen-active {
-  stroke: #0f8;
-  filter: drop-shadow(0 0 4px #0009) drop-shadow(0 0 1px #0f8) drop-shadow(0 0 8px #00ff8885);
+  stroke: var(--color-green);
+  filter: drop-shadow(0 0 4px var(--bg-black-60)) drop-shadow(0 0 1px var(--color-green)) drop-shadow(0 0 8px var(--color-green-glow));
 }
 
 .graph-inner-ring {
+  width: 424px;
+  height: 424px;
+  box-shadow: inset 0 0 30px var(--color-cyan-20);
   z-index: 2;
   background: none;
   border-radius: 50%;
-  width: 424px;
-  height: 424px;
   position: absolute;
   top: 50%;
   left: 50%;
   overflow: hidden;
   transform: translate(-50%, -50%);
-  box-shadow: inset 0 0 30px #00c3ff33;
 }
 
 .graph-inner-ring-shadow {
+  box-shadow: 0 0 12px 5px var(--shadow-black-50);
   z-index: 1;
   border-radius: 50%;
   width: 424px;
@@ -1178,16 +1264,15 @@ canvas.regen-chart {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  box-shadow: 0 0 12px 5px #00000080;
 }
 
 .graph-selector-line {
+  background-color: var(--color-blue-30);
   width: 385px;
   height: 100px;
   transition: transform .2 s cubic-bezier(.2, 1, .3, 1);
-  filter: drop-shadow(0 0 10px #00fc);
+  filter: drop-shadow(0 0 10px var(--color-blue-dark-80));
   z-index: 3;
-  background-color: #0078ff4d;
   position: absolute;
   top: 50%;
   left: 50%;
@@ -1230,12 +1315,12 @@ canvas.regen-chart {
   pointer-events: none;
   opacity: 0;
   z-index: 12;
-  color: #fff;
+  width: 100%;
+  height: 100%;
+  color: var(--text-main);
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  width: 100%;
-  height: 100%;
   font-family: Khand, sans-serif;
   transition: all .4s ease-in-out;
   display: flex;
@@ -1245,11 +1330,11 @@ canvas.regen-chart {
 }
 
 .tooltip-value {
-  color: #fff;
+  color: var(--text-main);
   pointer-events: none;
   text-align: center;
   white-space: nowrap;
-  text-shadow: 0 4px 12px #000, 0 2px 4px #000c;
+  text-shadow: 0 4px 12px var(--bg-black-100), 0 2px 4px var(--bg-mask-80);
   font-family: Khand, sans-serif;
   font-size: 60px;
   font-weight: 500;
@@ -1257,16 +1342,16 @@ canvas.regen-chart {
 }
 
 .tooltip-value.negative {
-  color: #0f8 !important;
+  color: var(--color-green) !important;
 }
 
 .tooltip-unity {
-  color: #fff;
+  min-width: 80px;
+  color: var(--text-main);
   pointer-events: none;
   text-align: center;
   white-space: nowrap;
-  text-shadow: 0 4px 8px #000, 0 2px 4px #000c;
-  min-width: 80px;
+  text-shadow: 0 4px 8px var(--bg-black-100), 0 2px 4px var(--bg-mask-80);
   font-family: Khand, sans-serif;
   font-size: 24px;
   font-weight: 500;
@@ -1286,14 +1371,14 @@ canvas.regen-chart {
 }
 
 .dynamic-tooltip.secondary .tooltip-value {
-  color: #f50;
+  color: var(--color-orange);
   font-size: 40px;
   font-weight: 0;
   transform: translateY(0);
 }
 
 .dynamic-tooltip.secondary .tooltip-unity {
-  color: #f50;
+  color: var(--color-orange);
   opacity: .8;
   font-size: 16px;
   font-weight: 500;
@@ -1305,9 +1390,9 @@ canvas.regen-chart {
 }
 
 .graph-tooltip-mask {
+  background: linear-gradient(to top, var(--bg-black-100) 0%, var(--bg-mask-80) 40%, var(--color-transparent) 60%, var(--color-transparent) 100%);
   pointer-events: none;
   z-index: 10;
-  background: linear-gradient(to top, #000 0%, #000c 40%, #0000 60% 100%);
   border-radius: 0 0 212px 212px;
   width: 100%;
   height: 200px;
@@ -1353,19 +1438,19 @@ canvas.regen-chart {
 }
 
 canvas.graph-chart {
-  background: radial-gradient(circle, #006aff20 0%, #0000 90%);
+  background: radial-gradient(circle, var(--color-blue-glow-20) 0%, var(--color-transparent) 90%);
 }
 
 .timer-tooltip {
   pointer-events: none;
   z-index: 12;
-  color: #fff;
+  width: 200px;
+  color: var(--text-main);
   opacity: 0;
   pointer-events: none;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  width: 200px;
   font-family: Khand, sans-serif;
   transition: opacity .2s ease-in-out;
   display: flex;
@@ -1380,11 +1465,11 @@ canvas.graph-chart {
 }
 
 .timer-tooltip-value {
-  color: #fff;
+  width: 200px;
+  color: var(--text-main);
   pointer-events: none;
   text-align: center;
   white-space: nowrap;
-  width: 200px;
   font-family: Khand, sans-serif;
   font-size: 32px;
   font-weight: 300;
@@ -1394,12 +1479,12 @@ canvas.graph-chart {
 }
 
 .timer-tooltip-unity {
-  color: #fff;
+  min-width: 80px;
+  color: var(--text-main);
   pointer-events: none;
   text-align: center;
   white-space: nowrap;
   gap: 4px;
-  min-width: 80px;
   font-family: Khand, sans-serif;
   font-size: 18px;
   font-weight: 100;
@@ -1571,19 +1656,19 @@ canvas.graph-chart {
 }
 
 .menu-label-status.on {
-  color: #00beff;
+  color: var(--text-glow-blue);
 }
 
 .menu-label-status.off {
-  color: #e7ebff;
+  color: var(--color-light-bg);
 }
 
 .menu-label-status.sport {
-  color: #ff4d4d;
+  color: var(--color-red-light);
 }
 
 .menu-label-status.eco {
-  color: #4caf50;
+  color: var(--color-green-main);
 }
 
 .menu-carousel.focus-0 .menu-item[data-index="0"] {
@@ -1869,8 +1954,8 @@ canvas.graph-chart {
 }
 
 .display-clean .dashboard-speed-content {
+  background: radial-gradient(circle at center, var(--bg-black-30) 20%, var(--color-purple-20) 100%);
   backdrop-filter: blur(10px);
-  background: radial-gradient(circle, #0000004d 20%, #cdd8ff33 100%);
   border-radius: 20px;
   width: 500px;
   height: 160px;
@@ -1879,9 +1964,9 @@ canvas.graph-chart {
 }
 
 .display-clean .speed-inner-circle {
+  background: radial-gradient(circle at center, var(--shadow-black-10) 20%, var(--color-dial-blue-20) 100%);
   box-shadow: none;
-  background: radial-gradient(circle, #0000001a 20%, #a0b4ff33 100%);
-  border-color: #a0b4ff33;
+  border-color: var(--color-dial-blue-20);
   border-radius: 20px;
   width: 500px;
   height: 200px;
@@ -1940,7 +2025,7 @@ canvas.graph-chart {
 .partial-app-mask {
   pointer-events: none;
   z-index: 10;
-  background: radial-gradient(circle at calc(var(--mask-right-x)  + var(--display-right-offset)) var(--mask-center-y), transparent calc(var(--mask-radius) * var(--display-scale)), #0009 calc(var(--mask-radius) * var(--display-scale)  + 30px), #000 calc(var(--mask-radius) * var(--display-scale)  + 120px));
+  background: radial-gradient(circle at calc(var(--mask-right-x)  + var(--display-right-offset)) var(--mask-center-y), transparent calc(var(--mask-radius) * var(--display-scale)), var(--bg-black-60) calc(var(--mask-radius) * var(--display-scale)  + 30px), var(--bg-black-100) calc(var(--mask-radius) * var(--display-scale)  + 120px));
   opacity: 0;
   width: 100vw;
   height: 100vh;
@@ -2116,16 +2201,16 @@ canvas.graph-chart {
 }
 
 .speed-needle {
-  z-index: 10;
-  background: linear-gradient(to top, #fff, #0000);
-  border-radius: 3px;
+  background: linear-gradient(to top, var(--text-main), transparent);
   width: 5px;
   height: 90px;
+  box-shadow: 0 0 20px var(--text-main);
+  z-index: 10;
+  border-radius: 3px;
   position: absolute;
   bottom: 10px;
   left: 50%;
   transform: translateX(-50%);
-  box-shadow: 0 0 20px #fff;
 }
 
 .needle-trail-wrapper {
@@ -2142,11 +2227,11 @@ canvas.graph-chart {
 }
 
 .needle-trail {
+  border-style: solid;
+  border-color: var(--text-main) transparent transparent transparent;
   box-sizing: border-box;
   filter: blur(4px);
   mix-blend-mode: hard-light;
-  border-style: solid;
-  border-color: #fff #0000 #0000;
   border-radius: 50%;
   width: 100%;
   height: 100%;
@@ -2178,7 +2263,7 @@ canvas.graph-chart {
 }
 
 .dashboard-ready {
-  color: #4cd964;
+  color: var(--color-green-alt);
   margin-bottom: -10px;
   font-size: 24px;
   font-weight: 600;
@@ -2204,9 +2289,9 @@ canvas.graph-chart {
 }
 
 .limit-circle {
+  border: 3px solid var(--color-red-alt);
   color: #000;
   background-color: #fff;
-  border: 3px solid #ff3b30;
   border-radius: 50%;
   justify-content: center;
   align-items: center;
@@ -2255,7 +2340,7 @@ canvas.graph-chart {
 }
 
 .fuel-percent, .battery-percent {
-  color: #a3aed0;
+  color: var(--menu-text);
   font-variant-numeric: tabular-nums;
   text-align: left;
   font-size: 26px;
@@ -2265,7 +2350,7 @@ canvas.graph-chart {
 }
 
 .dashboard-unit {
-  color: #a3aed0;
+  color: var(--menu-text);
   margin-left: 4px;
   font-size: 26px;
   font-weight: 500;
@@ -2289,7 +2374,7 @@ canvas.graph-chart {
 }
 
 .segment-track {
-  background-color: #ffffff26;
+  background-color: var(--color-white-15);
   border-radius: 2px;
   flex: 1;
   height: 8px;
@@ -2305,18 +2390,18 @@ canvas.graph-chart {
 }
 
 .fuel .bar-segment {
-  background-color: #3b82f6;
+  background-color: var(--primary-blue);
 }
 
 .battery .bar-segment {
-  background-color: #10b981;
+  background-color: var(--color-emerald);
 }
 
 .gauge-labels-container {
-  color: #a3aed0;
+  width: 250px;
+  color: var(--menu-text);
   pointer-events: none;
   justify-content: space-between;
-  width: 250px;
   font-size: 20px;
   font-weight: 500;
   display: flex;
@@ -2325,7 +2410,7 @@ canvas.graph-chart {
 }
 
 .ev-label {
-  color: #00beff;
+  color: var(--text-glow-blue);
   margin-left: 10px;
   font-size: 24px;
   font-weight: 600;
@@ -2359,14 +2444,14 @@ canvas.graph-chart {
 
 .bottom-ev-label {
   text-transform: uppercase;
-  text-shadow: 0 0 10px #00000080;
+  text-shadow: 0 0 10px var(--bg-black-50);
   font-size: 40px;
   font-weight: 300;
 }
 
 .display-normal .bottom-ev-label {
   text-transform: uppercase;
-  text-shadow: 0 0 10px #00000080;
+  text-shadow: 0 0 10px var(--bg-black-50);
   font-size: 32px;
   font-weight: 300;
 }
@@ -2391,7 +2476,7 @@ canvas.graph-chart {
 }
 
 .temp-value {
-  color: #fff;
+  color: var(--text-main);
   white-space: nowrap;
   font-family: Eurostile, sans-serif;
   font-size: 28px;
@@ -2409,7 +2494,7 @@ canvas.graph-chart {
 }
 
 .temp-sub-label {
-  color: #a3aed0;
+  color: var(--menu-text);
   text-transform: uppercase;
   font-size: 16px;
   font-weight: 300;
@@ -2426,11 +2511,11 @@ canvas.graph-chart {
 }
 
 .dashboard-gear[data-gear="P"] {
-  color: #ff3b30;
+  color: var(--color-red-alt);
 }
 
 .dashboard-gear[data-gear="R"] {
-  color: #ff9500;
+  color: var(--color-orange-alt);
 }
 
 .dashboard-gear {
@@ -2438,11 +2523,11 @@ canvas.graph-chart {
 }
 
 .dashboard-ev-mode[data-ev-mode="eco"] {
-  color: #4caf50;
+  color: var(--color-green-main);
 }
 
 .dashboard-ev-mode[data-ev-mode="sport"] {
-  color: #ff4d4d;
+  color: var(--color-red-light);
 }
 
 .dashboard-ev-mode, .dashboard-ev-mode[data-ev-mode="normal"] {
@@ -2450,11 +2535,11 @@ canvas.graph-chart {
 }
 
 .bottom-ev-label[data-bottom-ev="EV"] {
-  color: #00beff;
+  color: var(--text-glow-blue);
 }
 
 .bottom-ev-label[data-bottom-ev="EVP"] {
-  color: #4caf50;
+  color: var(--color-green-main);
 }
 
 .bottom-ev-label[data-bottom-ev="HEV"], .bottom-ev-label {
@@ -3725,7 +3810,7 @@ function createDashboardInfo() {
         });
         if (isMainTrail) {
             trailLoader.style.borderWidth = '3px';
-            trailLoader.style.borderColor = '#FFF transparent transparent transparent';
+            trailLoader.style.borderColor = 'var(--text-main) transparent transparent transparent';
         } else {
             trailLoader.style.borderWidth = '15px';
             // Apply a blue tint that increases towards the tail
@@ -4184,11 +4269,15 @@ var autoModeIcon = function(fill) {
 var recycleOut = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8BAMAAADI0sRBAAAAJFBMVEV5pf57o/57nvd4ke1bjPJpfupvbH9HcExnlfhejfJhkfU9/+4C6j87AAAADHRSTlMiFQwG/gMBAFrOlQHp+XlJAAAC1ElEQVQ4y32VsU4jMRCGx9IVC5VtURA6777BrvIAJ02RpI3gDUhDfxQ0QUoBVEFKcXRBShHuAWh4uftnbK8dTrqRQGt/nvHMZGZM90l+3a0g11luZPV5T4k+yPL2uhIcuPtK+NdXVh1UpvKJrYQ/75Quh1GmyiN+iHQ4EeERx3t1s2vbth85FbqMsGt7/Osjp1q3B8jSdcLpflWo7oeQD2CLYjKWSTUAeue8T5zGa5UCAboQueCKeqUqwSmnRGVRoJoQ85RoP1JrbTqAC6jcCwV3vmPmt7c/RwP72KRiOYBylvkj9IFTHgOga5hPuBfcZZ/tgedrImqeXj6UB0/RtOi6s0hVcM3cuJYkWUHTQTveElV84TyN6bBnvCiUDPjW0ZisS+Y11fyZ54IV2ubAM9l9UpGD8PSRNKbmA+kQv5pdiktOTgTD7IfubA3RgQu254LDlWq8HSViXhTjdAYcnNg9rska2aid+8GGAjw+GusMWWwsTrEjN+G9NVFoM/sHb9gYq1K0z9fZuDssBMF4dXejyRfXLM+cg13r4Nvo+U74Fb/SJb9agrpql7g1SfwTR95NliprBa9FV6mVUijGGxifABdtql2b8Dv+UlgptiqwDTy/4Kxr6Zsc8Htf8JGcuG4r4/EGhAzXUEMIvPjMvBf6zPwKPSwRmt3UNa66KFVPqBSeWUdcy14yyntUKip8h+sPKEutOQR/xYs1lNFmLfmA8heRpoIPkn91YyY9iloLVpbb1Nf4aWInxh5rtRbnv23pfGNedvO9djBK8XQqJBPSztLfbeYezVKf9DodpAPRKRhYQb/aTIOOniFOOt+maefT0AtxcJ1MyiReDbdDN6TpkGWovnVo6qRVA32c01083+nMp/gA9In1yocO87iTF4HKA9EN378wz08eEChM69fkRmZqPDAdn6jlNC1vVlQ9bfIy1Uu8ZJR39NlLcjuepdV/5S/ikFxpmirRgwAAAABJRU5ErkJggg==";
 var recycleIn = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8BAMAAADI0sRBAAAAJ1BMVEV6pf97nfh7o/12kO5bjPJlf+leVZZlk/ZHcExejvJgj/P//+0A/9FP0Or/AAAADXRSTlMeDBMG/QMBVQDLlQEBuyPuOwAAAtFJREFUOMt9Vc1q20AQHpaAcU6VdOpttQRMchPCL1AWjHw18RtYl/ZgjCEkTxBoDyEITG+mGIzzALkk51z6Uv1m9kerFvfDyDv7zcyORrMz9Ojw4+21BW4Dlix9PNLj93dZ/cZjdZuAFT7ovX1tv7bRsnaY8hp79NE6rBISWEyFp7a3XNQD8AGgl6uULASBp8GZVeZRVY6ntrcsiqwqooLwBM8LYSORKpAzraLbsiyNccuCaWY9lefG4AeFsoTI1otgCiOQeSkKePBeTT5e2UuRs4OCxJa9emitw1JoPlgkpUhddtba5ufLURk5H9ZZTkIq0pc2oFmzf9BZ9snu4ZJIjWyPZgP7jGCsoUuMg1uM7h5OnicO+t7OmR0HNXjCMQ3OJ45LH+wTjDp+BoCfm5xgrDWYNW2dDw8F/gnWiJp1G8S1jqTGS97bRmiOeotgZ9HSqRzshtg3jU78LsFY+/9r0Mi0I1PfTmsM2uibTtJw6iM7uj+hDdjmZc1JmXv77U4iuLCKDCLeud0OaneMrdu5sIbMtd17n6OuT/ku0FsbgwkxRhrOuzRXo9Q5h6b7bES40OjGPtMk/Q7DFyP7BSp7Ogeh1+fYEZxfn6VReb/+Q+MrbujKxi80hKIDvveVPZ49emboM2oKJT7IKL8LisU+G6SFRSXlEmvc17xCzpHoGemJTbHnjNo9qhDXp8PxKGUtkBqer3HZlDYZas2MxWLj7iFfUgljhksGOnfijinlLvClV8cd44s/OTU7lVx99dA1ezZmGrw2/yCXBkRJa8jzPDNeKtkW3aGSZmXEVexdxvWuoqbat6w8k2bFbMaauXQuik1tANHkvlYXKZ+0x6KoxLryW9yFpdGGjomhQK4ZV9KhK9eXnVTwyHA9ldd1kY6C0M//mhHTab/kabAK3X4aR9Ri6sVlS8lou20Hk44nGYWdpWchuNkjgh9UPb6lwtsfbTVCnXvwUeQAAAAASUVORK5CYII=";
 function createStatusElement() {
+    const style = getComputedStyle(document.documentElement);
+    const primaryActiveColor = style.getPropertyValue('--blue-600').trim() || '#2563eb';
+    const secondaryActiveColor = style.getPropertyValue('--text-glow-blue').trim() || '#00beff';
+    const inactiveColor = style.getPropertyValue('--text-gray').trim() || '#9ca3af';
     const isAutoOn = (0, _stateJs.stateManager).get('auto') === 1;
     const isRecycleIn = (0, _stateJs.stateManager).get('recycle') === 1;
     const isMaxAuto = (0, _stateJs.stateManager).get('maxauto') === 1;
     var autoModeIconElement = (0, _createElementJs.img)({
-        src: autoModeIcon(isAutoOn ? '#2563eb' : '#9ca3af'),
+        src: autoModeIcon(isAutoOn ? primaryActiveColor : inactiveColor),
         className: 'w-32 h-32'
     });
     var recycleIconElement = (0, _createElementJs.img)({
@@ -4232,7 +4321,7 @@ function createStatusElement() {
     });
     var unsubscribeAuto = (0, _stateJs.subscribe)('auto', function(newAuto) {
         const isAutoOn = newAuto === 1;
-        autoModeIconElement.src = autoModeIcon(isAutoOn ? '#00beff' : '#9ca3af');
+        autoModeIconElement.src = autoModeIcon(isAutoOn ? secondaryActiveColor : inactiveColor);
         autoModeLabel.className = isAutoOn ? 'text-white' : 'text-gray';
     });
     var unsubscribeRecycle = (0, _stateJs.subscribe)('recycle', function(newRecycle) {
@@ -4353,9 +4442,9 @@ var _focusElementJs = require("./focusElement.js");
 var _createElementJs = require("../../../utils/createElement.js");
 var _mainAcControlJs = require("./mainAcControl.js");
 const ionColor = {
-    0: '#60a5fa',
-    1: '#018786',
-    2: 'var(--fan-icon-color, #FFFFFF)'
+    0: 'var(--blue-400, #60a5fa)',
+    1: 'var(--color-emerald, #10b981)',
+    2: 'var(--fan-icon-color, var(--text-main, #FFFFFF))'
 };
 // Fan icon SVG as data URL
 var fanIconSvg = (ion)=>'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path fill="' + ionColor[ion] + '" d="M352 96C352 113.7 366.3 128 384 128L424 128C437.3 128 448 138.7 448 152C448 165.3 437.3 176 424 176L96 176C78.3 176 64 190.3 64 208C64 225.7 78.3 240 96 240L424 240C472.6 240 512 200.6 512 152C512 103.4 472.6 64 424 64L384 64C366.3 64 352 78.3 352 96zM416 448C416 465.7 430.3 480 448 480L480 480C533 480 576 437 576 384C576 331 533 288 480 288L96 288C78.3 288 64 302.3 64 320C64 337.7 78.3 352 96 352L96 352L480 352C497.7 352 512 366.3 512 384C512 401.7 497.7 416 480 416L448 416C430.3 416 416 430.3 416 448zM192 576L232 576C280.6 576 320 536.6 320 488C320 439.4 280.6 400 232 400L96 400C78.3 400 64 414.3 64 432C64 449.7 78.3 464 96 464L232 464C245.3 464 256 474.7 256 488C256 501.3 245.3 512 232 512L192 512C174.3 512 160 526.3 160 544C160 561.7 174.3 576 192 576z"/></svg>');
@@ -4595,11 +4684,11 @@ function createRegenScreen() {
     innerRing.appendChild(divider);
     const initChart = (canvasCtx)=>{
         if (chartInstance) return;
-        const isNight = true;
-        const lineColor = isNight ? 'rgba(0, 195, 255, 0.3)' : 'rgba(37, 99, 235, 0.6)';
-        const fillColor = isNight ? 'rgba(0, 120, 255, 0.1)' : 'rgba(37, 99, 235, 0.15)';
-        const tickColor = isNight ? 'rgba(100,172,255,0.7)' : 'rgba(37, 99, 235, 0.8)';
-        const gridColor = isNight ? 'rgba(0,160,255,0.1)' : 'rgba(37, 99, 235, 0.1)';
+        const style = getComputedStyle(document.documentElement);
+        const lineColor = style.getPropertyValue('--color-cyan-20').trim() || 'rgba(0, 195, 255, 0.3)';
+        const fillColor = style.getPropertyValue('--color-dial-blue-20').trim() || 'rgba(0, 120, 255, 0.1)';
+        const tickColor = style.getPropertyValue('--color-ring-blue-70').trim() || 'rgba(100,172,255,0.7)';
+        const gridColor = style.getPropertyValue('--color-blue-glow-20').trim() || 'rgba(0,160,255,0.1)';
         chartInstance = new (0, _chartJs.Chart)(canvasCtx, {
             type: 'line',
             data: {
@@ -26178,9 +26267,9 @@ parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "createDisplaySelectionScreen", ()=>createDisplaySelectionScreen);
 var _stateJs = require("../../state.js");
 var _createElementJs = require("../../../utils/createElement.js");
-const iconNormal = `data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="#00A0E0" stroke-width="2"/><circle cx="8" cy="12" r="3" stroke="#00A0E0" stroke-width="1.5"/><circle cx="16" cy="12" r="3" stroke="#00A0E0" stroke-width="1.5"/></svg>')}`;
-const iconReduced = `data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="#00A0E0" stroke-width="2"/><circle cx="8" cy="12" r="1.5" stroke="#00A0E0" stroke-width="1.5"/><circle cx="16" cy="12" r="1.5" stroke="#00A0E0" stroke-width="1.5"/></svg>')}`;
-const iconClean = `data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="#00A0E0" stroke-width="2"/></svg>')}`;
+const getIconNormal = (fill)=>`data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="' + fill + '" stroke-width="2"/><circle cx="8" cy="12" r="3" stroke="' + fill + '" stroke-width="1.5"/><circle cx="16" cy="12" r="3" stroke="' + fill + '" stroke-width="1.5"/></svg>')}`;
+const getIconReduced = (fill)=>`data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="' + fill + '" stroke-width="2"/><circle cx="8" cy="12" r="1.5" stroke="' + fill + '" stroke-width="1.5"/><circle cx="16" cy="12" r="1.5" stroke="' + fill + '" stroke-width="1.5"/></svg>')}`;
+const getIconClean = (fill)=>`data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="' + fill + '" stroke-width="2"/></svg>')}`;
 function createDisplaySelectionScreen() {
     const main = document.createElement('main');
     main.className = 'main-container';
@@ -26195,6 +26284,11 @@ function createDisplaySelectionScreen() {
         }
         const clusterEnabled = (0, _stateJs.getState)('clusterEnabled') !== false;
         if (!clusterEnabled) {
+            const style = getComputedStyle(document.documentElement);
+            const themeBlue = style.getPropertyValue('--color-theme-blue').trim() || '#00A0E0';
+            const themeShadow = style.getPropertyValue('--shadow-theme-blue').trim() || 'rgba(0, 160, 224, 0.5)';
+            const textMain = style.getPropertyValue('--text-main').trim() || '#FFFFFF';
+            const bgMask = style.getPropertyValue('--bg-black-50').trim() || 'rgba(0, 0, 0, 0.4)';
             const warningContainer = (0, _createElementJs.div)({
                 className: 'warning-container',
                 style: {
@@ -26206,11 +26300,11 @@ function createDisplaySelectionScreen() {
                     width: '456px',
                     padding: '40px',
                     textAlign: 'center',
-                    color: '#FFFFFF',
+                    color: textMain,
                     boxSizing: 'border-box',
-                    border: '3px solid #00A0E0',
+                    border: '3px solid ' + themeBlue,
                     borderRadius: '50%',
-                    background: 'rgba(0, 0, 0, 0.4)',
+                    background: bgMask,
                     backdropFilter: 'blur(10px)'
                 }
             }, [
@@ -26236,13 +26330,13 @@ function createDisplaySelectionScreen() {
                         height: 'auto',
                         padding: '12px 60px',
                         borderRadius: '40px',
-                        background: '#00A0E0',
-                        color: '#FFFFFF',
+                        background: themeBlue,
+                        color: textMain,
                         cursor: 'pointer',
                         fontSize: '1.4em',
                         fontWeight: 'bold',
                         transition: 'all 0.3s ease',
-                        boxShadow: '0 0 20px rgba(0, 160, 224, 0.5)'
+                        boxShadow: '0 0 20px ' + themeShadow
                     },
                     onclick: ()=>{
                         window.showScreen('main_menu');
@@ -26266,6 +26360,8 @@ function createDisplaySelectionScreen() {
         container.appendChild(carousel);
         main.appendChild(container);
         currentContainer = container;
+        const style = getComputedStyle(document.documentElement);
+        const themeBlue = style.getPropertyValue('--color-theme-blue').trim() || '#00A0E0';
         const menuItemsData = [
             {
                 id: 'title_mask',
@@ -26277,21 +26373,21 @@ function createDisplaySelectionScreen() {
                 label: 'Normal',
                 type: 'mode',
                 value: 'Normal',
-                iconSrc: iconNormal
+                iconSrc: getIconNormal(themeBlue)
             },
             {
                 id: 'mode_reduzido',
                 label: 'Reduzido',
                 type: 'mode',
                 value: 'Reduzido',
-                iconSrc: iconReduced
+                iconSrc: getIconReduced(themeBlue)
             },
             {
                 id: 'mode_clean',
                 label: 'Clean',
                 type: 'mode',
                 value: 'Clean',
-                iconSrc: iconClean
+                iconSrc: getIconClean(themeBlue)
             }
         ];
         const itemElements = {};
@@ -26376,7 +26472,7 @@ function createDisplaySelectionScreen() {
                 const isSelected = itemData.type === 'mode' && currentMode === itemData.value;
                 cache.element.className = `menu-item ${isFocused ? 'focused' : ''} ${itemData.type === 'title' ? 'title-item' : ''}`;
                 if (itemData.type === 'mode') {
-                    cache.labelContainer.style.color = isSelected ? '#FFFFFF' : '#B0B8C4';
+                    cache.labelContainer.style.color = isSelected ? 'var(--text-main, #FFFFFF)' : 'var(--text-cold-gray, #B0B8C4)';
                     cache.labelContainer.style.fontWeight = isSelected ? 'bold' : 'normal';
                     if (cache.checkIcon) {
                         cache.checkIcon.style.opacity = isSelected ? '1' : '0';
@@ -26704,12 +26800,12 @@ const graphList = [
                 smoothFactor: 100,
                 unity: 'kWatts',
                 yAxisID: 'y',
-                lineColor: '#ffffff',
-                lineColorLight: '#2563eb',
-                positiveColor: '#ffffff',
-                positiveColorLight: '#2563eb',
-                negativeColor: '#00ff88',
-                negativeColorLight: '#059669' // Emerald
+                lineColor: '--text-main',
+                lineColorLight: '--blue-600',
+                positiveColor: '--text-main',
+                positiveColorLight: '--blue-600',
+                negativeColor: '--color-green',
+                negativeColorLight: '--color-emerald'
             },
             {
                 label: "M\xe9dia",
@@ -26721,7 +26817,7 @@ const graphList = [
                 smooth: true,
                 unity: 'kWavg',
                 yAxisID: 'y1',
-                lineColor: '#00c3ff',
+                lineColor: '--color-light-cyan',
                 lineColorLight: '#0369a1' // Deep Sky Blue (readable on white)
             }
         ]
@@ -26749,8 +26845,8 @@ const graphList = [
                 smoothFactor: 100,
                 unity: 'KWh/100km',
                 yAxisID: 'y',
-                lineColor: '#ffffff',
-                lineColorLight: '#2563eb',
+                lineColor: '--text-main',
+                lineColorLight: '--blue-600',
                 valueFilter: 'positive'
             },
             {
@@ -26761,7 +26857,7 @@ const graphList = [
                 yAxisID: 'y1',
                 idleKey: 'gasConsumptionIdle',
                 idleUnity: 'l/100km',
-                lineColor: '#ff5500',
+                lineColor: '--color-orange',
                 valueFilter: 'positive'
             },
             {
@@ -26775,7 +26871,7 @@ const graphList = [
                 unity: 'KWh/100km',
                 yAxisID: 'y2',
                 followAxis: 'y',
-                lineColor: '#00c3ff',
+                lineColor: '--color-light-cyan',
                 lineColorLight: '#0369a1',
                 valueFilter: 'positive'
             }
@@ -26803,8 +26899,8 @@ const graphList = [
                 smooth: true,
                 unity: 'km/h',
                 yAxisID: 'y',
-                lineColor: '#ffffff',
-                lineColorLight: '#2563eb' // Blue
+                lineColor: '--text-main',
+                lineColorLight: '--blue-600'
             },
             {
                 label: 'Consumo',
@@ -26812,7 +26908,7 @@ const graphList = [
                 smooth: true,
                 unity: 'km/L',
                 yAxisID: 'y1',
-                lineColor: '#ff5500'
+                lineColor: '--color-orange'
             }
         ]
     }
@@ -26820,8 +26916,13 @@ const graphList = [
 const historicalData = {};
 const getChartColor = (dataset, colorType, isNight = null)=>{
     const night = isNight !== null ? isNight : true;
-    if (!night && dataset[`${colorType}Light`]) return dataset[`${colorType}Light`];
-    return dataset[colorType];
+    let colorVal = dataset[colorType];
+    if (!night && dataset[`${colorType}Light`]) colorVal = dataset[`${colorType}Light`];
+    if (colorVal && colorVal.startsWith('--')) {
+        const computed = getComputedStyle(document.documentElement).getPropertyValue(colorVal).trim();
+        if (computed) return computed;
+    }
+    return colorVal;
 };
 const addDataPoint = (dataKey, value, datasetConfig = {})=>{
     if (value === undefined || value === null) return;
@@ -27349,13 +27450,13 @@ function createGraphScreen() {
                             mirror: true,
                             padding: 0,
                             stepSize: 20,
-                            color: 'rgba(100,172,255,0.7)'
+                            color: getComputedStyle(document.documentElement).getPropertyValue('--color-ring-blue-70').trim() || 'rgba(100,172,255,0.7)'
                         },
                         grid: {
                             display: true,
                             drawOnChartArea: true,
                             drawTicks: false,
-                            color: (ctx)=>ctx.tick.value === 0 ? 'rgba(0, 195, 255, 1)' : 'rgba(0,160,255,0.3)',
+                            color: (ctx)=>ctx.tick.value === 0 ? getComputedStyle(document.documentElement).getPropertyValue('--color-cyan-20').trim() || 'rgba(0, 195, 255, 1)' : getComputedStyle(document.documentElement).getPropertyValue('--color-blue-30').trim() || 'rgba(0,160,255,0.3)',
                             lineWidth: (ctx)=>ctx.tick.value === 0 ? 4 : 1
                         }
                     },
@@ -27370,7 +27471,7 @@ function createGraphScreen() {
                             padding: 0,
                             align: 'start',
                             stepSize: 2,
-                            color: 'rgba(0, 255, 187, 0.5)'
+                            color: getComputedStyle(document.documentElement).getPropertyValue('--color-cyan-20').trim() || 'rgba(0, 255, 187, 0.5)'
                         },
                         grid: {
                             drawOnChartArea: false
@@ -27741,9 +27842,9 @@ class WarpTunnelAnimation {
         this.ctx.fillStyle = gradient;
         this.ctx.fillRect(0, 0, this.width, this.height);
         // 6. Outer Black Glow (Vignette)
-        const vignette = this.ctx.createRadialGradient(this.cx, this.cy, this.width * 0.35, this.cx, this.cy, this.width * 0.5);
-        vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
-        vignette.addColorStop(1, 'rgba(0, 0, 0, 0.8)'); // Strong black fade at edge
+        const style = getComputedStyle(document.documentElement);
+        const vignetteColor = style.getPropertyValue('--bg-mask-80').trim() || 'rgba(0, 0, 0, 0.8)';
+        vignette.addColorStop(1, vignetteColor); // Strong black fade at edge
         this.ctx.fillStyle = vignette;
         this.ctx.fillRect(0, 0, this.width, this.height);
         // Reset blend mode

@@ -170,9 +170,9 @@ export class WarpTunnelAnimation {
         this.ctx.fillRect(0, 0, this.width, this.height);
 
         // 6. Outer Black Glow (Vignette)
-        const vignette = this.ctx.createRadialGradient(this.cx, this.cy, this.width * 0.35, this.cx, this.cy, this.width * 0.5);
-        vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
-        vignette.addColorStop(1, 'rgba(0, 0, 0, 0.8)'); // Strong black fade at edge
+        const style = getComputedStyle(document.documentElement);
+        const vignetteColor = style.getPropertyValue('--bg-mask-80').trim() || 'rgba(0, 0, 0, 0.8)';
+        vignette.addColorStop(1, vignetteColor); // Strong black fade at edge
 
         this.ctx.fillStyle = vignette;
         this.ctx.fillRect(0, 0, this.width, this.height);

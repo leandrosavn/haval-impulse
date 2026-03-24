@@ -10,12 +10,12 @@
 
 :root {
   /* --- 1. BASE COLORS --- */
-  --bg-dark: #000000;
-  --text-main: #ffffff;
+  --bg-dark: #ffffff;
+  --text-main: #0c0c0c;
   --color-transparent: rgba(0, 0, 0, 0);
 
   /* --- 2. PRIMARY & BRAND COLORS (Blues) --- */
-  --primary-blue: #3b82f6;
+  --primary-blue: #c0c0c;
   --blue-400: #60a5fa;
   --blue-600: #2563eb;
   --blue-700: #1d4ed8;
@@ -48,12 +48,12 @@
   --gray-500: #6b7280;
 
   /* --- 5. COMPONENT SPECIFIC COLORS --- */
-  --menu-bg: #0a2345;
-  --menu-text: #A3AED0;
-  --text-cold-gray: #B0B8C4;
+  --menu-bg: #ffffff;
+  --menu-text: #0c0c0c;
+  --text-cold-gray: #0c0c0c;
   --color-power-glow: #edbba8;
   --color-impulse: #9ac2ff;
-  --color-ring-bg: #0074ff44;
+  --color-ring-bg: #aaaaaa44;
   --color-light-bg: #e7ebff;
   --color-cyan-glow: #00aeff85;
   --color-green-glow: #00ff8885;
@@ -111,7 +111,7 @@
   --mask-border-color: var(--primary-blue);
   --mask-shadow: 0 0 60px var(--bg-black-100);
   
-  --dial-inner-bg: radial-gradient(circle, var(--bg-black-80) 0%, var(--bg-black-60) 80%, var(--dial-gradient-blue) 100%);
+  --dial-inner-bg: radial-gradient(circle, var(--bg-white-80) 0%, var(--bg-white-60) 80%, var(--dial-gradient-blue) 100%);
   --dial-inner-border: var(--dial-border);
   --dial-shadow: 0 0 50px 10px var(--dial-shadow-color);
   

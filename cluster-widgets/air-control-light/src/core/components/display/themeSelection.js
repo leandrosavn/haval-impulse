@@ -1,9 +1,9 @@
 import { getState, setState, subscribe } from '../../state.js';
 import { div, span, img } from '../../../utils/createElement.js';
 
-const iconNormal = `data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="#00A0E0" stroke-width="2"/><circle cx="8" cy="12" r="3" stroke="#00A0E0" stroke-width="1.5"/><circle cx="16" cy="12" r="3" stroke="#00A0E0" stroke-width="1.5"/></svg>')}`;
-const iconReduced = `data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="#00A0E0" stroke-width="2"/><circle cx="8" cy="12" r="1.5" stroke="#00A0E0" stroke-width="1.5"/><circle cx="16" cy="12" r="1.5" stroke="#00A0E0" stroke-width="1.5"/></svg>')}`;
-const iconClean = `data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="#00A0E0" stroke-width="2"/></svg>')}`;
+const getIconNormal = (fill) => `data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="' + fill + '" stroke-width="2"/><circle cx="8" cy="12" r="3" stroke="' + fill + '" stroke-width="1.5"/><circle cx="16" cy="12" r="3" stroke="' + fill + '" stroke-width="1.5"/></svg>')}`;
+const getIconReduced = (fill) => `data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="' + fill + '" stroke-width="2"/><circle cx="8" cy="12" r="1.5" stroke="' + fill + '" stroke-width="1.5"/><circle cx="16" cy="12" r="1.5" stroke="' + fill + '" stroke-width="1.5"/></svg>')}`;
+const getIconClean = (fill) => `data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="' + fill + '" stroke-width="2"/></svg>')}`;
 
 export function createDisplaySelectionScreen() {
     const main = document.createElement('main');
@@ -23,6 +23,12 @@ export function createDisplaySelectionScreen() {
         const clusterEnabled = getState('clusterEnabled') !== false;
 
         if (!clusterEnabled) {
+            const style = getComputedStyle(document.documentElement);
+            const themeBlue = style.getPropertyValue('--color-theme-blue').trim() || '#00A0E0';
+            const themeShadow = style.getPropertyValue('--shadow-theme-blue').trim() || 'rgba(0, 160, 224, 0.5)';
+            const textMain = style.getPropertyValue('--text-main').trim() || '#FFFFFF';
+            const bgMask = style.getPropertyValue('--bg-black-50').trim() || 'rgba(0, 0, 0, 0.4)';
+
             const warningContainer = div({
                 className: 'warning-container',
                 style: {
@@ -34,11 +40,11 @@ export function createDisplaySelectionScreen() {
                     width: '456px',
                     padding: '40px',
                     textAlign: 'center',
-                    color: '#FFFFFF',
+                    color: textMain,
                     boxSizing: 'border-box',
-                    border: '3px solid #00A0E0',
+                    border: '3px solid ' + themeBlue,
                     borderRadius: '50%',
-                    background: 'rgba(0, 0, 0, 0.4)',
+                    background: bgMask,
                     backdropFilter: 'blur(10px)'
                 }
             }, [
@@ -64,13 +70,13 @@ export function createDisplaySelectionScreen() {
                         height: 'auto',
                         padding: '12px 60px',
                         borderRadius: '40px',
-                        background: '#00A0E0',
-                        color: '#FFFFFF',
+                        background: themeBlue,
+                        color: textMain,
                         cursor: 'pointer',
                         fontSize: '1.4em',
                         fontWeight: 'bold', // Keep button text bold for visibility but slightly smaller
                         transition: 'all 0.3s ease',
-                        boxShadow: '0 0 20px rgba(0, 160, 224, 0.5)'
+                        boxShadow: '0 0 20px ' + themeShadow
                     },
                     onclick: () => {
                         window.showScreen('main_menu');
@@ -92,11 +98,14 @@ export function createDisplaySelectionScreen() {
         main.appendChild(container);
         currentContainer = container;
 
+        const style = getComputedStyle(document.documentElement);
+        const themeBlue = style.getPropertyValue('--color-theme-blue').trim() || '#00A0E0';
+
         const menuItemsData = [
             { id: 'title_mask', label: 'Modos do Tema', type: 'title' },
-            { id: 'mode_normal', label: 'Normal', type: 'mode', value: 'Normal', iconSrc: iconNormal },
-            { id: 'mode_reduzido', label: 'Reduzido', type: 'mode', value: 'Reduzido', iconSrc: iconReduced },
-            { id: 'mode_clean', label: 'Clean', type: 'mode', value: 'Clean', iconSrc: iconClean }
+            { id: 'mode_normal', label: 'Normal', type: 'mode', value: 'Normal', iconSrc: getIconNormal(themeBlue) },
+            { id: 'mode_reduzido', label: 'Reduzido', type: 'mode', value: 'Reduzido', iconSrc: getIconReduced(themeBlue) },
+            { id: 'mode_clean', label: 'Clean', type: 'mode', value: 'Clean', iconSrc: getIconClean(themeBlue) }
         ];
 
         const itemElements = {};
@@ -193,7 +202,7 @@ export function createDisplaySelectionScreen() {
                 cache.element.className = `menu-item ${isFocused ? 'focused' : ''} ${itemData.type === 'title' ? 'title-item' : ''}`;
                 
                 if (itemData.type === 'mode') {
-                    cache.labelContainer.style.color = isSelected ? '#FFFFFF' : '#B0B8C4';
+                    cache.labelContainer.style.color = isSelected ? 'var(--text-main, #FFFFFF)' : 'var(--text-cold-gray, #B0B8C4)';
                     cache.labelContainer.style.fontWeight = isSelected ? 'bold' : 'normal';
                     if (cache.checkIcon) {
                         cache.checkIcon.style.opacity = isSelected ? '1' : '0';

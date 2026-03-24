@@ -276,7 +276,7 @@ public class ServiceManager {
         handlerThread.start();
         backgroundHandler = new Handler(handlerThread.getLooper());
 
-        if (!br.com.redesurftank.havalshisuku.services.ForegroundService.sIsLocalTestMode) {
+        if (!br.com.redesurftank.havalshisuku.services.ForegroundService.isLocalTestMode()) {
             if (!Shizuku.pingBinder()) {
                 Log.e(TAG, "Shizuku not available");
                 return false;
@@ -1576,7 +1576,7 @@ public class ServiceManager {
     }
 
     public boolean isMainScreenOn() {
-        if (br.com.redesurftank.havalshisuku.services.ForegroundService.sIsLocalTestMode) {
+        if (br.com.redesurftank.havalshisuku.services.ForegroundService.isLocalTestMode()) {
             return true;
         }
         try {
@@ -1588,7 +1588,7 @@ public class ServiceManager {
     }
 
     public CarInfo getCarInfo() {
-        if (br.com.redesurftank.havalshisuku.services.ForegroundService.sIsLocalTestMode) {
+        if (br.com.redesurftank.havalshisuku.services.ForegroundService.isLocalTestMode()) {
             return new CarInfo("Haval (Local)", "H6 (Local)", "Hybrid");
         }
         try {
