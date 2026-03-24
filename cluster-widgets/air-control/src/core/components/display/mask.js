@@ -41,10 +41,6 @@ export function createMask() {
             noAppMaskH.style.pointerEvents = 'auto';
             noAppMaskV.style.visibility = 'visible';
             noAppMaskH.style.visibility = 'visible';
-            
-            const targetWidth = (cardId === 0) ? '1344px' : '1920px';
-            noAppMaskV.style.width = targetWidth;
-            noAppMaskH.style.width = targetWidth;
         } else {
             noAppMaskV.style.opacity = '0';
             noAppMaskH.style.opacity = '0';
@@ -52,9 +48,6 @@ export function createMask() {
             noAppMaskH.style.pointerEvents = 'none';
             noAppMaskV.style.visibility = 'hidden';
             noAppMaskH.style.visibility = 'hidden';
-            
-            noAppMaskV.style.width = '1920px';
-            noAppMaskH.style.width = '1920px';
         }
 
         partialAppMask.style.opacity = (!rightVisible) ? '1' : '0';

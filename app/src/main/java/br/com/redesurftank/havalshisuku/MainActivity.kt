@@ -1245,13 +1245,18 @@ fun saveRevisionHistory(prefs: SharedPreferences, history: List<RevisionEntry>) 
 fun ThemeCard(
     theme: ThemeMetadata,
     isDownloaded: Boolean,
+    isSelected: Boolean,
     isDownloading: Boolean,
-    onInstall: () -> Unit
+    onAction: () -> Unit
 ) {
+    val borderColor = if (isSelected) Color(0xFF4CAF50) else Color(0xFF1D2430)
+    val borderThickness = if (isSelected) 2.dp else 1.dp
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp)),
+            .clickable { onAction() }
+            .border(borderThickness, borderColor, RoundedCornerShape(12.dp)),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A)),
         shape = RoundedCornerShape(12.dp)
     ) {
@@ -1268,28 +1273,51 @@ fun ThemeCard(
                     .clip(RoundedCornerShape(8.dp)),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2228))
             ) {
-                AsyncImage(
-                    model = theme.thumbnailUrl,
-                    contentDescription = theme.name,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                    placeholder = painterResource(android.R.drawable.ic_menu_gallery),
-                    error = painterResource(android.R.drawable.ic_menu_report_image)
-                )
+                if (theme.name == "Básico") {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Style, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(40.dp))
+                    }
+                } else {
+                    AsyncImage(
+                        model = theme.thumbnailUrl,
+                        contentDescription = theme.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        placeholder = painterResource(android.R.drawable.ic_menu_gallery),
+                        error = painterResource(android.R.drawable.ic_menu_report_image)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.width(16.dp))
 
             // Info
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = theme.name,
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = theme.name,
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (isDownloaded && theme.name != "Básico") {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            color = Color(0xFF4CAF50).copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                "Instalado",
+                                color = Color(0xFF4CAF50),
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = theme.description,
@@ -1320,24 +1348,27 @@ fun ThemeCard(
             Spacer(modifier = Modifier.width(8.dp))
 
             // Action
-            Box(contentAlignment = Alignment.Center) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(40.dp)) {
                 if (isDownloading) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(24.dp),
                         color = AppColors.Primary,
                         strokeWidth = 2.dp
                     )
-                } else {
-                    IconButton(
-                        onClick = onInstall,
-                        enabled = !isDownloaded
-                    ) {
-                        Icon(
-                            imageVector = if (isDownloaded) Icons.Default.Check else Icons.Default.Download,
-                            contentDescription = if (isDownloaded) "Instalado" else "Instalar",
-                            tint = if (isDownloaded) Color(0xFF4CAF50) else Color.White
-                        )
-                    }
+                } else if (isSelected) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Selecionado",
+                        tint = Color(0xFF4CAF50),
+                        modifier = Modifier.size(28.dp)
+                    )
+                } else if (!isDownloaded) {
+                    Icon(
+                        imageVector = Icons.Default.Download,
+                        contentDescription = "Baixar",
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             }
         }
@@ -1585,54 +1616,6 @@ fun TelasTab() {
                                     }
                                 }
                             }
-
-                            // Theme Selection
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Tema", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                Box {
-                                    OutlinedButton(
-                                        onClick = { themeExpanded = true },
-                                        enabled = allClusterFunctionsEnabled,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                                        border = BorderStroke(1.dp, Color(0xFF3A3F47)),
-                                        shape = RoundedCornerShape(8.dp),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
-                                    ) {
-                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                            Text(selectedTheme, fontSize = 14.sp)
-                                            Icon(Icons.Default.ExpandMore, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        }
-                                    }
-
-                                    DropdownMenu(
-                                        expanded = themeExpanded && allClusterFunctionsEnabled,
-                                        onDismissRequest = { themeExpanded = false },
-                                        modifier = Modifier.background(Color(0xFF1E2228)).border(1.dp, Color(0xFF3A3F47))
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text("Básico", color = Color.White) },
-                                            onClick = {
-                                                selectedTheme = "Básico"
-                                                prefs.edit { putString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Básico") }
-                                                themeExpanded = false
-                                            }
-                                        )
-                                        localThemes.forEach { theme ->
-                                            DropdownMenuItem(
-                                                text = { Text(theme.name, color = Color.White) },
-                                                onClick = {
-                                                    selectedTheme = theme.name
-                                                    prefs.edit { putString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, theme.name) }
-                                                    themeExpanded = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
                         }
                     }
                 }
@@ -1648,7 +1631,7 @@ fun TelasTab() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("Temas Disponíveis no GitHub", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text("Temas Disponíveis", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Text("Personalize seu cluster com novos visuais", color = Color(0xFFB0B8C4), fontSize = 14.sp)
                 }
                 IconButton(onClick = {
@@ -1685,28 +1668,73 @@ fun TelasTab() {
                     modifier = Modifier.padding(vertical = 16.dp)
                 )
             } else {
+                val basicoTheme = remember {
+                    ThemeMetadata(
+                        name = "Básico",
+                        description = "Tema padrão do sistema",
+                        version = "1.0.0",
+                        thumbnailUrl = "",
+                        isLocal = true,
+                        isDownloaded = true
+                    )
+                }
+
+                val allDisplayThemes = remember(githubThemes, localThemes) {
+                    val list = mutableListOf(basicoTheme)
+                    
+                    // Add GitHub themes, marking them as downloaded if they are in localThemes
+                    githubThemes.forEach { github ->
+                        if (github.name != "Básico") {
+                            val isInstalled = localThemes.any { it.name == github.name }
+                            list.add(github.copy(isDownloaded = isInstalled))
+                        }
+                    }
+
+                    // Sort: Básico first, then installed ones, then the rest
+                    list.sortedWith(compareByDescending<ThemeMetadata> { it.name == "Básico" }
+                        .thenByDescending { it.isDownloaded }
+                        .thenBy { it.name })
+                }
+
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    githubThemes.forEach { theme ->
-                        val isDownloaded = localThemes.any { it.name == theme.name }
+                    allDisplayThemes.forEach { theme ->
+                        val isDownloaded = theme.isDownloaded || theme.name == "Básico"
+                        val isSelected = selectedTheme == theme.name
                         
                         ThemeCard(
                             theme = theme,
                             isDownloaded = isDownloaded,
+                            isSelected = isSelected,
                             isDownloading = downloadingThemeName == theme.name,
-                            onInstall = {
-                                if (isDownloaded) return@ThemeCard
-                                downloadingThemeName = theme.name
-                                scope.launch {
-                                    try {
-                                        val success = ThemeManager.getInstance(context).downloadTheme(theme)
-                                        if (success) {
-                                            localThemes = ThemeManager.getInstance(context).getLocalThemes()
-                                            Toast.makeText(context, "Tema ${theme.name} instalado!", Toast.LENGTH_SHORT).show()
+                            onAction = {
+                                if (isDownloaded) {
+                                    // Apply theme
+                                    selectedTheme = theme.name
+                                    prefs.edit { 
+                                        putString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, theme.name)
+                                        // For custom themes, we also update ACTIVE_CUSTOM_THEME to trigger projector reload
+                                        if (theme.name == "Básico") {
+                                            putString(SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key, "")
                                         } else {
-                                            Toast.makeText(context, "Erro ao baixar tema ${theme.name}", Toast.LENGTH_SHORT).show()
+                                            putString(SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key, theme.folderName)
                                         }
-                                    } finally {
-                                        downloadingThemeName = null
+                                    }
+                                    Toast.makeText(context, "Tema ${theme.name} aplicado!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    // Download theme
+                                    downloadingThemeName = theme.name
+                                    scope.launch {
+                                        try {
+                                            val success = ThemeManager.getInstance(context).downloadTheme(theme)
+                                            if (success) {
+                                                localThemes = ThemeManager.getInstance(context).getLocalThemes()
+                                                Toast.makeText(context, "Tema ${theme.name} instalado! Clique para aplicar.", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "Erro ao baixar tema ${theme.name}", Toast.LENGTH_SHORT).show()
+                                            }
+                                        } finally {
+                                            downloadingThemeName = null
+                                        }
                                     }
                                 }
                             }

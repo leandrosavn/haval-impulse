@@ -294,7 +294,7 @@ fun AppSwitcherSection() {
         }
         Box(
                 modifier =
-                        Modifier.size(50.dp)
+                        Modifier.size(55.dp)
                                 .background(Color.Black, RoundedCornerShape(4.dp))
                                 .clickable {
                                     br.com.redesurftank.havalshisuku.models.BottomBarState
@@ -317,7 +317,7 @@ fun AppSwitcherSection() {
                                         )
                                         .build(),
                         contentDescription = "App Icon",
-                        modifier = Modifier.size(45.dp)
+                        modifier = Modifier.size(40.dp)
                 )
             } else {
                 Icon(

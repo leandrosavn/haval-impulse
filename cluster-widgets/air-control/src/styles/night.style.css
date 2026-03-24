@@ -110,11 +110,11 @@
   --mask-bg-color: var(--bg-mask-80);
   --mask-border-color: var(--primary-blue);
   --mask-shadow: 0 0 60px var(--bg-black-100);
-  
+
   --dial-inner-bg: radial-gradient(circle, var(--bg-black-80) 0%, var(--bg-black-60) 80%, var(--dial-gradient-blue) 100%);
   --dial-inner-border: var(--dial-border);
   --dial-shadow: 0 0 50px 10px var(--dial-shadow-color);
-  
+
   --menu-bg-gradient: radial-gradient(circle at center, var(--menu-bg) 0%, var(--color-transparent) 80%);
   --dashboard-text-color: var(--text-main);
 
@@ -126,7 +126,7 @@
 
   /* --- 9. MASK BACKGROUNDS --- */
   --mask-top-bar-bg: var(--bg-mask-80);
-  --mask-bottom-bar-bg: var(--bg-mask-100);
+  --mask-bottom-bar-bg: var(--bg-black-100);
   --mask-circle-bg: var(--bg-black-100);
 }
 
@@ -2093,19 +2093,19 @@ canvas.graph-chart {
  **************************************/
 
 :root {
-    --mask-radius: 228px;
-    --mask-center-y: 430px;
-    --mask-left-x: 290px;
-    --mask-right-x: 1630px;
-    --mask-bg-color: var(--mask-bg-color);
-    --mask-border-color: var(--primary-blue);
-    --mask-shadow: var(--mask-shadow);
+  --mask-radius: 228px;
+  --mask-center-y: 430px;
+  --mask-left-x: 290px;
+  --mask-right-x: 1630px;
+  --mask-bg-color: var(--mask-bg-color);
+  --mask-border-color: var(--primary-blue);
+  --mask-shadow: var(--mask-shadow);
 
-    /* Display Mode Variables */
---display-scale: 1;
---display-left-offset: 0px;
---display-right-offset: 0px;
---display-opacity: 1;
+  /* Display Mode Variables */
+  --display-scale: 1;
+  --display-left-offset: 0px;
+  --display-right-offset: 0px;
+  --display-opacity: 1;
 }
 
 /* Reduzido Mode */
@@ -2230,6 +2230,10 @@ canvas.graph-chart {
   transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1), width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.card-is-0 .no-app-mask-v {
+  width: 2200px;
+}
+
 .no-app-mask-h {
   position: fixed;
   top: 0;
@@ -2246,6 +2250,10 @@ canvas.graph-chart {
       var(--mask-circle-bg) 95%,
       var(--mask-circle-bg) 100%);
   transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1), width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-is-0 .no-app-mask-h {
+  width: 1344px;
 }
 
 .partial-app-mask {
