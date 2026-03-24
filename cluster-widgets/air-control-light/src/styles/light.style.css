@@ -110,11 +110,11 @@
   --mask-bg-color: var(--bg-mask-80);
   --mask-border-color: var(--primary-blue);
   --mask-shadow: 0 0 60px var(--bg-black-100);
-  
+
   --dial-inner-bg: radial-gradient(circle, var(--bg-white-80) 0%, var(--bg-white-60) 80%, var(--dial-gradient-blue) 100%);
   --dial-inner-border: var(--dial-border);
   --dial-shadow: 0 0 50px 10px var(--dial-shadow-color);
-  
+
   --menu-bg-gradient: radial-gradient(circle at center, var(--menu-bg) 0%, var(--color-transparent) 80%);
   --dashboard-text-color: var(--text-main);
 
@@ -125,8 +125,8 @@
   --display-opacity: 1;
 
   /* --- 9. MASK BACKGROUNDS --- */
-  --mask-top-bar-bg: var(--bg-mask-80);
-  --mask-bottom-bar-bg: var(--bg-mask-80);
+  --mask-top-bar-bg: var(--bg-white-80);
+  --mask-bottom-bar-bg: var(--bg-white);
   --mask-circle-bg: var(--bg-black-100);
 }
 
@@ -2093,19 +2093,19 @@ canvas.graph-chart {
  **************************************/
 
 :root {
-    --mask-radius: 228px;
-    --mask-center-y: 430px;
-    --mask-left-x: 290px;
-    --mask-right-x: 1630px;
-    --mask-bg-color: var(--mask-bg-color);
-    --mask-border-color: var(--primary-blue);
-    --mask-shadow: var(--mask-shadow);
+  --mask-radius: 228px;
+  --mask-center-y: 430px;
+  --mask-left-x: 290px;
+  --mask-right-x: 1630px;
+  --mask-bg-color: var(--mask-bg-color);
+  --mask-border-color: var(--primary-blue);
+  --mask-shadow: var(--mask-shadow);
 
-    /* Display Mode Variables */
---display-scale: 1;
---display-left-offset: 0px;
---display-right-offset: 0px;
---display-opacity: 1;
+  /* Display Mode Variables */
+  --display-scale: 1;
+  --display-left-offset: 0px;
+  --display-right-offset: 0px;
+  --display-opacity: 1;
 }
 
 /* Reduzido Mode */

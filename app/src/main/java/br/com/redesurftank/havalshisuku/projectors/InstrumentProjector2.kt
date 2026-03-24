@@ -1,5 +1,5 @@
 package br.com.redesurftank.havalshisuku.projectors
-
+ 
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
@@ -26,6 +26,7 @@ import br.com.redesurftank.havalshisuku.models.screens.GraphicsScreen
 import br.com.redesurftank.havalshisuku.models.screens.MainMenu
 import br.com.redesurftank.havalshisuku.models.screens.RegenScreen
 import br.com.redesurftank.havalshisuku.models.screens.Screen
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -33,7 +34,7 @@ import kotlin.collections.get
 import kotlin.math.roundToInt
 import kotlinx.coroutines.*
 
-class InstrumentProjector2(outerContext: Context, display: Display) :
+class InstrumentProjector2(private val outerContext: Context, display: Display) :
         BaseProjector(outerContext, display) {
 
     private val TAG = "InstrumentProjector2"
@@ -79,8 +80,8 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                             key == SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key) {
                             Log.d(TAG, "Theme changed, reloading WebView")
                             webView?.loadDataWithBaseURL(
-                                    "file:///android_asset/",
-                                    readAppContent(context),
+                                    getThemeBaseUrl(),
+                                    readAppContent(outerContext),
                                     "text/html",
                                     "UTF-8",
                                     null
@@ -330,7 +331,7 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                             // Auto-launch default app if configured
                             val defaultPackage = preferences.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "") ?: ""
                             if (defaultPackage.isNotEmpty()) {
-                                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs().find { (it as br.com.redesurftank.havalshisuku.models.DisplayAppConfig).packageName == defaultPackage }?.let { config: br.com.redesurftank.havalshisuku.models.DisplayAppConfig ->
+                                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs().find { it.packageName == defaultPackage }?.let { config ->
                                     Log.d(TAG, "Auto-launching default app: $defaultPackage")
                                     scope.launch {
                                         br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.launchApp(config)
@@ -350,7 +351,7 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
                         }
                     }
                 }
-                loadDataWithBaseURL("file:///android_asset/", readAppContent(context), "text/html", "UTF-8", null)
+                loadDataWithBaseURL(getThemeBaseUrl(), readAppContent(outerContext), "text/html", "UTF-8", null)
             }
             parent.addView(webView)
         }
@@ -518,16 +519,29 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
         }
     }
 
+    private fun getThemeBaseUrl(): String {
+        val customThemeName = preferences.getString(SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key, "") ?: ""
+        if (customThemeName.isNotEmpty()) {
+            val themeDir = File(File(outerContext.filesDir, "themes"), customThemeName)
+            if (themeDir.exists()) {
+                return "file://${themeDir.absolutePath}/"
+            }
+        }
+        return "file:///android_asset/"
+    }
+
     private fun readAppContent(context: Context): String {
         val customThemeName =
                 preferences.getString(SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key, "") ?: ""
         if (customThemeName.isNotEmpty()) {
             try {
-                val themeFile =
-                        br.com.redesurftank.havalshisuku.managers.ThemeManager.getInstance(context)
-                                .getThemeFile(customThemeName, "index.html")
+                val themeManager = br.com.redesurftank.havalshisuku.managers.ThemeManager.getInstance(outerContext)
+                val metadata = themeManager.getThemeMetadata(customThemeName)
+                val mainFile = metadata?.mainFile ?: "index.html"
+                
+                val themeFile = themeManager.getThemeFile(customThemeName, mainFile)
                 if (themeFile != null && themeFile.exists()) {
-                    Log.d(TAG, "Loading custom HTML from: ${themeFile.absolutePath}")
+                    Log.d(TAG, "Loading custom HTML from: ${themeFile.absolutePath} (mainFile: $mainFile)")
                     return themeFile.readText()
                 }
             } catch (e: Exception) {

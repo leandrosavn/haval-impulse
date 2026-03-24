@@ -74,6 +74,15 @@ class ThemeManager private constructor(val context: Context) {
         return results
     }
 
+    fun getThemeMetadata(folderName: String): ThemeMetadata? {
+        val dir = File(themesDir, folderName)
+        if (!dir.exists()) return null
+        val xmlFile = File(dir, "theme.xml")
+        return if (xmlFile.exists()) {
+            parseThemeXml(xmlFile.inputStream(), folderName, true)
+        } else null
+    }
+
     private fun parseThemeXml(inputStream: InputStream, folderName: String, isLocal: Boolean): ThemeMetadata? {
         try {
             val parser = Xml.newPullParser()
@@ -290,6 +299,20 @@ class ThemeManager private constructor(val context: Context) {
         return if (file.exists()) file else null
     }
     
+    fun isNewerVersion(current: String, remote: String): Boolean {
+        if (current == remote) return false
+        val currentParts = current.split(".").mapNotNull { it.toIntOrNull() }
+        val remoteParts = remote.split(".").mapNotNull { it.toIntOrNull() }
+        
+        for (i in 0 until maxOf(currentParts.size, remoteParts.size)) {
+            val c = currentParts.getOrElse(i) { 0 }
+            val r = remoteParts.getOrElse(i) { 0 }
+            if (r > c) return true
+            if (c > r) return false
+        }
+        return false
+    }
+
     fun deleteTheme(folderName: String): Boolean {
         val dir = File(themesDir, folderName)
         return if (dir.exists()) dir.deleteRecursively() else false
