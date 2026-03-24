@@ -219,14 +219,17 @@ fun AppSwitcherSection() {
     val showMenu = br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded
 
     Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = { 
-            configs.find { it.packageName == selectedPackage }?.let { scope.launch { br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.sendToDisplay(it) } }
-        }) {
+        IconButton(
+            onClick = { 
+                configs.find { it.packageName == selectedPackage }?.let { scope.launch { br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.sendToDisplay(it) } }
+            },
+            modifier = Modifier.width(70.dp).fillMaxHeight()
+        ) {
             Icon(Icons.Default.KeyboardArrowLeft, contentDescription = "Cluster", tint = Color.White)
         }
         Box(
             modifier = Modifier
-                .size(44.dp)
+                .size(55.dp)
                 .background(Color.Black, RoundedCornerShape(4.dp))
                 .clickable { br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded = !showMenu },
             contentAlignment = Alignment.Center
@@ -237,18 +240,21 @@ fun AppSwitcherSection() {
                         .data(try { context.packageManager.getApplicationIcon(selectedPackage) } catch(e: Exception) { null })
                         .build(),
                     contentDescription = "App Icon",
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(50.dp)
                 )
             } else {
-                Icon(Icons.Default.Layers, contentDescription = "Apps", tint = Color.White)
+                Icon(Icons.Default.Layers, contentDescription = "Apps", tint = Color.White, modifier = Modifier.size(32.dp))
             }
         }
 
-        IconButton(onClick = { 
-            if (selectedPackage.isNotEmpty()) {
-                scope.launch { br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.launchAnyApp(context, selectedPackage) }
-            }
-        }) {
+        IconButton(
+            onClick = { 
+                if (selectedPackage.isNotEmpty()) {
+                    scope.launch { br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.launchAnyApp(context, selectedPackage) }
+                }
+            },
+            modifier = Modifier.width(70.dp).fillMaxHeight()
+        ) {
             Icon(Icons.Default.KeyboardArrowRight, contentDescription = "MMI", tint = Color.White)
         }
     }
@@ -597,11 +603,11 @@ fun NavigationSection(scope: kotlinx.coroutines.CoroutineScope) {
                 ShizukuUtils.runCommandAndGetOutput(arrayOf("input", "keyevent", "3")) 
             }
         }
-        NavIcon(Icons.Default.Layers) { 
-            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                ShizukuUtils.runCommandAndGetOutput(arrayOf("input", "keyevent", "187")) 
-            }
-        }
+//        NavIcon(Icons.Default.Layers) {
+//            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+//                ShizukuUtils.runCommandAndGetOutput(arrayOf("input", "keyevent", "187"))
+//            }
+//        }
     }
 }
 

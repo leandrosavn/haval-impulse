@@ -87,7 +87,7 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
         }
 
     private fun shouldShowProjector(): Boolean {
-        if (br.com.redesurftank.havalshisuku.services.ForegroundService.sIsLocalTestMode) {
+        if (br.com.redesurftank.havalshisuku.services.ForegroundService.isLocalTestMode()) {
             return true
         }
         return preferences.getBoolean(
@@ -429,7 +429,7 @@ class InstrumentProjector2(outerContext: Context, display: Display) :
         val customThemeName = preferences.getString(SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key, "") ?: ""
         if (customThemeName.isNotEmpty()) {
             try {
-                val themeFile = br.com.redesurftank.havalshisuku.managers.ThemeManager.getInstance(context).getThemeFile(customThemeName)
+                val themeFile = br.com.redesurftank.havalshisuku.managers.ThemeManager.getInstance(context).getThemeFile(customThemeName, "index.html")
                 if (themeFile != null && themeFile.exists()) {
                     Log.d(TAG, "Loading custom HTML from: ${themeFile.absolutePath}")
                     return themeFile.readText()
