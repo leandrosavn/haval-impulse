@@ -40,14 +40,17 @@ class BottomBarService : LifecycleService() {
     private var monitoringJob: Job? = null
     private var lastPackage: String? = null
 
+    data class BarSettings(val overscan: Int, val yOffset: Int)
+
     // Hardcoded overrides for density-aware apps that auto-scale overscan
     // These values are in DP and will be scaled by density
-    private val OVERSCAN_OVERRIDES =
+    private val APP_OVERRIDES =
             mapOf(
-                    "com.google.android.youtube" to 0,
-                    "com.google.android.apps.maps" to 30,
-                    "com.google.android.apps.youtube.music" to 0,
-                    "com.google.android.apps.messaging" to 60
+                    "com.google.android.youtube" to BarSettings(0, 0),
+                    "com.google.android.apps.maps" to BarSettings(0, 30),
+                    "com.google.android.apps.youtube.music" to BarSettings(0, 0),
+                    "com.google.android.apps.messaging" to BarSettings(60, 0),
+                    "deezer.android.app" to BarSettings(30, -90),
             )
 
     private val BOTTOM_BAR_BASE_HEIGHT_DP = 60f
@@ -62,6 +65,8 @@ class BottomBarService : LifecycleService() {
         observeVisibility()
         startDynamicOverscanMonitoring()
     }
+
+    private var currentAppSettings: BarSettings? = null
 
     private fun startDynamicOverscanMonitoring() {
         monitoringJob =
@@ -87,11 +92,10 @@ class BottomBarService : LifecycleService() {
                                                         .key,
                                                 60
                                         )
-                                val defaultOverscan = (storedDefault * density).toInt()
 
-                                val overscanToApply =
-                                        getOverscanForPackage(currentPackage, defaultOverscan)
-                                applyOverscan(overscanToApply)
+                                val settings = getSettingsForPackage(currentPackage, storedDefault)
+                                currentAppSettings = settings
+                                applyAppSettings(settings)
                             }
                         } catch (e: Exception) {
                             Log.e("BottomBarService", "Error in monitoring loop", e)
@@ -114,16 +118,12 @@ class BottomBarService : LifecycleService() {
         return match?.groupValues?.get(1)
     }
 
-    private fun getOverscanForPackage(packageName: String, defaultOverscan: Int): Int {
-        val density = this.resources.displayMetrics.density
-        // Return raw pixels for whitelisted apps (since user request is based on raw 0/60 values),
-        // otherwise return the density-scaled default.
-        // Note: wm overscan expects pixels.
-        val overrideRaw = OVERSCAN_OVERRIDES[packageName]
-        return overrideRaw ?: defaultOverscan
+    private fun getSettingsForPackage(packageName: String, defaultOverscan: Int): BarSettings {
+        // Return override if exists, otherwise return default settings with yOffset = 0
+        return APP_OVERRIDES[packageName] ?: BarSettings(overscan = defaultOverscan, yOffset = 0)
     }
 
-    private fun applyOverscan(value: Int) {
+    private fun applyAppSettings(settings: BarSettings) {
         val wm = mWindowManager ?: return
         val cv = composeView ?: return
         val lp = params ?: return
@@ -132,23 +132,29 @@ class BottomBarService : LifecycleService() {
         if (!BottomBarState.isVisible) {
             Log.d(
                     "BottomBarService",
-                    "Bottom bar hidden, ignoring dynamic overscan request: $value"
+                    "Bottom bar hidden, ignoring dynamic overscan request: ${settings.overscan}"
             )
             ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,0"))
             return
         }
-        Log.d("BottomBarService", "Applying dynamic overscan: $value for app: $lastPackage")
-        ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,$value"))
 
-        // Dynamic y logic: if current override is 0 (unscaled), shift UP from starting point.
-        // If FLAG_LAYOUT_NO_LIMITS coordinate system follows logical bottom,
-        // y = -value (pixels) will keep it at the physical bottom edge.
-        lp.y = -value
+        val overscanValueRaw = settings.overscan
+        val overscanValuePx = (overscanValueRaw * density).toInt()
+        val yOffsetPx = (settings.yOffset * density).toInt()
+
+        Log.d(
+                "BottomBarService",
+                "Applying app settings: overscan=$overscanValueRaw, yOffset=${settings.yOffset} for app: $lastPackage"
+        )
+        ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,$overscanValuePx"))
+
+        // Apply custom yOffset relative to the logical bottom (where y=0 is the edge)
+        lp.y = yOffsetPx
 
         try {
             wm.updateViewLayout(cv, lp)
         } catch (e: Exception) {
-            Log.e("BottomBarService", "Error updating window layout during overscan change", e)
+            Log.e("BottomBarService", "Error updating window layout during app settings change", e)
         }
     }
 
@@ -168,19 +174,23 @@ class BottomBarService : LifecycleService() {
         val density = resources.displayMetrics.density
 
         if (visible) {
-            val prefs =
-                    br.com.redesurftank.App.getDeviceProtectedContext()
-                            .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
-            val storedDefault =
-                    prefs.getInt(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR_OVERSCAN.key, 60)
-            val overscanValue = (storedDefault * density).toInt()
+            val settings = currentAppSettings ?: run {
+                val prefs = br.com.redesurftank.App.getDeviceProtectedContext()
+                    .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
+                val storedDefault = prefs.getInt(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR_OVERSCAN.key, 60)
+                BarSettings(overscan = storedDefault, yOffset = 0)
+            }
+            
+            val overscanValuePx = (settings.overscan * density).toInt()
+            val yOffsetPx = (settings.yOffset * density).toInt()
+
             lp.height = (BOTTOM_BAR_BASE_HEIGHT_DP * density).toInt()
-            // Keep bar at physical bottom regardless of overscan by setting y = -overscanValue
-            lp.y = -overscanValue
-            ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,$overscanValue"))
+            lp.y = yOffsetPx
+            
+            ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,$overscanValuePx"))
         } else {
             lp.height = (20 * density).toInt()
-            lp.y = 0
+            lp.y = -60
             ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,0"))
         }
 
@@ -291,20 +301,24 @@ class BottomBarService : LifecycleService() {
         if (android.provider.Settings.canDrawOverlays(this)) {
             try {
                 mWindowManager?.addView(composeView, params)
-                val prefs =
-                        br.com.redesurftank.App.getDeviceProtectedContext()
-                                .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
-                val storedDefault =
-                        prefs.getInt(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR_OVERSCAN.key, 60)
-                val overscanValue = (storedDefault * density).toInt()
+                val settings = currentAppSettings ?: run {
+                    val prefs = br.com.redesurftank.App.getDeviceProtectedContext()
+                        .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
+                    val storedDefault = prefs.getInt(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR_OVERSCAN.key, 60)
+                    BarSettings(overscan = storedDefault, yOffset = 0)
+                }
+                
+                val overscanValuePx = (settings.overscan * density).toInt()
+                val yOffsetPx = (settings.yOffset * density).toInt()
+
                 val lp = params
                 if (lp != null) {
-                    lp.y = -overscanValue
+                    lp.y = yOffsetPx
                 }
 
                 ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "size", "reset"))
                 ShizukuUtils.runCommandAndGetOutput(
-                        arrayOf("wm", "overscan", "0,0,0,$overscanValue")
+                        arrayOf("wm", "overscan", "0,0,0,$overscanValuePx")
                 )
             } catch (e: Exception) {
                 Log.e("BottomBarService", "Error adding views", e)
