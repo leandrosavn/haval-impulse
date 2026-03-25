@@ -53,11 +53,11 @@ export const graphList = [
                 smoothFactor: 100, // Join data close by 100ms
                 unity: 'kWatts',
                 yAxisID: 'y',
-                lineColor: '--text-main',
+                lineColor: '--blue-600',
                 lineColorLight: '--blue-600',
-                positiveColor: '--text-main',
-                positiveColorLight: '--blue-600',
-                negativeColor: '--color-green',
+                positiveColor: '--color-ac-dark-blue',
+                positiveColorLight: '--color-ac-dark-blue',
+                negativeColor: '--color-emerald',
                 negativeColorLight: '--color-emerald'
             },
             {
@@ -68,8 +68,8 @@ export const graphList = [
                 smooth: true,
                 unity: 'kWavg',
                 yAxisID: 'y1',
-                lineColor: '--color-light-cyan',
-                lineColorLight: '#0369a1' // Deep Sky Blue (readable on white)
+                lineColor: '--text-cold-gray',
+                lineColorLight: '--text-cold-gray' // Deep Sky Blue (readable on white)
             }
         ]
     },
@@ -120,8 +120,8 @@ export const graphList = [
                 unity: 'KWh/100km',
                 yAxisID: 'y2',
                 followAxis: 'y',
-                lineColor: '--color-light-cyan',
-                lineColorLight: '#0369a1', // Deep Sky Blue for white background contrast
+                lineColor: '--color-blue-400',
+                lineColorLight: '--color-blue-400', // Deep Sky Blue for white background contrast
                 valueFilter: 'positive'
             }
         ]
@@ -755,14 +755,14 @@ export function createGraphScreen() {
                     const isNight = true;
                     let dsColor = getChartColor(primaryDS, 'lineColor', isNight) || '#ffffff';
                     let txtColor = getChartColor(primaryDS, 'tooltipColor', isNight) || dsColor;
-                    
-                    if ((primaryDS.positiveColor || primaryDS.positiveColorLight) && activeVal >= 0) { 
+
+                    if ((primaryDS.positiveColor || primaryDS.positiveColorLight) && activeVal >= 0) {
                         dsColor = getChartColor(primaryDS, 'positiveColor', isNight) || dsColor;
-                        txtColor = getChartColor(primaryDS, 'tooltipColor', isNight) || dsColor; 
+                        txtColor = getChartColor(primaryDS, 'tooltipColor', isNight) || dsColor;
                     }
-                    else if ((primaryDS.negativeColor || primaryDS.negativeColorLight) && activeVal < 0) { 
+                    else if ((primaryDS.negativeColor || primaryDS.negativeColorLight) && activeVal < 0) {
                         dsColor = getChartColor(primaryDS, 'negativeColor', isNight) || dsColor;
-                        txtColor = getChartColor(primaryDS, 'tooltipColor', isNight) || dsColor; 
+                        txtColor = getChartColor(primaryDS, 'tooltipColor', isNight) || dsColor;
                     }
 
                     dynamicTooltip.style.display = 'flex';
@@ -784,14 +784,14 @@ export function createGraphScreen() {
                     const isNight = true;
                     let dsColor = getChartColor(secondaryDS, 'lineColor', isNight) || '#ffffff';
                     let txtColor = getChartColor(secondaryDS, 'tooltipColor', isNight) || dsColor;
-                    
-                    if ((secondaryDS.positiveColor || secondaryDS.positiveColorLight) && val >= 0) { 
+
+                    if ((secondaryDS.positiveColor || secondaryDS.positiveColorLight) && val >= 0) {
                         dsColor = getChartColor(secondaryDS, 'positiveColor', isNight) || dsColor;
-                        txtColor = getChartColor(secondaryDS, 'tooltipColor', isNight) || dsColor; 
+                        txtColor = getChartColor(secondaryDS, 'tooltipColor', isNight) || dsColor;
                     }
-                    else if ((secondaryDS.negativeColor || secondaryDS.negativeColorLight) && val < 0) { 
+                    else if ((secondaryDS.negativeColor || secondaryDS.negativeColorLight) && val < 0) {
                         dsColor = getChartColor(secondaryDS, 'negativeColor', isNight) || dsColor;
-                        txtColor = getChartColor(secondaryDS, 'tooltipColor', isNight) || dsColor; 
+                        txtColor = getChartColor(secondaryDS, 'tooltipColor', isNight) || dsColor;
                     }
 
                     secondaryTooltip.style.display = 'flex';
