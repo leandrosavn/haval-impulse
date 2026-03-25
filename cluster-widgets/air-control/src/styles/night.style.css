@@ -2260,13 +2260,16 @@ canvas.graph-chart {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100vw;
-  height: 100vh;
+  width: 1920px;
+  height: 720px;
   pointer-events: none;
   z-index: 10;
   /* Behind UI, but obscures background app */
-  background: 
-    linear-gradient(to bottom, transparent 0%, transparent 80%, black 100%),
+  /* Soft fade transition at 70% */
+  mask-image: linear-gradient(to right, transparent 60%, black 70%);
+  -webkit-mask-image: linear-gradient(to right, transparent 60%, black 70%);
+
+  background:
     radial-gradient(circle at calc(var(--mask-right-x) + var(--display-right-offset)) var(--mask-center-y),
       transparent calc(var(--mask-radius) * var(--display-scale)),
       var(--bg-black-60) calc(var(--mask-radius) * var(--display-scale) + 30px),
