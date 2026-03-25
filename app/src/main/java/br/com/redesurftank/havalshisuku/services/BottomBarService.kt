@@ -47,10 +47,10 @@ class BottomBarService : LifecycleService() {
     private val APP_OVERRIDES =
             mapOf(
                     "com.google.android.youtube" to BarSettings(0, 0),
-                    "com.google.android.apps.maps" to BarSettings(0, 30),
+                    "com.google.android.apps.maps" to BarSettings(0, 60),
                     "com.google.android.apps.youtube.music" to BarSettings(0, 0),
                     "com.google.android.apps.messaging" to BarSettings(60, 0),
-                    "deezer.android.app" to BarSettings(30, -90),
+                    "deezer.android.app" to BarSettings(60, 0),
             )
 
     private val BOTTOM_BAR_BASE_HEIGHT_DP = 60f
@@ -262,6 +262,8 @@ class BottomBarService : LifecycleService() {
                                 layoutType,
                                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                                         WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                                        WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR or
                                         WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                                 PixelFormat.TRANSLUCENT
                         )
@@ -285,6 +287,8 @@ class BottomBarService : LifecycleService() {
                                 menuHeight,
                                 layoutType,
                                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                                        WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR or
                                         WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                                 PixelFormat.TRANSLUCENT
                         )
