@@ -2227,11 +2227,11 @@ canvas.graph-chart {
       transparent 60%,
       var(--mask-circle-bg) 72%,
       var(--mask-circle-bg) 100%);
+  background-size: 1920px 720px;
+  background-repeat: no-repeat;
+  mask-image: linear-gradient(to right, black calc(100% - 20px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 20px), transparent 100%);
   transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1), width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.card-is-0 .no-app-mask-v {
-  width: 3000px;
 }
 
 .no-app-mask-h {
@@ -2249,9 +2249,14 @@ canvas.graph-chart {
       transparent 85%,
       var(--mask-circle-bg) 95%,
       var(--mask-circle-bg) 100%);
+  background-size: 1920px 720px;
+  background-repeat: no-repeat;
+  mask-image: linear-gradient(to right, black calc(100% - 20px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 20px), transparent 100%);
   transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1), width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.card-is-0 .no-app-mask-v,
 .card-is-0 .no-app-mask-h {
   width: 1344px;
 }
@@ -2333,6 +2338,7 @@ canvas.graph-chart {
 .mask-circle.right {
   left: calc(var(--mask-right-x) - var(--mask-radius) + var(--display-right-offset));
   transform: scale(var(--display-scale));
+  background: radial-gradient(circle at center, transparent 0%, var(--mask-circle-bg) 70%, var(--mask-circle-bg) 80%, var(--mask-circle-bg) 100%);
 }
 
 .mask-circle-border {
