@@ -109,7 +109,7 @@
   --mask-right-x: 1630px;
   --mask-bg-color: var(--bg-mask-80);
   --mask-border-color: var(--primary-blue);
-  --mask-shadow: 0 0 60px var(--bg-black-100);
+  --mask-shadow: 0 0 60px var(--bg-white-100);
 
   --dial-inner-bg: radial-gradient(circle, var(--bg-white-80) 0%, var(--bg-white-60) 80%, var(--dial-gradient-blue) 100%);
   --dial-inner-border: var(--dial-border);
@@ -125,9 +125,9 @@
   --display-opacity: 1;
 
   /* --- 9. MASK BACKGROUNDS --- */
-  --mask-top-bar-bg: var(--bg-white-80);
-  --mask-bottom-bar-bg: var(--bg-white);
-  --mask-circle-bg: var(--bg-black-100);
+  --mask-top-bar-bg: var(--color-white-80);
+  --mask-bottom-bar-bg: var(--bg-dark);
+  --mask-circle-bg: var(--bg-dark);
 }
 
 
@@ -475,20 +475,17 @@ button {
 
 /* Glow Effect */
 .glow-effect {
-  box-shadow:
-    0 0 20px var(--glow-blue-60),
+  box-shadow: 0 0 20px var(--glow-blue-60),
     0 0 40px var(--glow-blue-40),
     0 0 60px var(--glow-blue-20),
     0 10px 15px -3px var(--shadow-black-10),
     0 4px 6px -2px var(--shadow-black-5);
-  -webkit-box-shadow:
-    0 0 20px var(--glow-blue-60),
+  -webkit-box-shadow: 0 0 20px var(--glow-blue-60),
     0 0 40px var(--glow-blue-40),
     0 0 60px var(--glow-blue-20),
     0 10px 15px -3px var(--shadow-black-10),
     0 4px 6px -2px var(--shadow-black-5);
-  -moz-box-shadow:
-    0 0 20px var(--glow-blue-60),
+  -moz-box-shadow: 0 0 20px var(--glow-blue-60),
     0 0 40px var(--glow-blue-40),
     0 0 60px var(--glow-blue-20),
     0 10px 15px -3px var(--shadow-black-10),
@@ -962,8 +959,7 @@ button {
   border: 2px solid transparent;
   border-radius: 30px;
   text-shadow: 0 0 10px var(--color-white-20);
-  transition:
-    transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+  transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
     opacity 0.4s ease,
     background-color 0.3s ease,
     border-color 0.3s ease;
@@ -1133,8 +1129,7 @@ canvas.regen-chart {
   --segment-2-alpha: clamp(0, var(--regen-segment-active-level) - 1, 1);
   --segment-3-alpha: clamp(0, var(--regen-segment-active-level) - 2, 1);
 
-  background:
-    conic-gradient(from 240deg, rgba(0, 160, 255, var(--segment-3-alpha)) 0 110deg, transparent 110deg),
+  background: conic-gradient(from 240deg, rgba(0, 160, 255, var(--segment-3-alpha)) 0 110deg, transparent 110deg),
     conic-gradient(from 120deg, rgba(0, 140, 255, var(--segment-2-alpha)) 0 110deg, transparent 110deg),
     conic-gradient(from 0deg, rgba(0, 120, 255, var(--segment-1-alpha)) 0 110deg, transparent 110deg);
   -webkit-mask: radial-gradient(transparent 0,
@@ -1311,9 +1306,9 @@ canvas.regen-chart {
   justify-content: center;
   gap: 4px;
   padding: 1px 1px;
-  background-color: var(--bg-black-70);
+  background-color: var(--bg-white-70);
   border-radius: 12px;
-  box-shadow: 0 4px 4px var(--bg-black-50);
+  box-shadow: 0 4px 4px var(--bg-white-50);
   transform-origin: center;
   transition: transform 1s cubic-bezier(0.2, 1, 0.3, 1), opacity 0.5s ease, color 0.3s ease;
   font-family: 'Khand', sans-serif;
@@ -1756,8 +1751,7 @@ canvas.graph-chart {
   background-color: transparent;
   transform: translate(-50%, -50%) scale(0.8) translateY(calc(var(--item-gap) * 3));
   opacity: 0;
-  transition:
-    transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+  transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
     opacity 0.4s ease,
     background-color 0.3s ease;
 }
