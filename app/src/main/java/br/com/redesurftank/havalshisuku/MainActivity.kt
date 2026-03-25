@@ -2588,7 +2588,7 @@ fun TelasTab() {
                                                             .let {
                                                                 pm.getApplicationLabel(it)
                                                                         .toString()
-                                                            }
+                                                                }
                                                 } catch (_: Exception) {
                                                     config.packageName
                                                 }
@@ -2613,302 +2613,331 @@ fun TelasTab() {
                             }
                         }
                     }
-                }
-            }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = Color(0xFF3A3F47), thickness = 1.dp)
 
-        // GITHUB THEMES SECTION
-        Column(modifier = Modifier.padding(horizontal = 8.dp)) {
-            Row(
-                    modifier =
-                            Modifier.fillMaxWidth().clickable {
-                                isThemesExpanded = !isThemesExpanded
-                            },
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                            "Temas Disponíveis",
-                            color = Color.White,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                            "Personalize seu cluster com novos visuais",
-                            color = Color(0xFFB0B8C4),
-                            fontSize = 14.sp
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(
-                            onClick = {
-                                isFetchingThemes = true
-                                scope.launch {
-                                    try {
-                                        githubThemes =
-                                                ThemeManager.getInstance(context)
-                                                        .fetchThemesFromGithub(
-                                                                ThemeManager.THEME_REPO_URL
-                                                        )
-                                    } catch (e: Exception) {
-                                        Log.e("TelasTab", "Error refreshing themes", e)
-                                    } finally {
-                                        isFetchingThemes = false
-                                    }
-                                }
+                    // GITHUB THEMES SECTION
+                    Column {
+                        Row(
+                                modifier =
+                                        Modifier.fillMaxWidth().clickable {
+                                            isThemesExpanded = !isThemesExpanded
+                                        },
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                        "Temas Disponíveis",
+                                        color = Color.White,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                        "Personalize seu cluster com novos visuais",
+                                        color = Color(0xFFB0B8C4),
+                                        fontSize = 14.sp
+                                )
                             }
-                    ) {
-                        Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Atualizar",
-                                tint = if (isFetchingThemes) AppColors.Primary else Color.White
-                        )
-                    }
-                    IconButton(onClick = { isThemesExpanded = !isThemesExpanded }) {
-                        Icon(
-                                imageVector =
-                                        if (isThemesExpanded) Icons.Default.ExpandLess
-                                        else Icons.Default.ExpandMore,
-                                contentDescription = "Expandir/Recolher",
-                                tint = Color.White
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (isFetchingThemes && githubThemes.isEmpty()) {
-                Box(
-                        modifier = Modifier.fillMaxWidth().padding(32.dp),
-                        contentAlignment = Alignment.Center
-                ) { CircularProgressIndicator(color = AppColors.Primary) }
-            } else if (githubThemes.isEmpty()) {
-                Text(
-                        "Nenhum tema encontrado ou erro ao carregar.",
-                        color = Color(0xFF636D77),
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(vertical = 16.dp)
-                )
-            } else {
-                val basicoTheme = remember {
-                    ThemeMetadata(
-                            name = "Básico",
-                            description = "Tema padrão do Impulse",
-                            version = "1.0.0",
-                            thumbnailUrl = "",
-                            isLocal = true,
-                            isDownloaded = true
-                    )
-                }
-
-                val allDisplayThemes =
-                        remember(githubThemes, localThemes) {
-                            val list = mutableListOf(basicoTheme)
-
-                            // Add GitHub themes, marking them as downloaded if they are in
-                            // localThemes
-                            githubThemes.forEach { github ->
-                                if (github.name != "Básico") {
-                                    val local = localThemes.find { it.name == github.name }
-                                    val isInstalled = local != null
-                                    val hasUpdate =
-                                            if (local != null) {
-                                                ThemeManager.getInstance(context)
-                                                        .isNewerVersion(
-                                                                local.version,
-                                                                github.version
-                                                        )
-                                            } else false
-
-                                    list.add(
-                                            github.copy(
-                                                    isDownloaded = isInstalled,
-                                                    // We can use the description or a custom field
-                                                    // if we had one,
-                                                    // but for now we'll just track hasUpdate in the
-                                                    // list rendering
-                                                    )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                        onClick = {
+                                            isFetchingThemes = true
+                                            scope.launch {
+                                                try {
+                                                    githubThemes =
+                                                            ThemeManager.getInstance(context)
+                                                                    .fetchThemesFromGithub(
+                                                                            ThemeManager
+                                                                                    .THEME_REPO_URL
+                                                                    )
+                                                } catch (e: Exception) {
+                                                    Log.e("TelasTab", "Error refreshing themes", e)
+                                                } finally {
+                                                    isFetchingThemes = false
+                                                }
+                                            }
+                                        }
+                                ) {
+                                    Icon(
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = "Atualizar",
+                                            tint =
+                                                    if (isFetchingThemes) AppColors.Primary
+                                                    else Color.White
+                                    )
+                                }
+                                IconButton(onClick = { isThemesExpanded = !isThemesExpanded }) {
+                                    Icon(
+                                            imageVector =
+                                                    if (isThemesExpanded) Icons.Default.ExpandLess
+                                                    else Icons.Default.ExpandMore,
+                                            contentDescription = "Expandir/Recolher",
+                                            tint = Color.White
                                     )
                                 }
                             }
-
-                            // Sort: Básico first, then installed ones, then the rest
-                            list.sortedWith(
-                                    compareByDescending<ThemeMetadata> { it.name == "Básico" }
-                                            .thenByDescending { it.isDownloaded }
-                                            .thenBy { it.name }
-                            )
                         }
 
-                AnimatedVisibility(
-                        visible = isThemesExpanded,
-                        enter = expandVertically(),
-                        exit = shrinkVertically()
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        allDisplayThemes.forEach { theme ->
-                            val isDownloaded = theme.isDownloaded || theme.name == "Básico"
-                            val isSelected = selectedTheme == theme.name
+                        if (isFetchingThemes && githubThemes.isEmpty()) {
+                            Box(
+                                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                                    contentAlignment = Alignment.Center
+                            ) { CircularProgressIndicator(color = AppColors.Primary) }
+                        } else if (githubThemes.isEmpty()) {
+                            Text(
+                                    "Nenhum tema encontrado ou erro ao carregar.",
+                                    color = Color(0xFF636D77),
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.padding(vertical = 16.dp)
+                            )
+                        } else {
+                            val basicoTheme = remember {
+                                ThemeMetadata(
+                                        name = "Básico",
+                                        description = "Tema padrão do Impulse",
+                                        version = "1.0.0",
+                                        thumbnailUrl = "",
+                                        isLocal = true,
+                                        isDownloaded = true
+                                )
+                            }
 
-                            val local = localThemes.find { it.name == theme.name }
-                            val hasUpdate =
-                                    if (local != null) {
-                                        ThemeManager.getInstance(context)
-                                                .isNewerVersion(local.version, theme.version)
-                                    } else false
+                            val allDisplayThemes =
+                                    remember(githubThemes, localThemes) {
+                                        val list = mutableListOf(basicoTheme)
 
-                            ThemeCard(
-                                    theme = theme,
-                                    isDownloaded = isDownloaded,
-                                    isSelected = isSelected,
-                                    hasUpdate = hasUpdate,
-                                    isDownloading = downloadingThemeName == theme.name,
-                                    onAction = {
-                                        if (isDownloaded) {
-                                            // Apply theme
-                                            selectedTheme = theme.name
-                                            prefs.edit {
-                                                putString(
-                                                        SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME
-                                                                .key,
-                                                        theme.name
-                                                )
-                                                if (theme.name == "Básico") {
-                                                    putString(
-                                                            SharedPreferencesKeys
-                                                                    .ACTIVE_CUSTOM_THEME
-                                                                    .key,
-                                                            ""
-                                                    )
-                                                } else {
-                                                    putString(
-                                                            SharedPreferencesKeys
-                                                                    .ACTIVE_CUSTOM_THEME
-                                                                    .key,
-                                                            theme.folderName
-                                                    )
-                                                }
-                                            }
-                                            Toast.makeText(
-                                                            context,
-                                                            "Tema ${theme.name} aplicado!",
-                                                            Toast.LENGTH_SHORT
-                                                    )
-                                                    .show()
-                                        } else {
-                                            // Download theme
-                                            downloadingThemeName = theme.name
-                                            scope.launch {
-                                                try {
-                                                    val success =
+                                        // Add GitHub themes, marking them as downloaded if they are in
+                                        // localThemes
+                                        githubThemes.forEach { github ->
+                                            if (github.name != "Básico") {
+                                                val local =
+                                                        localThemes.find { it.name == github.name }
+                                                val isInstalled = local != null
+                                                val hasUpdate =
+                                                        if (local != null) {
                                                             ThemeManager.getInstance(context)
-                                                                    .downloadTheme(theme)
-                                                    if (success) {
-                                                        localThemes =
-                                                                ThemeManager.getInstance(context)
-                                                                        .getLocalThemes()
+                                                                    .isNewerVersion(
+                                                                            local.version,
+                                                                            github.version
+                                                                    )
+                                                        } else false
+
+                                                list.add(
+                                                        github.copy(
+                                                                isDownloaded = isInstalled,
+                                                                // We can use the description or a custom
+                                                                // field
+                                                                // if we had one,
+                                                                // but for now we'll just track hasUpdate in
+                                                                // the
+                                                                // list rendering
+                                                                )
+                                                )
+                                            }
+                                        }
+
+                                        // Sort: Básico first, then installed ones, then the rest
+                                        list.sortedWith(
+                                                compareByDescending<ThemeMetadata> {
+                                                            it.name == "Básico"
+                                                        }
+                                                        .thenByDescending { it.isDownloaded }
+                                                        .thenBy { it.name }
+                                        )
+                                    }
+
+                            AnimatedVisibility(
+                                    visible = isThemesExpanded,
+                                    enter = expandVertically(),
+                                    exit = shrinkVertically()
+                            ) {
+                                Column(
+                                        modifier = Modifier.padding(top = 16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    allDisplayThemes.forEach { theme ->
+                                        val isDownloaded =
+                                                theme.isDownloaded || theme.name == "Básico"
+                                        val isSelected = selectedTheme == theme.name
+
+                                        val local = localThemes.find { it.name == theme.name }
+                                        val hasUpdate =
+                                                if (local != null) {
+                                                    ThemeManager.getInstance(context)
+                                                            .isNewerVersion(
+                                                                    local.version,
+                                                                    theme.version
+                                                            )
+                                                } else false
+
+                                        ThemeCard(
+                                                theme = theme,
+                                                isDownloaded = isDownloaded,
+                                                isSelected = isSelected,
+                                                hasUpdate = hasUpdate,
+                                                isDownloading = downloadingThemeName == theme.name,
+                                                onAction = {
+                                                    if (isDownloaded) {
+                                                        // Apply theme
+                                                        selectedTheme = theme.name
+                                                        prefs.edit {
+                                                            putString(
+                                                                    SharedPreferencesKeys
+                                                                            .VIRTUAL_CLUSTER_THEME
+                                                                            .key,
+                                                                    theme.name
+                                                            )
+                                                            if (theme.name == "Básico") {
+                                                                putString(
+                                                                        SharedPreferencesKeys
+                                                                                .ACTIVE_CUSTOM_THEME
+                                                                                .key,
+                                                                        ""
+                                                                )
+                                                            } else {
+                                                                putString(
+                                                                        SharedPreferencesKeys
+                                                                                .ACTIVE_CUSTOM_THEME
+                                                                                .key,
+                                                                        theme.folderName
+                                                                )
+                                                            }
+                                                        }
                                                         Toast.makeText(
                                                                         context,
-                                                                        "Tema ${theme.name} instalado! Clique para aplicar.",
+                                                                        "Tema ${theme.name} aplicado!",
                                                                         Toast.LENGTH_SHORT
                                                                 )
                                                                 .show()
                                                     } else {
-                                                        Toast.makeText(
-                                                                        context,
-                                                                        "Erro ao baixar tema ${theme.name}",
-                                                                        Toast.LENGTH_SHORT
-                                                                )
-                                                                .show()
-                                                    }
-                                                } finally {
-                                                    downloadingThemeName = null
-                                                }
-                                            }
-                                        }
-                                    },
-                                    onUpdate = {
-                                        downloadingThemeName = theme.name
-                                        scope.launch {
-                                            try {
-                                                val success =
-                                                        ThemeManager.getInstance(context)
-                                                                .downloadTheme(theme)
-                                                if (success) {
-                                                    localThemes =
-                                                            ThemeManager.getInstance(context)
-                                                                    .getLocalThemes()
-                                                    Toast.makeText(
-                                                                    context,
-                                                                    "Tema ${theme.name} atualizado!",
-                                                                    Toast.LENGTH_SHORT
-                                                            )
-                                                            .show()
-                                                } else {
-                                                    Toast.makeText(
-                                                                    context,
-                                                                    "Erro ao atualizar tema ${theme.name}",
-                                                                    Toast.LENGTH_SHORT
-                                                            )
-                                                            .show()
-                                                }
-                                            } finally {
-                                                downloadingThemeName = null
-                                            }
-                                        }
-                                    },
-                                    onDelete =
-                                            if (isDownloaded && theme.name != "Básico") {
-                                                {
-                                                    scope.launch {
-                                                        val themeDir =
-                                                                java.io.File(
-                                                                        java.io.File(
-                                                                                context.filesDir,
-                                                                                "themes"
-                                                                        ),
-                                                                        theme.folderName
-                                                                )
-                                                        if (themeDir.exists()) {
-                                                            themeDir.deleteRecursively()
-                                                            if (selectedTheme == theme.name) {
-                                                                selectedTheme = "Básico"
-                                                                prefs.edit {
-                                                                    putString(
-                                                                            SharedPreferencesKeys
-                                                                                    .VIRTUAL_CLUSTER_THEME
-                                                                                    .key,
-                                                                            "Básico"
-                                                                    )
-                                                                    putString(
-                                                                            SharedPreferencesKeys
-                                                                                    .ACTIVE_CUSTOM_THEME
-                                                                                    .key,
-                                                                            ""
-                                                                    )
+                                                        // Download theme
+                                                        downloadingThemeName = theme.name
+                                                        scope.launch {
+                                                            try {
+                                                                val success =
+                                                                        ThemeManager.getInstance(
+                                                                                        context
+                                                                                )
+                                                                                .downloadTheme(theme)
+                                                                if (success) {
+                                                                    localThemes =
+                                                                            ThemeManager
+                                                                                    .getInstance(
+                                                                                            context
+                                                                                    )
+                                                                                    .getLocalThemes()
+                                                                    Toast.makeText(
+                                                                                    context,
+                                                                                    "Tema ${theme.name} instalado! Clique para aplicar.",
+                                                                                    Toast.LENGTH_SHORT
+                                                                            )
+                                                                            .show()
+                                                                } else {
+                                                                    Toast.makeText(
+                                                                                    context,
+                                                                                    "Erro ao baixar tema ${theme.name}",
+                                                                                    Toast.LENGTH_SHORT
+                                                                            )
+                                                                            .show()
                                                                 }
+                                                            } finally {
+                                                                downloadingThemeName = null
                                                             }
-                                                            // Refresh local themes
-                                                            localThemes =
+                                                        }
+                                                    }
+                                                },
+                                                onUpdate = {
+                                                    downloadingThemeName = theme.name
+                                                    scope.launch {
+                                                        try {
+                                                            val success =
                                                                     ThemeManager.getInstance(
                                                                                     context
                                                                             )
-                                                                            .getLocalThemes()
-                                                            Toast.makeText(
-                                                                            context,
-                                                                            "Tema ${theme.name} excluído!",
-                                                                            Toast.LENGTH_SHORT
-                                                                    )
-                                                                    .show()
+                                                                            .downloadTheme(theme)
+                                                            if (success) {
+                                                                localThemes =
+                                                                        ThemeManager.getInstance(
+                                                                                        context
+                                                                                )
+                                                                                .getLocalThemes()
+                                                                Toast.makeText(
+                                                                                context,
+                                                                                "Tema ${theme.name} atualizado!",
+                                                                                Toast.LENGTH_SHORT
+                                                                        )
+                                                                        .show()
+                                                            } else {
+                                                                Toast.makeText(
+                                                                                context,
+                                                                                "Erro ao atualizar tema ${theme.name}",
+                                                                                Toast.LENGTH_SHORT
+                                                                        )
+                                                                        .show()
+                                                            }
+                                                        } finally {
+                                                            downloadingThemeName = null
                                                         }
                                                     }
-                                                }
-                                            } else null
-                            )
+                                                },
+                                                onDelete =
+                                                        if (isDownloaded &&
+                                                                        theme.name != "Básico"
+                                                        ) {
+                                                            {
+                                                                scope.launch {
+                                                                    val themeDir =
+                                                                            java.io.File(
+                                                                                    java.io.File(
+                                                                                            context
+                                                                                                    .filesDir,
+                                                                                            "themes"
+                                                                                    ),
+                                                                                    theme.folderName
+                                                                            )
+                                                                    if (themeDir.exists()) {
+                                                                        themeDir.deleteRecursively()
+                                                                        if (selectedTheme ==
+                                                                                        theme.name
+                                                                        ) {
+                                                                            selectedTheme = "Básico"
+                                                                            prefs.edit {
+                                                                                putString(
+                                                                                        SharedPreferencesKeys
+                                                                                                .VIRTUAL_CLUSTER_THEME
+                                                                                                .key,
+                                                                                        "Básico"
+                                                                                )
+                                                                                putString(
+                                                                                        SharedPreferencesKeys
+                                                                                                .ACTIVE_CUSTOM_THEME
+                                                                                                .key,
+                                                                                        ""
+                                                                                )
+                                                                            }
+                                                                        }
+                                                                        // Refresh local themes
+                                                                        localThemes =
+                                                                                ThemeManager
+                                                                                        .getInstance(
+                                                                                                context
+                                                                                        )
+                                                                                        .getLocalThemes()
+                                                                        Toast.makeText(
+                                                                                        context,
+                                                                                        "Tema ${theme.name} excluído!",
+                                                                                        Toast.LENGTH_SHORT
+                                                                                )
+                                                                                .show()
+                                                                    }
+                                                                }
+                                                            }
+                                                        } else null
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }

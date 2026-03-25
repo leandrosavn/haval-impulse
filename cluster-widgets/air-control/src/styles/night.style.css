@@ -109,7 +109,7 @@
   --mask-right-x: 1630px;
   --mask-bg-color: var(--bg-mask-80);
   --mask-border-color: var(--primary-blue);
-  --mask-shadow: 0 0 60px var(--bg-black-100);
+  --mask-shadow: inset 0 0 60px 10px var(--bg-black-100);
 
   --dial-inner-bg: radial-gradient(circle, var(--bg-black-80) 0%, var(--bg-black-60) 80%, var(--dial-gradient-blue) 100%);
   --dial-inner-border: var(--dial-border);
@@ -2231,7 +2231,7 @@ canvas.graph-chart {
 }
 
 .card-is-0 .no-app-mask-v {
-  width: 2200px;
+  width: 3000px;
 }
 
 .no-app-mask-h {
@@ -2265,7 +2265,9 @@ canvas.graph-chart {
   pointer-events: none;
   z-index: 10;
   /* Behind UI, but obscures background app */
-  background: radial-gradient(circle at calc(var(--mask-right-x) + var(--display-right-offset)) var(--mask-center-y),
+  background: 
+    linear-gradient(to bottom, transparent 0%, transparent 80%, black 100%),
+    radial-gradient(circle at calc(var(--mask-right-x) + var(--display-right-offset)) var(--mask-center-y),
       transparent calc(var(--mask-radius) * var(--display-scale)),
       var(--bg-black-60) calc(var(--mask-radius) * var(--display-scale) + 30px),
       var(--bg-black-100) calc(var(--mask-radius) * var(--display-scale) + 120px));
@@ -2285,7 +2287,6 @@ canvas.graph-chart {
   /* Circular masking */
   border-radius: 50%;
   overflow: hidden;
-  background-color: var(--mask-circle-bg);
   transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
