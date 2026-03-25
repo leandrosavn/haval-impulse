@@ -15,7 +15,7 @@
   --color-transparent: rgba(0, 0, 0, 0);
 
   /* --- 2. PRIMARY & BRAND COLORS (Blues) --- */
-  --primary-blue: #c0c0c;
+  --primary-blue: #00A0E0;
   --blue-400: #60a5fa;
   --blue-600: #2563eb;
   --blue-700: #1d4ed8;
@@ -125,7 +125,7 @@
   --display-opacity: 1;
 
   /* --- 9. MASK BACKGROUNDS --- */
-  --mask-top-bar-bg: var(--color-white-80);
+  --mask-top-bar-bg: var(--bg-dark);
   --mask-bottom-bar-bg: var(--bg-dark);
   --mask-circle-bg: var(--bg-dark);
 }
@@ -166,8 +166,8 @@ button {
 
 .ac-circle-container {
   position: relative;
-  width: 452px;
-  height: 452px;
+  width: 456px;
+  height: 456px;
   background: transparent;
   display: flex;
   flex-direction: column;
@@ -357,7 +357,7 @@ button {
 
 .text-white {
   color: var(--text-main);
-  text-shadow: 0 0 8px var(--text-glow-blue);
+  text-shadow: 0 0 8px var(--bg-black-20);
 }
 
 .text-gray {
@@ -628,9 +628,13 @@ button {
   border: 3px solid var(--blue-700);
   border-radius: 50%;
   box-shadow: 0 0 15px var(--glow-blue-70);
-  background: radial-gradient(circle, var(--text-main) 50%, var(--color-ac-blue) 100%);
+  background: radial-gradient(circle, var(--blue-400) 50%, var(--bg-light) 100%);
   animation: pulse-glow 10s infinite alternate;
   z-index: 0;
+}
+
+.ac-fan-control-area img {
+  filter: invert(1);
 }
 
 .ac-inner-ring {
@@ -912,7 +916,7 @@ button {
 }
 
 #fan-progress-ring {
-  --progress-color: var(--text-main);
+  --progress-color: var(--blue-600);
   text-shadow: 0 0 8px var(--text-glow-blue);
   transform: translate(-50%, -50%) rotate(270deg);
 }
@@ -1478,7 +1482,7 @@ canvas.regen-chart {
   text-align: center;
   white-space: nowrap;
   transform: translateY(0px);
-  text-shadow: 0 4px 12px var(--bg-black-100), 0 2px 4px var(--bg-mask-80);
+  /*text-shadow: 0 4px 12px var(--bg-black-100), 0 2px 4px var(--bg-mask-80);*/
 }
 
 .tooltip-value.negative {
@@ -1495,7 +1499,7 @@ canvas.regen-chart {
   text-align: center;
   white-space: nowrap;
   transform: translateY(-25px);
-  text-shadow: 0 4px 8px var(--bg-black-100), 0 2px 4px var(--bg-mask-80);
+  /*text-shadow: 0 1px 8px var(--bg-mask-50), 0 1px 8px var(--bg-mask-50);*/
 }
 
 .dynamic-tooltip.secondary {
@@ -1535,7 +1539,7 @@ canvas.regen-chart {
   left: 0;
   width: 100%;
   height: 200px;
-  background: linear-gradient(to top, var(--bg-black-100) 0%, var(--bg-mask-80) 40%, var(--color-transparent) 60%, var(--color-transparent) 100%);
+  background: linear-gradient(to top, var(--bg-dark) 0%, var(--bg-white-80) 40%, var(--color-transparent) 60%, var(--color-transparent) 100%);
   pointer-events: none;
   z-index: 10;
   border-radius: 0 0 212px 212px;
@@ -1818,7 +1822,7 @@ canvas.graph-chart {
 }
 
 .menu-label-status.off {
-  color: var(--color-light-bg);
+  color: var(--color-);
 }
 
 .menu-label-status.sport {

@@ -38,7 +38,7 @@ export function createMainMenu() {
             const val = String(stateValue).toUpperCase().replace(/'/g, "");
             if (val === 'HEV') {
                 stateValue = "Modo HEV";
-                statusClass = 'off';
+                //statusClass = 'off';
             } else if (val === 'EVP') {
                 stateValue = "Prior. EV";
                 statusClass = 'eco';
