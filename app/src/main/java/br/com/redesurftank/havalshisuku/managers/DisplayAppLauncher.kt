@@ -161,6 +161,13 @@ object DisplayAppLauncher {
         }
     }
 
+    @JvmStatic
+    fun killAppAsync(packageName: String) {
+        scope.launch {
+            killApp(packageName)
+        }
+    }
+
     /**
      * Brings the app to the main display (0) for user interaction.
      * Uses am display move-stack + resize to fullscreen.

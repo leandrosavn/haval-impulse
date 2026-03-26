@@ -200,7 +200,7 @@ export function createDisplaySelectionScreen() {
                 const isSelected = itemData.type === 'mode' && currentMode === itemData.value;
 
                 cache.element.className = `menu-item ${isFocused ? 'focused' : ''} ${itemData.type === 'title' ? 'title-item' : ''}`;
-                
+
                 if (itemData.type === 'mode') {
                     cache.labelContainer.style.color = isSelected ? 'var(--text-main, #FFFFFF)' : 'var(--text-cold-gray, #B0B8C4)';
                     cache.labelContainer.style.fontWeight = isSelected ? 'bold' : 'normal';

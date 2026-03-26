@@ -27,6 +27,8 @@ import br.com.redesurftank.havalshisuku.ui.theme.HavalShisukuTheme
 import br.com.redesurftank.havalshisuku.utils.ShizukuUtils
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 
 class BottomBarService : LifecycleService() {
 
@@ -38,6 +40,7 @@ class BottomBarService : LifecycleService() {
     private var isMenuWindowAdded = false
 
     private var monitoringJob: Job? = null
+    private var autoHideJob: Job? = null
     private var lastPackage: String? = null
 
     data class BarSettings(val overscan: Int, val yOffset: Int)
@@ -63,7 +66,70 @@ class BottomBarService : LifecycleService() {
         showBottomBar()
         observeMenuState()
         observeVisibility()
+        observeAutoHide()
+        registerUpdateReceiver()
         startDynamicOverscanMonitoring()
+    }
+
+    private fun registerUpdateReceiver() {
+        val filter = android.content.IntentFilter("br.com.redesurftank.havalshisuku.UPDATE_BAR_POSITION")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(updateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(updateReceiver, filter)
+        }
+    }
+
+    private val updateReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: android.content.Intent?) {
+            val overscan = intent?.getIntExtra("overscan", -1) ?: -1
+            val offset = intent?.getIntExtra("offset", -101) ?: -101
+            
+            if (overscan != -1 || offset != -101) {
+                // Real-time update from Apply button
+                val currentPackage = BottomBarState.currentPackage
+                if (currentPackage.isNotEmpty()) {
+                    val settings = BarSettings(
+                        overscan = if (overscan != -1) overscan else (currentAppSettings?.overscan ?: 0),
+                        yOffset = if (offset != -101) offset else (currentAppSettings?.yOffset ?: 0)
+                    )
+                    currentAppSettings = settings
+                    applyAppSettings(settings)
+                }
+            } else {
+                // Reload from SharedPreferences (Save button or generic refresh)
+                lastPackage = null // Force reload in monitoring loop
+            }
+        }
+    }
+
+    private fun observeAutoHide() {
+        lifecycleScope.launch {
+            // Reset timer on any state change that might indicate activity
+            snapshotFlow { 
+                listOf(
+                    BottomBarState.isVisible,
+                    BottomBarState.isMenuExpanded,
+                    BottomBarState.isSettingsMenuExpanded,
+                    BottomBarState.isOverrideMenuExpanded
+                )
+            }.collectLatest { 
+                resetAutoHideTimer()
+            }
+        }
+    }
+
+    fun resetAutoHideTimer() {
+        autoHideJob?.cancel()
+        if (!BottomBarState.autoHideEnabled || !BottomBarState.isVisible) return
+        
+        autoHideJob = lifecycleScope.launch {
+            delay(30000) // 30 seconds
+            if (BottomBarState.isVisible && !BottomBarState.isMenuExpanded && 
+                !BottomBarState.isSettingsMenuExpanded && !BottomBarState.isOverrideMenuExpanded) {
+                BottomBarState.isVisible = false
+            }
+        }
     }
 
     private var currentAppSettings: BarSettings? = null
@@ -76,22 +142,36 @@ class BottomBarService : LifecycleService() {
                     while (isActive) {
                         try {
                             val currentPackage = getTopPackageName()
+                            if (currentPackage != null) {
+                                withContext(Dispatchers.Main) {
+                                    BottomBarState.currentPackage = currentPackage
+                                }
+                            }
+                            
                             if (currentPackage != null && currentPackage != lastPackage) {
                                 lastPackage = currentPackage
 
-                                // Default overscan is 60 * density (e.g. 240 for 4x)
                                 val prefs =
                                         br.com.redesurftank.App.getDeviceProtectedContext()
                                                 .getSharedPreferences(
                                                         "haval_prefs",
                                                         Context.MODE_PRIVATE
                                                 )
+                                // Default overscan is now 0 as requested
                                 val storedDefault =
                                         prefs.getInt(
                                                 SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR_OVERSCAN
                                                         .key,
-                                                60
+                                                0
                                         )
+                                
+                                // Also update autoHideEnabled from prefs
+                                withContext(Dispatchers.Main) {
+                                    BottomBarState.autoHideEnabled = prefs.getBoolean(
+                                        SharedPreferencesKeys.BOTTOM_BAR_AUTO_HIDE.key, 
+                                        false
+                                    )
+                                }
 
                                 val settings = getSettingsForPackage(currentPackage, storedDefault)
                                 currentAppSettings = settings
@@ -119,8 +199,25 @@ class BottomBarService : LifecycleService() {
     }
 
     private fun getSettingsForPackage(packageName: String, defaultOverscan: Int): BarSettings {
-        // Return override if exists, otherwise return default settings with yOffset = 0
-        return APP_OVERRIDES[packageName] ?: BarSettings(overscan = defaultOverscan, yOffset = 0)
+        val prefs = br.com.redesurftank.App.getDeviceProtectedContext()
+            .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
+        
+        val dynamicOverridesJson = prefs.getString(SharedPreferencesKeys.BOTTOM_BAR_OVERRIDES.key, null)
+        val dynamicOverrides: Map<String, BarSettings> = if (dynamicOverridesJson != null) {
+            try {
+                val type = object : TypeToken<Map<String, BarSettings>>() {}.type
+                Gson().fromJson(dynamicOverridesJson, type)
+            } catch (e: Exception) {
+                emptyMap()
+            }
+        } else {
+            emptyMap()
+        }
+
+        // Priority: Dynamic Overrides -> Hardcoded Overrides -> Default
+        return dynamicOverrides[packageName] 
+            ?: APP_OVERRIDES[packageName] 
+            ?: BarSettings(overscan = defaultOverscan, yOffset = 0)
     }
 
     private fun applyAppSettings(settings: BarSettings) {
@@ -177,7 +274,7 @@ class BottomBarService : LifecycleService() {
             val settings = currentAppSettings ?: run {
                 val prefs = br.com.redesurftank.App.getDeviceProtectedContext()
                     .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
-                val storedDefault = prefs.getInt(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR_OVERSCAN.key, 60)
+                val storedDefault = prefs.getInt(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR_OVERSCAN.key, 0)
                 BarSettings(overscan = storedDefault, yOffset = 0)
             }
             
@@ -308,7 +405,7 @@ class BottomBarService : LifecycleService() {
                 val settings = currentAppSettings ?: run {
                     val prefs = br.com.redesurftank.App.getDeviceProtectedContext()
                         .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
-                    val storedDefault = prefs.getInt(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR_OVERSCAN.key, 60)
+                    val storedDefault = prefs.getInt(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR_OVERSCAN.key, 0)
                     BarSettings(overscan = storedDefault, yOffset = 0)
                 }
                 
@@ -358,6 +455,7 @@ class BottomBarService : LifecycleService() {
 
     override fun onDestroy() {
         monitoringJob?.cancel()
+        unregisterReceiver(updateReceiver)
         super.onDestroy()
         ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "size", "reset"))
         ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,0"))

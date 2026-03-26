@@ -7,7 +7,7 @@ const getIconClean = (fill) => `data:image/svg+xml;base64,${btoa('<svg width="48
 
 export function createDisplaySelectionScreen() {
     const main = document.createElement('main');
-    main.className = 'main-container';
+    main.className = 'main-theme-container';
 
     let currentContainer = null;
     let currentSubscriptions = [];
@@ -92,11 +92,9 @@ export function createDisplaySelectionScreen() {
             return;
         }
 
-        const container = div({ className: 'main-menu-container' });
         const carousel = div({ className: 'menu-carousel' });
-        container.appendChild(carousel);
-        main.appendChild(container);
-        currentContainer = container;
+        main.appendChild(carousel);
+        currentContainer = main;
 
         const style = getComputedStyle(document.documentElement);
         const themeBlue = style.getPropertyValue('--color-theme-blue').trim() || '#00A0E0';

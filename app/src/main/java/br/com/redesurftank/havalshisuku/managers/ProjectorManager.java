@@ -16,8 +16,10 @@ import java.util.function.BiConsumer;
 
 import br.com.redesurftank.App;
 import br.com.redesurftank.havalshisuku.models.CarConstants;
+import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys;
 import br.com.redesurftank.havalshisuku.projectors.InstrumentProjector;
 import br.com.redesurftank.havalshisuku.projectors.InstrumentProjector2;
+import br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher;
 
 public class ProjectorManager {
     private static final String TAG = "ProjectorManager";
@@ -88,6 +90,10 @@ public class ProjectorManager {
                         }
                         if (instrumentProjector2 != null) {
                             instrumentProjector2.carMainScreenOff();
+                        }
+                        String defaultPackage = sharedPreferences.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.getKey(), "");
+                        if (!defaultPackage.isEmpty()) {
+                            DisplayAppLauncher.killAppAsync(defaultPackage);
                         }
                     } else {
                         if (instrumentProjector != null) {

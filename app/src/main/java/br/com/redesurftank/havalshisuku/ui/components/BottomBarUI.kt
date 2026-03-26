@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,8 +39,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import br.com.redesurftank.havalshisuku.managers.ServiceManager
 import br.com.redesurftank.havalshisuku.models.BottomBarState
+import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys
+import br.com.redesurftank.havalshisuku.managers.ServiceManager
 import br.com.redesurftank.havalshisuku.models.CarConstants
 import br.com.redesurftank.havalshisuku.ui.theme.Michroma
 import br.com.redesurftank.havalshisuku.utils.ShizukuUtils
@@ -156,16 +158,20 @@ fun BottomBarContent() {
 
     Box(
             modifier =
-                    Modifier.fillMaxSize().pointerInput(BottomBarState.isVisible) {
-                        detectVerticalDragGestures { change, dragAmount ->
-                            change.consume()
-                            if (BottomBarState.isVisible && dragAmount > 15f) {
-                                BottomBarState.isVisible = false
-                            } else if (!BottomBarState.isVisible && dragAmount < -15f) {
-                                BottomBarState.isVisible = true
+                    Modifier.fillMaxSize()
+                        .pointerInput(BottomBarState.isVisible, BottomBarState.autoHideEnabled) {
+                            detectVerticalDragGestures { change, dragAmount ->
+                                change.consume()
+                                // Down swipe to hide
+                                if (BottomBarState.isVisible && dragAmount > 10f) {
+                                    BottomBarState.isVisible = false
+                                } 
+                                // Up swipe to show - only if near the bottom when hidden
+                                else if (!BottomBarState.isVisible && dragAmount < -15f) {
+                                    BottomBarState.isVisible = true
+                                }
                             }
-                        }
-                    },
+                        },
             contentAlignment = Alignment.BottomCenter
     ) {
         if (BottomBarState.isVisible) {
@@ -252,8 +258,20 @@ fun BottomBarContent() {
                 }
             }
         } else {
-            // Trigger zone - visual indicator (optional, but keep it transparent as requested)
-            Box(modifier = Modifier.fillMaxSize().background(Color.Transparent))
+            // Trigger zone - larger area at the bottom when hidden
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp) // Increased from 20px (approx 6dp) to 40dp for easier swipe up
+                    .align(Alignment.BottomCenter)
+                    .background(Color.Transparent)
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        BottomBarState.isVisible = true
+                    }
+            )
         }
     }
 }
@@ -611,8 +629,10 @@ fun BottomBarMenus() {
 
             // Settings Menu (Center)
             Box(modifier = Modifier.weight(0.70f), contentAlignment = Alignment.BottomCenter) {
-                if (br.com.redesurftank.havalshisuku.models.BottomBarState.isSettingsMenuExpanded) {
+                if (BottomBarState.isSettingsMenuExpanded) {
                     SettingsMenuContent(driveMode, powerModel, energyRecovery, steeringMode)
+                } else if (BottomBarState.isOverrideMenuExpanded) {
+                    OverrideMenuContent()
                 }
             }
 
@@ -813,16 +833,21 @@ fun NavigationSection(scope: kotlinx.coroutines.CoroutineScope) {
                 ShizukuUtils.runCommandAndGetOutput(arrayOf("input", "keyevent", "4"))
             }
         }
-        NavIcon(Icons.Default.Home) {
-            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                ShizukuUtils.runCommandAndGetOutput(arrayOf("input", "keyevent", "3"))
+        // Replace Home with Hide
+        NavIcon(Icons.Default.KeyboardArrowDown) {
+            BottomBarState.isVisible = false
+            BottomBarState.isMenuExpanded = false
+            BottomBarState.isSettingsMenuExpanded = false
+            BottomBarState.isOverrideMenuExpanded = false
+        }
+        // Add Config Icon
+        NavIcon(Icons.Default.Settings) {
+            BottomBarState.isOverrideMenuExpanded = !BottomBarState.isOverrideMenuExpanded
+            if (BottomBarState.isOverrideMenuExpanded) {
+                BottomBarState.isMenuExpanded = false
+                BottomBarState.isSettingsMenuExpanded = false
             }
         }
-        //        NavIcon(Icons.Default.Layers) {
-        //            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-        //                ShizukuUtils.runCommandAndGetOutput(arrayOf("input", "keyevent", "187"))
-        //            }
-        //        }
     }
 }
 
@@ -922,6 +947,104 @@ fun AppGridItem(pkg: String, context: Context, scope: CoroutineScope, onClick: (
                 maxLines = 2,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+@Composable
+fun OverrideMenuContent() {
+    val context = LocalContext.current
+    val pkg = BottomBarState.currentPackage
+    val prefs = remember { 
+        br.com.redesurftank.App.getDeviceProtectedContext()
+            .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE) 
+    }
+    
+    // Load current app settings from SharedPreferences
+    val overridesJson = prefs.getString(SharedPreferencesKeys.BOTTOM_BAR_OVERRIDES.key, null)
+    val gson = com.google.gson.Gson()
+    val type = object : com.google.gson.reflect.TypeToken<MutableMap<String, Map<String, Int>>>() {}.type
+    val overrides: MutableMap<String, Map<String, Int>> = if (overridesJson != null) {
+        try { gson.fromJson(overridesJson, type) } catch (e: Exception) { mutableMapOf() }
+    } else {
+        mutableMapOf()
+    }
+
+    val currentSettings = overrides[pkg]
+    var overscan by remember(pkg) { mutableIntStateOf(currentSettings?.get("overscan") ?: 0) }
+    var offset by remember(pkg) { mutableIntStateOf(currentSettings?.get("offset") ?: 0) }
+
+    Box(
+        modifier = Modifier
+            .background(Color.Black.copy(alpha = 0.95f), RoundedCornerShape(12.dp))
+            .width(400.dp)
+            .padding(16.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text(
+                text = "Ajuste Real-time: $pkg",
+                style = labelStyle.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            )
+
+            OverrideControlRow("Overscan", overscan, 0..120) { overscan = it }
+            OverrideControlRow("Y-Offset", offset, -100..100) { offset = it }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        // Apply immediately via Shizuku if service is bound or via broadcast
+                        // For simplicity, we can use ShizukuUtils directly here as well
+                        val density = context.resources.displayMetrics.density
+                        val overscanPx = (overscan * density).toInt()
+                        val yOffsetPx = (offset * density).toInt()
+                        
+                        ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,$overscanPx"))
+                        // We need a way to tell the service to update its layout params
+                        // For now, let's assume the service will pick it up or we can send an internal intent
+                        context.sendBroadcast(android.content.Intent("br.com.redesurftank.havalshisuku.UPDATE_BAR_POSITION").apply {
+                            putExtra("overscan", overscan)
+                            putExtra("offset", offset)
+                        })
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
+                ) {
+                    Text("Aplicar", color = Color.White)
+                }
+
+                Button(
+                    onClick = {
+                        val newOverrides = overrides.toMutableMap()
+                        newOverrides[pkg] = mapOf("overscan" to overscan, "offset" to offset)
+                        prefs.edit().putString(SharedPreferencesKeys.BOTTOM_BAR_OVERRIDES.key, gson.toJson(newOverrides)).apply()
+                        BottomBarState.isOverrideMenuExpanded = false
+                        // Alert service to reload
+                        context.sendBroadcast(android.content.Intent("br.com.redesurftank.havalshisuku.UPDATE_BAR_POSITION"))
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
+                ) {
+                    Text("Salvar", color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun OverrideControlRow(label: String, value: Int, range: IntRange, onValueChange: (Int) -> Unit) {
+    Column {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(text = label, style = labelStyle)
+            Text(text = value.toString(), style = commonTextStyle.copy(fontSize = 14.sp))
+        }
+        Slider(
+            value = value.toFloat(),
+            onValueChange = { onValueChange(it.toInt()) },
+            valueRange = range.first.toFloat()..range.last.toFloat(),
+            colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White)
         )
     }
 }

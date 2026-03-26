@@ -98,6 +98,9 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import br.com.redesurftank.havalshisuku.models.BottomBarState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -166,8 +169,6 @@ import br.com.redesurftank.havalshisuku.utils.FridaUtils
 import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import java.io.BufferedInputStream
 import java.io.BufferedReader
 import java.io.File
@@ -484,8 +485,12 @@ fun BasicSettingsTab() {
     var enablePersistentBottomBar by remember {
         mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR.key, false))
     }
+    var autoHideEnabled by remember {
+        mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.BOTTOM_BAR_AUTO_HIDE.key, false))
+    }
     var showStartPicker by remember { mutableStateOf(false) }
     var showEndPicker by remember { mutableStateOf(false) }
+    var showOverridesDialog by remember { mutableStateOf(false) }
 
     val settingsList = mutableListOf<SettingItem>()
 
@@ -1228,10 +1233,51 @@ fun BasicSettingsTab() {
                                                                         "wm overscan 0,0,0,0"
                                                                 )
                                                         )
+                                            }.start()
+                                 }
+                            },
+                            customContent = if (enablePersistentBottomBar) {
+                                {
+                                    Column(modifier = Modifier.padding(top = 8.dp)) {
+                                        HorizontalDivider(color = Color(0xFF1D2430), thickness = 1.dp)
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        
+                                        // Auto-hide row
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text("Auto-ocultar barra", color = Color.White, fontSize = 16.sp)
+                                                Text("Esconde após 30s de inatividade", color = Color.Gray, fontSize = 12.sp)
                                             }
-                                            .start()
+                                            Switch(
+                                                checked = autoHideEnabled,
+                                                onCheckedChange = {
+                                                    autoHideEnabled = it
+                                                    prefs.edit().putBoolean(SharedPreferencesKeys.BOTTOM_BAR_AUTO_HIDE.key, it).apply()
+                                                    BottomBarState.autoHideEnabled = it
+                                                }
+                                            )
+                                        }
+                                        
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        
+                                        // Manage Overrides button
+                                        Button(
+                                            onClick = { showOverridesDialog = true },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3)),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("Gerenciar Overrides de Apps", color = Color.White)
+                                        }
+                                    }
                                 }
-                            }
+                            } else null
                     ),
                     SettingItem(
                             title = "Desativar AVAS",
@@ -1918,6 +1964,60 @@ fun BasicSettingsTab() {
             dialog.show()
         }
     }
+
+    if (showOverridesDialog) {
+        val overridesJson = prefs.getString(SharedPreferencesKeys.BOTTOM_BAR_OVERRIDES.key, null)
+        val gson = Gson()
+        val type = object : TypeToken<MutableMap<String, Map<String, Int>>>() {}.type
+        val overrides: MutableMap<String, Map<String, Int>> = if (overridesJson != null) {
+            try { gson.fromJson(overridesJson, type) } catch (e: Exception) { mutableMapOf() }
+        } else {
+            mutableMapOf()
+        }
+
+        AlertDialog(
+            onDismissRequest = { showOverridesDialog = false },
+            title = { Text("Gerenciar Overrides de Apps", color = Color.White) },
+            containerColor = Color(0xFF13151A),
+            text = {
+                Column(modifier = Modifier.heightIn(max = 400.dp)) {
+                    if (overrides.isEmpty()) {
+                        Text("Nenhum override salvo.", color = Color.Gray)
+                    } else {
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(overrides.keys.sorted()) { pkgName ->
+                                val settings = overrides[pkgName]
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
+                                        .padding(8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(pkgName, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text("Overscan: ${settings?.get("overscan") ?: 0}, Offset: ${settings?.get("offset") ?: 0}", color = Color.Gray, fontSize = 10.sp)
+                                    }
+                                    IconButton(onClick = {
+                                        val newOverrides = overrides.toMutableMap()
+                                        newOverrides.remove(pkgName)
+                                        prefs.edit().putString(SharedPreferencesKeys.BOTTOM_BAR_OVERRIDES.key, gson.toJson(newOverrides)).apply()
+                                        context.sendBroadcast(Intent("br.com.redesurftank.havalshisuku.UPDATE_BAR_POSITION"))
+                                    }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Remover", tint = Color.Red.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showOverridesDialog = false }) { Text("Fechar") }
+            }
+        )
+    }
 }
 
 @Composable
@@ -2285,7 +2385,9 @@ fun TelasTab() {
 
     // GitHub Themes States
     var githubThemes by remember { mutableStateOf<List<ThemeMetadata>>(emptyList()) }
-    var localThemes by remember { mutableStateOf<List<ThemeMetadata>>(emptyList()) }
+    var localThemes by remember { 
+        mutableStateOf(ThemeManager.getInstance(context).getLocalThemes()) 
+    }
     var isFetchingThemes by remember { mutableStateOf(false) }
     var downloadingThemeName by remember { mutableStateOf<String?>(null) }
     var isThemesExpanded by remember { mutableStateOf(true) }
@@ -2313,8 +2415,9 @@ fun TelasTab() {
         }
     }
 
-    // Fetch themes from GitHub
+    // Refresh local themes on start just in case, and fetch from GitHub
     LaunchedEffect(Unit) {
+        localThemes = ThemeManager.getInstance(context).getLocalThemes()
         if (githubThemes.isEmpty()) {
             isFetchingThemes = true
             try {
@@ -2645,6 +2748,7 @@ fun TelasTab() {
                                             isFetchingThemes = true
                                             scope.launch {
                                                 try {
+                                                    localThemes = ThemeManager.getInstance(context).getLocalThemes()
                                                     githubThemes =
                                                             ThemeManager.getInstance(context)
                                                                     .fetchThemesFromGithub(
@@ -2705,35 +2809,28 @@ fun TelasTab() {
 
                             val allDisplayThemes =
                                     remember(githubThemes, localThemes) {
-                                        val list = mutableListOf(basicoTheme)
+                                        val list = mutableListOf<ThemeMetadata>()
+                                        list.add(basicoTheme)
 
-                                        // Add GitHub themes, marking them as downloaded if they are in
-                                        // localThemes
+                                        // 1. Add all local themes (except "Básico")
+                                        localThemes.forEach { local ->
+                                            if (local.name != "Básico") {
+                                                // Look for a newer version in githubThemes
+                                                val remote = githubThemes.find { it.name == local.name }
+                                                if (remote != null) {
+                                                    // Use remote object for thumbnailUrl but keep local info
+                                                    // Actually remote object might have more up-to-date description/thumbnail
+                                                    list.add(remote.copy(isDownloaded = true))
+                                                } else {
+                                                    list.add(local)
+                                                }
+                                            }
+                                        }
+
+                                        // 2. Add GitHub themes that are NOT local
                                         githubThemes.forEach { github ->
-                                            if (github.name != "Básico") {
-                                                val local =
-                                                        localThemes.find { it.name == github.name }
-                                                val isInstalled = local != null
-                                                val hasUpdate =
-                                                        if (local != null) {
-                                                            ThemeManager.getInstance(context)
-                                                                    .isNewerVersion(
-                                                                            local.version,
-                                                                            github.version
-                                                                    )
-                                                        } else false
-
-                                                list.add(
-                                                        github.copy(
-                                                                isDownloaded = isInstalled,
-                                                                // We can use the description or a custom
-                                                                // field
-                                                                // if we had one,
-                                                                // but for now we'll just track hasUpdate in
-                                                                // the
-                                                                // list rendering
-                                                                )
-                                                )
+                                            if (github.name != "Básico" && list.none { it.name == github.name }) {
+                                                list.add(github.copy(isDownloaded = false))
                                             }
                                         }
 

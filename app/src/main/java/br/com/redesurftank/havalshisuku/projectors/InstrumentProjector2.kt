@@ -9,6 +9,7 @@ import android.util.Log
 import android.view.Display
 import android.view.View
 import android.view.WindowManager
+import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
@@ -60,6 +61,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private var batteryCurrent = 0f
     private var isAnyAppOnDisplay3 = false
     private var currentCard = 0
+    private var isPageReady = false
 
     private val prefsListener =
             SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -322,22 +324,12 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.allowContentAccess = true
+                addJavascriptInterface(WebBridge(), "Android")
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
                         view?.let { wv: android.webkit.WebView ->
                             Log.d(TAG, "WebView finished loading: $url")
-
-                            // Auto-launch default app if configured
-                            val defaultPackage = preferences.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "") ?: ""
-                            if (defaultPackage.isNotEmpty()) {
-                                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs().find { it.packageName == defaultPackage }?.let { config ->
-                                    Log.d(TAG, "Auto-launching default app: $defaultPackage")
-                                    scope.launch {
-                                        br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.launchApp(config)
-                                    }
-                                }
-                            }
 
                             // Apply pending JS or updates
                             updateValuesWebView()
@@ -608,5 +600,26 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     else -> "N"
                 }
         return gearLabel
+    }
+
+    inner class WebBridge {
+        @JavascriptInterface
+        fun onPageReady() {
+            ensureUi {
+                Log.d(TAG, "JS signaled Page Ready")
+                isPageReady = true
+                
+                // Auto-launch default app if configured
+                val defaultPackage = preferences.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "") ?: ""
+                if (defaultPackage.isNotEmpty()) {
+                    br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs().find { it.packageName == defaultPackage }?.let { config ->
+                        Log.d(TAG, "Auto-launching default app on Page Ready: $defaultPackage")
+                        scope.launch {
+                            br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.launchApp(config)
+                        }
+                    }
+                }
+            }
+        }
     }
 }

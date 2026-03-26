@@ -8,5 +8,8 @@ object BottomBarState {
     var isVisible by mutableStateOf(true)
     var isMenuExpanded by mutableStateOf(false)
     var isSettingsMenuExpanded by mutableStateOf(false)
+    var isOverrideMenuExpanded by mutableStateOf(false)
     var selectedPackage by mutableStateOf("")
+    var currentPackage by mutableStateOf("")
+    var autoHideEnabled by mutableStateOf(false)
 }
