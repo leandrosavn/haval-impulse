@@ -167,7 +167,7 @@ fun BottomBarContent() {
                                     BottomBarState.isVisible = false
                                 } 
                                 // Up swipe to show - only if near the bottom when hidden
-                                else if (!BottomBarState.isVisible && dragAmount < -15f) {
+                                else if (!BottomBarState.isVisible && dragAmount < -5f) {
                                     BottomBarState.isVisible = true
                                 }
                             }
@@ -262,7 +262,7 @@ fun BottomBarContent() {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(40.dp) // Increased from 20px (approx 6dp) to 40dp for easier swipe up
+                    .height(60.dp) // Match window height for maximum trigger area
                     .align(Alignment.BottomCenter)
                     .background(Color.Transparent)
                     .clickable(
@@ -612,7 +612,15 @@ fun BottomBarMenus() {
     }
 
     Box(
-            modifier = Modifier.fillMaxSize().padding(bottom = 72.dp),
+            modifier = Modifier.fillMaxSize()
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null
+                ) {
+                    BottomBarState.isMenuExpanded = false
+                    BottomBarState.isSettingsMenuExpanded = false
+                    BottomBarState.isOverrideMenuExpanded = false
+                },
             contentAlignment = Alignment.BottomCenter
     ) {
         Row(
@@ -621,18 +629,31 @@ fun BottomBarMenus() {
                 verticalAlignment = Alignment.Bottom
         ) {
             // App Menu (Left side)
-            Box(modifier = Modifier.weight(0.15f), contentAlignment = Alignment.BottomStart) {
+            Box(
+                modifier = Modifier.weight(0.15f)
+                    .clickable(enabled = false) {}, // Prevent clicks on this specific area from closing if needed, but better on content
+                contentAlignment = Alignment.BottomStart
+            ) {
                 if (br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded) {
-                    AppMenuContent()
+                    Box(modifier = Modifier.clickable(enabled = false) {}) {
+                        AppMenuContent()
+                    }
                 }
             }
 
             // Settings Menu (Center)
-            Box(modifier = Modifier.weight(0.70f), contentAlignment = Alignment.BottomCenter) {
+            Box(
+                modifier = Modifier.weight(0.70f),
+                contentAlignment = Alignment.BottomCenter
+            ) {
                 if (BottomBarState.isSettingsMenuExpanded) {
-                    SettingsMenuContent(driveMode, powerModel, energyRecovery, steeringMode)
+                    Box(modifier = Modifier.clickable(enabled = false) {}) {
+                        SettingsMenuContent(driveMode, powerModel, energyRecovery, steeringMode)
+                    }
                 } else if (BottomBarState.isOverrideMenuExpanded) {
-                    OverrideMenuContent()
+                    Box(modifier = Modifier.clickable(enabled = false) {}) {
+                        OverrideMenuContent()
+                    }
                 }
             }
 
@@ -985,8 +1006,8 @@ fun OverrideMenuContent() {
                 style = labelStyle.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)
             )
 
-            OverrideControlRow("Overscan", overscan, 0..120) { overscan = it }
-            OverrideControlRow("Y-Offset", offset, -100..100) { offset = it }
+            OverrideControlRow("Overscan (Move o app para cima)", overscan, 0..120) { overscan = it }
+            OverrideControlRow("Offset (Move a barra para baixo)", offset, -100..100) { offset = it }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),

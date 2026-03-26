@@ -286,8 +286,9 @@ class BottomBarService : LifecycleService() {
             
             ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,$overscanValuePx"))
         } else {
-            lp.height = (20 * density).toInt()
-            lp.y = -60
+            // Trigger zone - keep 40dp on screen when hidden
+            lp.height = (60 * density).toInt()
+            lp.y = -(20 * density).toInt() 
             ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,0"))
         }
 
@@ -300,7 +301,7 @@ class BottomBarService : LifecycleService() {
 
     private fun observeMenuState() {
         lifecycleScope.launch {
-            snapshotFlow { BottomBarState.isMenuExpanded || BottomBarState.isSettingsMenuExpanded }
+            snapshotFlow { BottomBarState.isMenuExpanded || BottomBarState.isSettingsMenuExpanded || BottomBarState.isOverrideMenuExpanded }
                     .collectLatest { expanded -> updateMenuWindow(expanded) }
         }
     }
@@ -381,7 +382,7 @@ class BottomBarService : LifecycleService() {
         menuParams =
                 WindowManager.LayoutParams(
                                 WindowManager.LayoutParams.MATCH_PARENT,
-                                menuHeight,
+                                WindowManager.LayoutParams.MATCH_PARENT,
                                 layoutType,
                                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                                         WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
