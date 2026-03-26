@@ -1,9 +1,10 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -63,6 +64,7 @@ dependencies {
     implementation(libs.hiddenapibypass)
     implementation(libs.commons.net)
     implementation(libs.lifecycle.runtime.ktx)
+    implementation(libs.lifecycle.service)
     implementation(libs.activity.compose)
     implementation(platform(libs.compose.bom))
     implementation(libs.ui)

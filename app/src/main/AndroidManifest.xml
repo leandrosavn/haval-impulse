@@ -66,6 +66,11 @@
             </intent-filter>
         </service>
 
+        <service
+            android:name=".services.BottomBarService"
+            android:enabled="true"
+            android:exported="false" />
+
         <service android:name=".services.AccessibilityService"
             android:label="@string/accessibility_description"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
@@ -91,6 +96,15 @@
             </intent-filter>
         </receiver>
         <receiver
+            android:name=".broadcastReceivers.BottomBarBootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+        <receiver
             android:name=".broadcastReceivers.ManualStartFridaReceiver"
             android:enabled="true"
             android:exported="true">
@@ -113,6 +127,14 @@
             android:name=".broadcastReceivers.AutoBrightnessReceiver"
             android:enabled="true"
             android:exported="false" />
+        <receiver
+            android:name=".broadcastReceivers.OverscanReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="br.com.redesurftank.havalshisuku.ACTION_UPDATE_OVERSCAN" />
+            </intent-filter>
+        </receiver>
 
         <provider
             android:name="rikka.shizuku.ShizukuProvider"

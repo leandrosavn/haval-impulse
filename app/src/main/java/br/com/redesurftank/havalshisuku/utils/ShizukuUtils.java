@@ -1,5 +1,6 @@
 package br.com.redesurftank.havalshisuku.utils;
 
+import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
@@ -18,7 +19,16 @@ public class ShizukuUtils {
     private static final String TAG = "ShizukuUtils";
 
     public static String runCommandAndGetOutput(String[] command) {
-        IShizukuService shizukuService = IShizukuService.Stub.asInterface(Shizuku.getBinder());
+        IBinder binder = Shizuku.getBinder();
+        if (binder == null) {
+            Log.e(TAG, "Shizuku binder is null. Is Shizuku running?");
+            return "";
+        }
+        IShizukuService shizukuService = IShizukuService.Stub.asInterface(binder);
+        if (shizukuService == null) {
+            Log.e(TAG, "Shizuku service is null. Is Shizuku running?");
+            return "";
+        }
         IRemoteProcess process = null;
         try {
             process = shizukuService.newProcess(command, null, null);
@@ -62,7 +72,16 @@ public class ShizukuUtils {
     }
 
     public static String runCommandAndWaitForString(String[] command, String... targetStrings) {
-        IShizukuService shizukuService = IShizukuService.Stub.asInterface(Shizuku.getBinder());
+        IBinder binder = Shizuku.getBinder();
+        if (binder == null) {
+            Log.e(TAG, "Shizuku binder is null. Is Shizuku running?");
+            return "";
+        }
+        IShizukuService shizukuService = IShizukuService.Stub.asInterface(binder);
+        if (shizukuService == null) {
+            Log.e(TAG, "Shizuku service is null. Is Shizuku running?");
+            return "";
+        }
         IRemoteProcess process = null;
         try {
             process = shizukuService.newProcess(command, null, null);
@@ -169,7 +188,18 @@ public class ShizukuUtils {
     }
 
     public static void runCommandOnBackground(String[] command, CommandListener listener) {
-        IShizukuService shizukuService = IShizukuService.Stub.asInterface(Shizuku.getBinder());
+        IBinder binder = Shizuku.getBinder();
+        if (binder == null) {
+            Log.e(TAG, "Shizuku binder is null. Is Shizuku running?");
+            if (listener != null) listener.onFinished(-1);
+            return;
+        }
+        IShizukuService shizukuService = IShizukuService.Stub.asInterface(binder);
+        if (shizukuService == null) {
+            Log.e(TAG, "Shizuku service is null. Is Shizuku running?");
+            if (listener != null) listener.onFinished(-1);
+            return;
+        }
         IRemoteProcess process = null;
         try {
             process = shizukuService.newProcess(command, null, null);

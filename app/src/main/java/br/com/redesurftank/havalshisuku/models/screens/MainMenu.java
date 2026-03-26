@@ -26,10 +26,10 @@ public class MainMenu implements Screen {
         public static String getLabel(String value) {
             int val = Integer.parseInt(value);
             switch (val) {
-                case 1: return "'ON'";
-                case 0: return "'OFF'";
+                case 1: return "ON";
+                case 0: return "OFF";
             }
-            return "";
+            return "--";
         }
     }
 
@@ -42,13 +42,13 @@ public class MainMenu implements Screen {
             int val = Integer.parseInt(value);
             switch (val) {
                 case 0:
-                    return "'HEV'";
+                    return "HEV";
                 case 1:
-                    return "'EVP'";
+                    return "EVP";
                 case 3:
-                    return "'EV'";
+                    return "EV";
             }
-            return "";
+            return "--";
         }
     }
 
@@ -59,15 +59,15 @@ public class MainMenu implements Screen {
         public static String getLabel(String value) {
             int val = Integer.parseInt(value);
             switch (val) {
-                case 0: return "'Normal'";
-                case 1: return "'Sport'";
-                case 2: return "'Eco'";
-                case 3: return "'Neve'";
-                case 4: return "'Areia'";
-                case 5: return "'Lama'";
-                case 11: return "'AWD'";
+                case 0: return "Normal";
+                case 1: return "Sport";
+                case 2: return "Eco";
+                case 3: return "Neve";
+                case 4: return "Areia";
+                case 5: return "Lama";
+                case 11: return "AWD";
             }
-            return "";
+            return "--";
         }
     }
 
@@ -78,11 +78,11 @@ public class MainMenu implements Screen {
         public static String getLabel(String value) {
             int val = Integer.parseInt(value);
             switch (val) {
-                case 2: return "'Conforto'";
-                case 0: return "'Normal'";
-                case 1: return "'Esportiva'";
+                case 2: return "Conforto";
+                case 0: return "Normal";
+                case 1: return "Esportiva";
             }
-            return "";
+            return "--";
         }
     }
 
@@ -128,8 +128,8 @@ public class MainMenu implements Screen {
                                     CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE)
                     ),
                     new MenuItem(
-                            MenuItem.MENU_ID_AC_CONTROL,
-                            new MenuAction.NavigateTo(displaySelectionScreen)
+                            MenuItem.MENU_ID_STATS,
+                            new MenuAction.NavigateTo(graphScreen)
                     ),
                     new MenuItem(
                             MenuItem.MENU_ID_STEER_MODE,
@@ -141,8 +141,8 @@ public class MainMenu implements Screen {
                             new MenuAction.NavigateTo(regenScreen)
                     ),
                     new MenuItem(
-                            MenuItem.MENU_ID_STATS,
-                            new MenuAction.NavigateTo(graphScreen)
+                            MenuItem.MENU_ID_AC_CONTROL,
+                            new MenuAction.NavigateTo(displaySelectionScreen)
                     )
             );
         }
@@ -152,7 +152,7 @@ public class MainMenu implements Screen {
 
         // Set default initial position as middle of the menu
         String lastMenuOption = ServiceManager.getInstance().getSharedPreferences().getString(
-                SharedPreferencesKeys.LAST_CLUSTER_MENU_ITEM.getKey(), "option_4");
+                SharedPreferencesKeys.LAST_CLUSTER_MENU_ITEM.getKey(), "option_7");
         this.currentMenuItemIndex = IntStream.range(0, menuItems.size())
                 .filter(i -> menuItems.get(i).getId().equals(lastMenuOption))
                 .findFirst()

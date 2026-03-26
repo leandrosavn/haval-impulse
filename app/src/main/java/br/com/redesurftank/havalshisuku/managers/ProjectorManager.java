@@ -16,8 +16,10 @@ import java.util.function.BiConsumer;
 
 import br.com.redesurftank.App;
 import br.com.redesurftank.havalshisuku.models.CarConstants;
+import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys;
 import br.com.redesurftank.havalshisuku.projectors.InstrumentProjector;
 import br.com.redesurftank.havalshisuku.projectors.InstrumentProjector2;
+import br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher;
 
 public class ProjectorManager {
     private static final String TAG = "ProjectorManager";
@@ -41,8 +43,8 @@ public class ProjectorManager {
     private ProjectorManager() {
         sharedPreferences = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE);
 
-        int maskDisplayId = sharedPreferences.getInt("instrumentMaskDisplayId", 1);
-        int hudDisplayId = (maskDisplayId == 1) ? 3 : 1;
+        int maskDisplayId = 3;
+        int hudDisplayId = 1;
 
         projectorCreators.put(maskDisplayId, (ctx, disp) -> {
             instrumentProjector2 = new InstrumentProjector2(ctx, disp);
@@ -89,6 +91,10 @@ public class ProjectorManager {
                         if (instrumentProjector2 != null) {
                             instrumentProjector2.carMainScreenOff();
                         }
+                        String defaultPackage = sharedPreferences.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.getKey(), "");
+                        if (!defaultPackage.isEmpty()) {
+                            DisplayAppLauncher.killAppAsync(defaultPackage);
+                        }
                     } else {
                         if (instrumentProjector != null) {
                             instrumentProjector.carMainScreenOn();
@@ -131,8 +137,8 @@ public class ProjectorManager {
         stopProjectors();
         
         // Re-read preferences and re-populate creators
-        int maskDisplayId = sharedPreferences.getInt("instrumentMaskDisplayId", 1);
-        int hudDisplayId = (maskDisplayId == 1) ? 3 : 1;
+        int maskDisplayId = 3;
+        int hudDisplayId = 1;
 
         projectorCreators.put(maskDisplayId, (ctx, disp) -> {
             instrumentProjector2 = new InstrumentProjector2(ctx, disp);
