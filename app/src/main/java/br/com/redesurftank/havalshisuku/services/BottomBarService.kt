@@ -62,6 +62,12 @@ class BottomBarService : LifecycleService() {
 
     override fun onCreate() {
         super.onCreate()
+        
+        // Initialize state from SharedPreferences
+        val prefs = br.com.redesurftank.App.getDeviceProtectedContext()
+            .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
+        BottomBarState.autoHideEnabled = prefs.getBoolean(SharedPreferencesKeys.BOTTOM_BAR_AUTO_HIDE.key, false)
+        
         BottomBarState.isVisible = true
         showBottomBar()
         observeMenuState()
@@ -69,6 +75,9 @@ class BottomBarService : LifecycleService() {
         observeAutoHide()
         registerUpdateReceiver()
         startDynamicOverscanMonitoring()
+        
+        // Initial timer start
+        resetAutoHideTimer()
     }
 
     private fun registerUpdateReceiver() {
@@ -228,10 +237,12 @@ class BottomBarService : LifecycleService() {
 
         if (!BottomBarState.isVisible) {
             Log.d(
-                    "BottomBarService",
-                    "Bottom bar hidden, ignoring dynamic overscan request: ${settings.overscan}"
+                "BottomBarService",
+                "Bottom bar hidden, ignoring dynamic overscan request: ${settings.overscan}"
             )
-            ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,0"))
+            lifecycleScope.launch(Dispatchers.IO) {
+                ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,0"))
+            }
             return
         }
 
@@ -240,18 +251,21 @@ class BottomBarService : LifecycleService() {
         val yOffsetPx = (settings.yOffset * density).toInt()
 
         Log.d(
-                "BottomBarService",
-                "Applying app settings: overscan=$overscanValueRaw, yOffset=${settings.yOffset} for app: $lastPackage"
+            "BottomBarService",
+            "Applying app settings: overscan=$overscanValueRaw, yOffset=${settings.yOffset} for app: $lastPackage"
         )
-        ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,$overscanValuePx"))
 
-        // Apply custom yOffset relative to the logical bottom (where y=0 is the edge)
-        lp.y = yOffsetPx
-
-        try {
-            wm.updateViewLayout(cv, lp)
-        } catch (e: Exception) {
-            Log.e("BottomBarService", "Error updating window layout during app settings change", e)
+        lifecycleScope.launch(Dispatchers.IO) {
+            ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,$overscanValuePx"))
+            withContext(Dispatchers.Main) {
+                // Apply custom yOffset relative to the logical bottom (where y=0 is the edge)
+                lp.y = yOffsetPx
+                try {
+                    wm.updateViewLayout(cv, lp)
+                } catch (e: Exception) {
+                    Log.e("BottomBarService", "Error updating window layout during app settings change", e)
+                }
+            }
         }
     }
 
@@ -270,32 +284,42 @@ class BottomBarService : LifecycleService() {
 
         val density = resources.displayMetrics.density
 
-        if (visible) {
-            val settings = currentAppSettings ?: run {
-                val prefs = br.com.redesurftank.App.getDeviceProtectedContext()
-                    .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
-                val storedDefault = prefs.getInt(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR_OVERSCAN.key, 0)
-                BarSettings(overscan = storedDefault, yOffset = 0)
+        lifecycleScope.launch(Dispatchers.IO) {
+            val overscanCmd: Array<String>
+            if (visible) {
+                val settings = currentAppSettings ?: run {
+                    val prefs = br.com.redesurftank.App.getDeviceProtectedContext()
+                        .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
+                    val storedDefault = prefs.getInt(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR_OVERSCAN.key, 0)
+                    BarSettings(overscan = storedDefault, yOffset = 0)
+                }
+                
+                val overscanValuePx = (settings.overscan * density).toInt()
+                val yOffsetPx = (settings.yOffset * density).toInt()
+
+                withContext(Dispatchers.Main) {
+                    lp.height = (BOTTOM_BAR_BASE_HEIGHT_DP * density).toInt()
+                    lp.y = yOffsetPx
+                }
+                overscanCmd = arrayOf("wm", "overscan", "0,0,0,$overscanValuePx")
+            } else {
+                // Trigger zone - keep 40dp on screen when hidden
+                withContext(Dispatchers.Main) {
+                    lp.height = (60 * density).toInt()
+                    lp.y = -(20 * density).toInt() 
+                }
+                overscanCmd = arrayOf("wm", "overscan", "0,0,0,0")
             }
-            
-            val overscanValuePx = (settings.overscan * density).toInt()
-            val yOffsetPx = (settings.yOffset * density).toInt()
 
-            lp.height = (BOTTOM_BAR_BASE_HEIGHT_DP * density).toInt()
-            lp.y = yOffsetPx
-            
-            ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,$overscanValuePx"))
-        } else {
-            // Trigger zone - keep 40dp on screen when hidden
-            lp.height = (60 * density).toInt()
-            lp.y = -(20 * density).toInt() 
-            ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,0"))
-        }
+            ShizukuUtils.runCommandAndGetOutput(overscanCmd)
 
-        try {
-            wm.updateViewLayout(cv, lp)
-        } catch (e: Exception) {
-            Log.e("BottomBarService", "Error updating window layout", e)
+            withContext(Dispatchers.Main) {
+                try {
+                    wm.updateViewLayout(cv, lp)
+                } catch (e: Exception) {
+                    Log.e("BottomBarService", "Error updating window layout", e)
+                }
+            }
         }
     }
 
@@ -418,10 +442,12 @@ class BottomBarService : LifecycleService() {
                     lp.y = yOffsetPx
                 }
 
-                ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "size", "reset"))
-                ShizukuUtils.runCommandAndGetOutput(
+                lifecycleScope.launch(Dispatchers.IO) {
+                    ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "size", "reset"))
+                    ShizukuUtils.runCommandAndGetOutput(
                         arrayOf("wm", "overscan", "0,0,0,$overscanValuePx")
-                )
+                    )
+                }
             } catch (e: Exception) {
                 Log.e("BottomBarService", "Error adding views", e)
                 stopSelf()

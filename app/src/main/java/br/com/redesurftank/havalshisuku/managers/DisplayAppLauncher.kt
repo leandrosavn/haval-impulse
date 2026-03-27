@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 object DisplayAppLauncher {
@@ -143,6 +144,9 @@ object DisplayAppLauncher {
             val stackId = findStackIdForPackage(config.packageName, config.displayId)
             if (stackId != null) {
                 sh("am stack resize $stackId ${config.x} ${config.y} $right $bottom")
+                ServiceManager.getInstance().dispatchServiceManagerEvent(
+                    br.com.redesurftank.havalshisuku.models.ServiceManagerEventType.APP_GEOMETRY_CHANGED
+                )
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error resizing app ${config.packageName}", e)
@@ -317,13 +321,26 @@ object DisplayAppLauncher {
     }
 
     fun notifyDisplayStateChanged(displayId: Int) {
-        if (displayId == 3) {
-            val isActive = isAnyAppOnDisplay(3)
-            Log.w(TAG, "Display 3 app state changed: isActive=$isActive")
-            ServiceManager.getInstance().dispatchServiceManagerEvent(
-                br.com.redesurftank.havalshisuku.models.ServiceManagerEventType.DISPLAY_3_APP_STATE_CHANGED,
-                isActive
-            )
+        scope.launch {
+            // Check multiple times with increasing delays to ensure system has updated stack state
+            val delays = listOf(0L, 500L, 1000L)
+            for (d in delays) {
+                if (d > 0) delay(d)
+                val isActive = isAnyAppOnDisplay(displayId)
+                val eventType = when (displayId) {
+                    1 -> br.com.redesurftank.havalshisuku.models.ServiceManagerEventType.DISPLAY_1_APP_STATE_CHANGED
+                    3 -> br.com.redesurftank.havalshisuku.models.ServiceManagerEventType.DISPLAY_3_APP_STATE_CHANGED
+                    else -> null
+                }
+                
+                if (eventType != null) {
+                    Log.w(TAG, "Display $displayId app state changed (delay $d): isActive=$isActive")
+                    ServiceManager.getInstance().dispatchServiceManagerEvent(eventType, isActive)
+                }
+                
+                // If we found it active, we're likely done with launch updates
+                if (isActive) break
+            }
         }
     }
 
@@ -332,9 +349,9 @@ object DisplayAppLauncher {
     }
 
     private data class StackInfo(val stackId: Int, val windowingMode: String, val isFreeform: Boolean)
-    private data class TaskInfo(val taskId: Int, val stackId: Int, val displayId: Int)
+    data class TaskInfo(val taskId: Int, val stackId: Int, val displayId: Int)
 
-    private fun findTaskForPackage(packageName: String): TaskInfo? {
+    fun findTaskForPackage(packageName: String): TaskInfo? {
         var currentStackId: Int? = null
         var currentDisplayId: Int? = null
         for (line in getStackList().lines()) {

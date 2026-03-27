@@ -131,7 +131,8 @@ fun BottomBarContent() {
     DisposableEffect(Unit) {
         val listener =
                 object : br.com.redesurftank.havalshisuku.listeners.IDataChanged {
-                    override fun onDataChanged(key: String, value: String) {
+                    override fun onDataChanged(key: String, value: String?) {
+                        if (value == null) return
                         when (key) {
                             CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.getValue() ->
                                     driverTemp = value
@@ -594,7 +595,8 @@ fun BottomBarMenus() {
     DisposableEffect(Unit) {
         val listener =
                 object : br.com.redesurftank.havalshisuku.listeners.IDataChanged {
-                    override fun onDataChanged(key: String, value: String) {
+                    override fun onDataChanged(key: String, value: String?) {
+                        if (value == null) return
                         when (key) {
                             CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.getValue() ->
                                     powerModel = value

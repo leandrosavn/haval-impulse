@@ -43,6 +43,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -98,6 +99,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import br.com.redesurftank.havalshisuku.models.BottomBarState
@@ -120,6 +122,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -1241,7 +1244,7 @@ fun BasicSettingsTab() {
                                     Column(modifier = Modifier.padding(top = 8.dp)) {
                                         HorizontalDivider(color = Color(0xFF1D2430), thickness = 1.dp)
                                         Spacer(modifier = Modifier.height(12.dp))
-                                        
+
                                         // Auto-hide row
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
@@ -1258,12 +1261,21 @@ fun BasicSettingsTab() {
                                                     autoHideEnabled = it
                                                     prefs.edit().putBoolean(SharedPreferencesKeys.BOTTOM_BAR_AUTO_HIDE.key, it).apply()
                                                     BottomBarState.autoHideEnabled = it
-                                                }
+                                                },
+                                                modifier = Modifier.scale(0.9f),
+                                                colors = SwitchDefaults.colors(
+                                                    checkedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextPrimary,
+                                                    checkedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.Primary,
+                                                    uncheckedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextSecondary,
+                                                    uncheckedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.ButtonSecondary,
+                                                    uncheckedBorderColor = Color.Transparent,
+                                                    checkedBorderColor = Color.Transparent
+                                                )
                                             )
                                         }
-                                        
+
                                         Spacer(modifier = Modifier.height(12.dp))
-                                        
+
                                         // Manage Overrides button
                                         Button(
                                             onClick = { showOverridesDialog = true },
@@ -2385,8 +2397,8 @@ fun TelasTab() {
 
     // GitHub Themes States
     var githubThemes by remember { mutableStateOf<List<ThemeMetadata>>(emptyList()) }
-    var localThemes by remember { 
-        mutableStateOf(ThemeManager.getInstance(context).getLocalThemes()) 
+    var localThemes by remember {
+        mutableStateOf(ThemeManager.getInstance(context).getLocalThemes())
     }
     var isFetchingThemes by remember { mutableStateOf(false) }
     var downloadingThemeName by remember { mutableStateOf<String?>(null) }
@@ -2514,7 +2526,16 @@ fun TelasTab() {
                                             "Erro ao atualizar funções do cluster: ${e.message}"
                                     )
                                 }
-                            }
+                            },
+                            modifier = Modifier.scale(0.9f),
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextPrimary,
+                                checkedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.Primary,
+                                uncheckedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextSecondary,
+                                uncheckedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.ButtonSecondary,
+                                uncheckedBorderColor = Color.Transparent,
+                                checkedBorderColor = Color.Transparent
+                            )
                     )
                 }
 
@@ -2575,7 +2596,16 @@ fun TelasTab() {
                                 prefs.edit {
                                     putBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, it)
                                 }
-                            }
+                            },
+                            modifier = Modifier.scale(0.9f),
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextPrimary,
+                                checkedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.Primary,
+                                uncheckedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextSecondary,
+                                uncheckedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.ButtonSecondary,
+                                uncheckedBorderColor = Color.Transparent,
+                                checkedBorderColor = Color.Transparent
+                            )
                     )
                 }
 
@@ -3076,7 +3106,16 @@ fun TelasTab() {
                                             it
                                     )
                                 }
-                            }
+                            },
+                            modifier = Modifier.scale(0.9f),
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextPrimary,
+                                checkedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.Primary,
+                                uncheckedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextSecondary,
+                                uncheckedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.ButtonSecondary,
+                                uncheckedBorderColor = Color.Transparent,
+                                checkedBorderColor = Color.Transparent
+                            )
                     )
                 }
 
@@ -3766,8 +3805,9 @@ fun DisplayAppConfigDialog(
                 modifier =
                         Modifier.fillMaxWidth(0.85f)
                                 .fillMaxHeight(0.9f)
+                                .offset(y = (-60).dp)
                                 .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A).copy(alpha = 0.9f)),
                 shape = RoundedCornerShape(12.dp)
         ) {
             Column(
@@ -4072,8 +4112,9 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                 modifier =
                         Modifier.fillMaxWidth(0.85f)
                                 .fillMaxHeight(0.9f)
+                                .offset(y = (-60).dp)
                                 .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A).copy(alpha = 0.9f)),
                 shape = RoundedCornerShape(12.dp)
         ) {
             Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -4176,7 +4217,7 @@ fun CurrentValuesTab() {
     var searchQueryValues by remember { mutableStateOf("") }
     var searchQueryConfig by remember { mutableStateOf("") }
     DisposableEffect(Unit) {
-        val listener = IDataChanged { key, value -> dataMap[key] = value }
+        val listener = IDataChanged { key, value -> dataMap[key] = value ?: "" }
         ServiceManager.getInstance().addDataChangedListener(listener)
         onDispose { ServiceManager.getInstance().removeDataChangedListener(listener) }
     }
@@ -5517,7 +5558,16 @@ fun InformacoesTab() {
                                                             it
                                                     )
                                                     .apply()
-                                        }
+                                        },
+                                        modifier = Modifier.scale(0.9f),
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextPrimary,
+                                            checkedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.Primary,
+                                            uncheckedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextSecondary,
+                                            uncheckedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.ButtonSecondary,
+                                            uncheckedBorderColor = Color.Transparent,
+                                            checkedBorderColor = Color.Transparent
+                                        )
                                 )
                             }
 

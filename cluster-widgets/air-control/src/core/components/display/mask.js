@@ -22,11 +22,12 @@ export function createMask() {
     maskBg.appendChild(leftCircleBorder);
     maskBg.appendChild(rightCircleBorder);
 
-    // No App Mask layer 
-    const noAppMaskV = div({ className: 'no-app-mask-v' });
-    const noAppMaskH = div({ className: 'no-app-mask-h' });
+    // No App Mask layer (Spatial)
+    const noAppMaskL = div({ className: 'no-app-mask-l' });
+    const noAppMaskR = div({ className: 'no-app-mask-r' });
     const partialAppMask = div({ className: 'partial-app-mask' });
 
+    // Note: noAppMaskL and R are appended in main.js to appContainer for z-index
     maskBg.appendChild(partialAppMask);
 
     const updateVisibility = () => {
@@ -34,21 +35,32 @@ export function createMask() {
         const cardId = get('cardId');
         const rightVisible = (cardId !== 0);
 
-        if (!appInDash) {
-            noAppMaskV.style.opacity = '1';
-            noAppMaskH.style.opacity = '1';
-            noAppMaskV.style.pointerEvents = 'auto';
-            noAppMaskH.style.pointerEvents = 'auto';
-            noAppMaskV.style.visibility = 'visible';
-            noAppMaskH.style.visibility = 'visible';
+        let showL = true;
+        let showR = true;
+
+        if (appInDash === true) {
+            showL = false;
+            showR = false;
+        } else if (appInDash === 'left') {
+            showL = false;
+            showR = true;
+        } else if (appInDash === 'right') {
+            showL = true;
+            showR = false;
         } else {
-            noAppMaskV.style.opacity = '0';
-            noAppMaskH.style.opacity = '0';
-            noAppMaskV.style.pointerEvents = 'none';
-            noAppMaskH.style.pointerEvents = 'none';
-            noAppMaskV.style.visibility = 'hidden';
-            noAppMaskH.style.visibility = 'hidden';
+            showL = true;
+            showR = true;
         }
+
+        // Hide right mask if card=0 (right panel hidden)
+        if (!rightVisible) {
+            showR = false;
+        }
+
+        noAppMaskL.style.opacity = showL ? '1' : '0';
+        noAppMaskR.style.opacity = showR ? '1' : '0';
+        noAppMaskL.style.visibility = showL ? 'visible' : 'hidden';
+        noAppMaskR.style.visibility = showR ? 'visible' : 'hidden';
 
         partialAppMask.style.opacity = (!rightVisible) ? '1' : '0';
     };
@@ -60,8 +72,8 @@ export function createMask() {
     // Use a combined object for cleanup
     const result = {
         background: maskBg,
-        noAppV: noAppMaskV,
-        noAppH: noAppMaskH,
+        noAppL: noAppMaskL,
+        noAppR: noAppMaskR,
         partial: partialAppMask,
         cleanup: () => {
             unsub1();
