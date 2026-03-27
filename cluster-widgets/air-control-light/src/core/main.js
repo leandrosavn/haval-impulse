@@ -51,8 +51,8 @@ function initializeLayout() {
     dashboardCleanup = dashCleanup;
 
     // Add no app mask on top (z-index: 200)
-    appContainer.appendChild(mask.noAppV);
-    appContainer.appendChild(mask.noAppH);
+    appContainer.appendChild(mask.noAppL);
+    appContainer.appendChild(mask.noAppR);
     logger.leave('initializeLayout');
 }
 

@@ -240,9 +240,16 @@ document.addEventListener('keydown', (e) => {
     }
 
     if (e.key.toLowerCase() === 'k') {
+        const options = [false, true, 'left', 'right'];
         const currentAppInDash = stateManager.getState().appInDash;
-        const nextValue = !currentAppInDash;
-        console.log(`[Mask Simulation] Toggle appInDash -> ${nextValue}`);
+        // Use findIndex or similar if indexOf fails for mixed types (though it shouldn't for these)
+        let currentIndex = options.indexOf(currentAppInDash);
+        if (currentIndex === -1) currentIndex = 0; // Fallback
+        
+        const nextIndex = (currentIndex + 1) % options.length;
+        const nextValue = options[nextIndex];
+        
+        console.log(`[Mask Simulation] Cycle appInDash -> ${nextValue}`);
         setState('appInDash', nextValue);
     }
 
