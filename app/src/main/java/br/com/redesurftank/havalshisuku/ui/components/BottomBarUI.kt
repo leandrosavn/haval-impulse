@@ -370,7 +370,7 @@ fun AppMenuContent() {
 
     Box(
             modifier =
-                    Modifier.background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(12.dp))
+                    Modifier.background(Color.Black.copy(alpha = 0.9f), RoundedCornerShape(12.dp))
                             .width(300.dp)
                             .padding(12.dp)
     ) {
@@ -626,7 +626,9 @@ fun BottomBarMenus() {
             contentAlignment = Alignment.BottomCenter
     ) {
         Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxWidth().alpha(0.95f)
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 60.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Bottom
         ) {

@@ -52,7 +52,8 @@ public class ProjectorManager {
             Log.w(TAG, "InstrumentProjector2 (Mask) initialized on Display " + disp.getDisplayId());
         });
 
-        projectorCreators.put(hudDisplayId, (ctx, disp) -> {
+        // Moved InstrumentProjector to Display 3 so it shows on top of the theme/virtual cluster
+        projectorCreators.put(maskDisplayId, (ctx, disp) -> {
             instrumentProjector = new InstrumentProjector(ctx, disp);
             instrumentProjector.show();
             Log.w(TAG, "InstrumentProjector (HUD) initialized on Display " + disp.getDisplayId());

@@ -79,5 +79,7 @@ enum class SharedPreferencesKeys(val key: String, val description: String) {
     ACTIVE_CUSTOM_THEME("activeCustomTheme", "Tema Dinâmico Ativo"),
     LOCAL_TEST_MODE("localTestMode", "Habilitar modo de teste local (ignora telnet/Frida)"),
     BOTTOM_BAR_AUTO_HIDE("bottomBarAutoHide", "Esconder barra automaticamente após 30s"),
-    BOTTOM_BAR_OVERRIDES("bottomBarOverrides", "Overrides de aplicativos salvos (JSON)")
+    BOTTOM_BAR_OVERRIDES("bottomBarOverrides", "Overrides de aplicativos salvos (JSON)"),
+    ENABLE_SPEED_ADJUSTMENT("enableSpeedAdjustment", "Habilitar ajuste de velocidade no painel"),
+    SPEED_ADJUSTMENT_OFFSET("speedAdjustmentOffset", "Fator de ajuste de velocidade (%)")
 }

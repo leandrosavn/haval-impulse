@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.os.Bundle
-import android.util.Log
 import android.view.Display
 import android.view.Gravity
 import android.view.View
@@ -62,16 +61,6 @@ class InstrumentProjector(outerContext: Context, display: Display) : BaseProject
         }
     }
 
-    private var isAnyAppOnDisplay1 = false
-
-    private val eventListener = br.com.redesurftank.havalshisuku.listeners.IServiceManagerEvent { event, args ->
-        if (event == br.com.redesurftank.havalshisuku.models.ServiceManagerEventType.DISPLAY_1_APP_STATE_CHANGED) {
-            isAnyAppOnDisplay1 = args[0] as Boolean
-            Log.w("InstrumentProjector", "Display 1 app state changed: $isAnyAppOnDisplay1")
-            ensureUi { updateVisibility() }
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window?.setBackgroundDrawable(Color.TRANSPARENT.toDrawable())
@@ -86,21 +75,14 @@ class InstrumentProjector(outerContext: Context, display: Display) : BaseProject
         setContentView(rootLayout)
 
         serviceManager.addDataChangedListener(this)
-        serviceManager.addServiceManagerEventListener(eventListener)
         preferences.registerOnSharedPreferenceChangeListener(prefsListener)
         handler.post(timeUpdateRunnable)
 
-        ensureUi { updateVisibility() }
-    }
-
-    private fun updateVisibility() {
-        val mainScreenOn = ServiceManager.getInstance().isMainScreenOn
-        rootLayout.isVisible = mainScreenOn && !isAnyAppOnDisplay1
-        updateView()
+        ensureUi { updateView() }
+        rootLayout.isVisible = ServiceManager.getInstance().isMainScreenOn
     }
 
     private fun updateView() {
-        if (!rootLayout.isVisible) return
         val enableWarning = preferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_REVISION_WARNING.key, false)
         if (!enableWarning) {
             maintenanceTextView?.let {
@@ -166,19 +148,22 @@ class InstrumentProjector(outerContext: Context, display: Display) : BaseProject
         }
     }
 
-    override fun onStop() {
-        super.onStop()
+    override fun cancel() {
         handler.removeCallbacks(timeUpdateRunnable)
         preferences.unregisterOnSharedPreferenceChangeListener(prefsListener)
         serviceManager.removeDataChangedListener(this)
-        serviceManager.removeServiceManagerEventListener(eventListener)
+        super.cancel()
     }
 
     override fun carMainScreenOff() {
-        ensureUi { updateVisibility() }
+        ensureUi {
+            rootLayout.isVisible = false
+        }
     }
 
     override fun carMainScreenOn() {
-        ensureUi { updateVisibility() }
+        ensureUi {
+            rootLayout.isVisible = true
+        }
     }
 }

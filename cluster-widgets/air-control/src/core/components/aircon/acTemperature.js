@@ -5,16 +5,19 @@ import { updateProgressRings } from './mainAcControl.js'
 
 export function createTemperatureElement() {
 
-    function getTempDisplayValue(temp) {
+    function getTempDisplayValue(temp, unit) {
+        if (temp === null || temp === undefined || temp === '--' || temp === -1 || temp === 255 || isNaN(temp)) {
+            return '--';
+        }
         if (temp == 16) return 'Low';
         if (temp == 32) return 'High';
-        return temp + '°C';
+        return temp + (unit || '°C');
     }
 
     var tempDisplay = div({
         className: 'temp-display-label font-bold',
         children: [
-            getTempDisplayValue(stateManager.get('temp')),
+            getTempDisplayValue(stateManager.get('temp'), stateManager.get('tempUnit')),
         ],
     });
     var focusArea = createFocusElementWithChildren({
@@ -49,14 +52,19 @@ export function createTemperatureElement() {
     });
 
     var unsubscribeTemp = subscribe('temp', function (newTemp) {
-        tempDisplay.textContent = getTempDisplayValue(newTemp);
+        tempDisplay.textContent = getTempDisplayValue(newTemp, stateManager.get('tempUnit'));
         updateProgressRings();
+    });
+
+    var unsubscribeUnit = subscribe('tempUnit', function (newUnit) {
+        tempDisplay.textContent = getTempDisplayValue(stateManager.get('temp'), newUnit);
     });
 
     // Add cleanup method to the element
     focusArea.cleanup = function () {
         unsubscribeFocus();
         unsubscribeTemp();
+        unsubscribeUnit();
     };
 
     return focusArea;

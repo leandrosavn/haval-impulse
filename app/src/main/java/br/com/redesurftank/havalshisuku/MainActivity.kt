@@ -139,6 +139,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -494,6 +495,12 @@ fun BasicSettingsTab() {
     var showStartPicker by remember { mutableStateOf(false) }
     var showEndPicker by remember { mutableStateOf(false) }
     var showOverridesDialog by remember { mutableStateOf(false) }
+    var enableSpeedAdjustment by remember {
+        mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_SPEED_ADJUSTMENT.key, false))
+    }
+    var speedAdjustmentOffset by remember {
+        mutableFloatStateOf(prefs.getFloat(SharedPreferencesKeys.SPEED_ADJUSTMENT_OFFSET.key, 0f))
+    }
 
     val settingsList = mutableListOf<SettingItem>()
 
@@ -1926,6 +1933,30 @@ fun BasicSettingsTab() {
                                 }
                             },
                             sliderLabel = "Volume: $volume"
+                    ),
+                                        SettingItem(
+                            title = "Ajuste de velocidade",
+                            description = "Ajusta a velocidade exibida no painel (Virtual Cluster)",
+                            checked = enableSpeedAdjustment,
+                            onCheckedChange = {
+                                enableSpeedAdjustment = it
+                                prefs.edit {
+                                    putBoolean(SharedPreferencesKeys.ENABLE_SPEED_ADJUSTMENT.key, it)
+                                }
+                            },
+                            sliderValue = speedAdjustmentOffset.toInt(),
+                            sliderRange = -50..50,
+                            sliderStep = 1,
+                            onSliderChange = { newValue ->
+                                speedAdjustmentOffset = newValue.toFloat()
+                                prefs.edit {
+                                    putFloat(
+                                            SharedPreferencesKeys.SPEED_ADJUSTMENT_OFFSET.key,
+                                            newValue.toFloat()
+                                    )
+                                }
+                            },
+                            sliderLabel = "Ajuste: ${if (speedAdjustmentOffset > 0) "+" else ""}${speedAdjustmentOffset.toInt()}%"
                     )
             )
     )

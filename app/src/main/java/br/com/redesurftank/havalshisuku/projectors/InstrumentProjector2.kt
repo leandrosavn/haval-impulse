@@ -143,10 +143,9 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 }
 
                 ServiceManagerEventType.GRAPH_SCREEN_NAVIGATION -> {
-                    val direction = args[0]
-                    if (direction is String) {
-                        evaluateJsIfReady(webView, "control('graphNav', '$direction')")
-                        evaluateJsIfReady(webView, "control('currentGraph','$direction')")
+                    val screen = args[0]
+                    if (screen is String) {
+                        evaluateJsIfReady(webView, "control('currentGraph','$screen')")
                     }
                 }
 
@@ -167,11 +166,12 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
                 ServiceManagerEventType.MAX_AUTO_AC_STATUS_CHANGED -> {
                     val status = args[0]
-                    if (status is Int) {
-                        evaluateJsIfReady(webView, "control('maxauto', $status)")
-                    } else if (status is Boolean) {
-                        evaluateJsIfReady(webView, "control('maxAutoAcStatus', $status)")
+                    val intStatus = when (status) {
+                        is Int -> status
+                        is Boolean -> if (status) 1 else 0
+                        else -> 0
                     }
+                    evaluateJsIfReady(webView, "control('maxauto', $intStatus)")
                 }
 
                 ServiceManagerEventType.DISPLAY_SCREEN_SELECTION -> {
@@ -248,10 +248,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
             ensureUi {
                 when (key) {
                     CarConstants.CAR_BASIC_VEHICLE_SPEED.value -> {
-                        val speedStr = value.toString().split(".")[0]
+                        val speedStr = getAdjustedSpeed(value)
                         evaluateJsIfReady(
                                 webView,
-                                "control('${GraphicsScreen.GraphOptions.CAR_SPEED}', $speedStr)"
+                                "control('carSpeed', $speedStr)"
                         )
                     }
                     CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE.value -> {
@@ -282,16 +282,20 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                             evaluateJsIfReady(webView, "control('auto', $value)")
                     CarConstants.CAR_HVAC_ANION_ENABLE.value ->
                             evaluateJsIfReady(webView, "control('aion', $value)")
+                    CarConstants.CAR_CONFIGURE_DEFAULT_TEMP_UNIT.value -> {
+                        val unitLabel = if (value == "1") "F" else "C"
+                        evaluateJsIfReady(webView, "control('tempUnit', '$unitLabel')")
+                    }
                     CarConstants.CAR_BASIC_OUTSIDE_TEMP.value -> {
                         evaluateJsIfReady(
                                 webView,
-                                "control('outside_temp', ${value.toFloat().roundToInt()})"
+                                "control('outside_temp', ${formatTemp(value.toString())})"
                         )
                     }
                     CarConstants.CAR_BASIC_INSIDE_TEMP.value -> {
                         evaluateJsIfReady(
                                 webView,
-                                "control('inside_temp', ${value.toFloat().roundToInt()})"
+                                "control('inside_temp', ${formatTemp(value.toString())})"
                         )
                     }
                     CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value -> {
@@ -361,9 +365,31 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         }
     }
 
+    inner class WebBridge {
+        @JavascriptInterface
+        fun onPageReady() {
+            ensureUi {
+                Log.d(TAG, "JS signaled Page Ready")
+                isPageReady = true
+                
+                // Auto-launch default app if configured
+                val defaultPackage = preferences.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "") ?: ""
+                if (defaultPackage.isNotEmpty()) {
+                    br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs().find { it.packageName == defaultPackage }?.let { config ->
+                        Log.d(TAG, "Auto-launching default app on Page Ready: $defaultPackage")
+                        scope.launch {
+                            br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.launchApp(config)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupControlView(parent: FrameLayout) {
         if (webView == null) {
+            val bridge = WebBridge()
             webView = WebView(context).apply {
                 layoutParams = FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
@@ -373,7 +399,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.allowContentAccess = true
-                addJavascriptInterface(WebBridge(), "Android")
+                addJavascriptInterface(bridge, "Android")
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
@@ -427,11 +453,15 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         )
         evaluateJsIfReady(
                 webView,
-                "control('inside_temp', ${sm.getData(CarConstants.CAR_BASIC_INSIDE_TEMP.value).toFloat().roundToInt()})"
+                "control('inside_temp', ${formatTemp(sm.getData(CarConstants.CAR_BASIC_INSIDE_TEMP.value))})"
         )
         evaluateJsIfReady(
                 webView,
-                "control('outside_temp', ${sm.getData(CarConstants.CAR_BASIC_OUTSIDE_TEMP.value).toFloat().roundToInt()})"
+                "control('outside_temp', ${formatTemp(sm.getData(CarConstants.CAR_BASIC_OUTSIDE_TEMP.value))})"
+        )
+        evaluateJsIfReady(
+                webView,
+                "control('tempUnit', '${if (sm.getData(CarConstants.CAR_CONFIGURE_DEFAULT_TEMP_UNIT.value) == "1") "F" else "C"}')"
         )
         evaluateJsIfReady(
                 webView,
@@ -460,8 +490,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         )
 
         // Speed and Engine
-        val speedValue = sm.getData(CarConstants.CAR_BASIC_VEHICLE_SPEED.value)
-        val speedStr = speedValue.toString().split(".")[0]
+        val speedStr = getAdjustedSpeed(sm.getData(CarConstants.CAR_BASIC_VEHICLE_SPEED.value))
         evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.CAR_SPEED}', $speedStr)")
         evaluateJsIfReady(
                 webView,
@@ -618,19 +647,14 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
             configs.forEach { config ->
                 val taskInfo = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.findTaskForPackage(config.packageName)
                 if (taskInfo != null && (taskInfo.displayId == 1 || taskInfo.displayId == 3)) {
-                    val newX = if (cardId == 0) {
-                        kotlin.math.max(config.x, (fullWidth * 0.3f).toInt())
-                    } else {
-                        config.x
-                    }
                     val newWidth = if (cardId == 0) {
-                        kotlin.math.min(config.width, (fullWidth * 0.4f).toInt())
+                        kotlin.math.min(config.width, (fullWidth * 0.7f).toInt() - config.x)
                     } else {
                         config.width
                     }
 
-                    val newConfig = config.copy(width = newWidth, x = newX)
-                    Log.d(TAG, "Resizing running app ${config.packageName} on for cardId $cardId: width=$newWidth x=$newX")
+                    val newConfig = config.copy(width = newWidth)
+                    Log.d(TAG, "Resizing running app ${config.packageName} on for cardId $cardId: width=$newWidth")
                     br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.resizeApp(newConfig)
                 }
             }
@@ -650,24 +674,29 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         return gearLabel
     }
 
-    inner class WebBridge {
-        @JavascriptInterface
-        fun onPageReady() {
-            ensureUi {
-                Log.d(TAG, "JS signaled Page Ready")
-                isPageReady = true
-                
-                // Auto-launch default app if configured
-                val defaultPackage = preferences.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "") ?: ""
-                if (defaultPackage.isNotEmpty()) {
-                    br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs().find { it.packageName == defaultPackage }?.let { config ->
-                        Log.d(TAG, "Auto-launching default app on Page Ready: $defaultPackage")
-                        scope.launch {
-                            br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.launchApp(config)
-                        }
-                    }
-                }
-            }
+
+    private fun formatTemp(value: String?): String {
+        if (value == null || value == "--" || value == "-1" || value == "255") return "null"
+        return try {
+            val floatVal = value.toFloat()
+            // Format to 1 decimal place. Use dot as decimal separator for JS.
+            String.format(java.util.Locale.US, "%.1f", floatVal)
+        } catch (e: Exception) {
+            "null"
         }
+    }
+
+    private fun getAdjustedSpeed(value: Any?): String {
+        val speedValue = value?.toString()?.toDoubleOrNull() ?: 0.0
+        val enableAdjustment = preferences.getBoolean(SharedPreferencesKeys.ENABLE_SPEED_ADJUSTMENT.key, false)
+        val offset = preferences.getFloat(SharedPreferencesKeys.SPEED_ADJUSTMENT_OFFSET.key, 0f)
+
+        val finalSpeed = if (enableAdjustment) {
+            speedValue * (1.0 + (offset / 100.0))
+        } else {
+            speedValue
+        }
+
+        return finalSpeed.toInt().toString()
     }
 }
