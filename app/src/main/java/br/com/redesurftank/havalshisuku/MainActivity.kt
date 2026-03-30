@@ -225,7 +225,7 @@ fun MainScreen(modifier: Modifier = Modifier) {
     }
 }
 
-data class DrawerMenuItem(val title: String, val icon: ImageVector)
+data class DrawerMenuItem(val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
