@@ -133,10 +133,6 @@ subscribe('clusterEnabled', render);
 subscribe('cardId', render);
 render();
 
-if (window.Android && window.Android.onPageReady) {
-    console.log('[JS] Calling Android.onPageReady()');
-    window.Android.onPageReady();
-}
 
 
 // Handle Card ID transitions

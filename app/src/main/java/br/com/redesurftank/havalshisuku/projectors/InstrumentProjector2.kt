@@ -62,7 +62,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private var isAnyAppOnDisplay3 = false
     private var isAnyAppOnDisplay1 = false
     private var currentCard = 0
-    private var isPageReady = false
+    private var hasAutoLaunched = false
 
     private val prefsListener =
             SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -365,21 +365,14 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         }
     }
 
-    inner class WebBridge {
-        @JavascriptInterface
-        fun onPageReady() {
-            ensureUi {
-                Log.d(TAG, "JS signaled Page Ready")
-                isPageReady = true
-                
-                // Auto-launch default app if configured
-                val defaultPackage = preferences.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "") ?: ""
-                if (defaultPackage.isNotEmpty()) {
-                    br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs().find { it.packageName == defaultPackage }?.let { config ->
-                        Log.d(TAG, "Auto-launching default app on Page Ready: $defaultPackage")
-                        scope.launch {
-                            br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.launchApp(config)
-                        }
+    private fun triggerAutoLaunch() {
+        ensureUi {
+            val defaultPackage = preferences.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "") ?: ""
+            if (defaultPackage.isNotEmpty()) {
+                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs().find { it.packageName == defaultPackage }?.let { config ->
+                    Log.d(TAG, "Auto-launching default app: $defaultPackage")
+                    scope.launch {
+                        br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.launchApp(config)
                     }
                 }
             }
@@ -389,7 +382,6 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupControlView(parent: FrameLayout) {
         if (webView == null) {
-            val bridge = WebBridge()
             webView = WebView(context).apply {
                 layoutParams = FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
@@ -399,7 +391,6 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.allowContentAccess = true
-                addJavascriptInterface(bridge, "Android")
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
@@ -589,6 +580,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private fun evaluateJsIfReady(webView: WebView?, js: String) {
         if (webView == null) return
         if (webViewsLoaded.getOrDefault(webView, false)) {
+            if (!hasAutoLaunched) {
+                hasAutoLaunched = true
+                triggerAutoLaunch()
+            }
             webView.evaluateJavascript(js, null)
         } else {
             pendingJsQueues.getOrPut(webView) { mutableListOf() }.add(js)
