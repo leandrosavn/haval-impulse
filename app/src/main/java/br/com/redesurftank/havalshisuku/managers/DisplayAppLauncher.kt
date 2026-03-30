@@ -46,6 +46,10 @@ object DisplayAppLauncher {
         }
     }
 
+    fun getAppConfig(packageName: String): DisplayAppConfig? {
+        return getAllConfigs().find { it.packageName == packageName }
+    }
+
     fun saveConfig(config: DisplayAppConfig) {
         val configs = getAllConfigs().toMutableList()
         val index = configs.indexOfFirst { it.packageName == config.packageName }
@@ -108,6 +112,7 @@ object DisplayAppLauncher {
             val right = config.x + config.width
             val bottom = config.y + config.height
             val escapedActivity = config.activityName.replace("$", "\\$")
+            val isOwnPackage = config.packageName == App.getContext().packageName
 
             // Already on target display — just resize
             val existingStack = findStackIdForPackage(config.packageName, config.displayId)
@@ -117,9 +122,17 @@ object DisplayAppLauncher {
             }
 
             // Force-stop + start fresh on target display
-            sh("am force-stop ${config.packageName}")
-            Thread.sleep(200)
-            sh("am start -n ${config.packageName}/$escapedActivity --display ${config.displayId} --windowingMode 5")
+            if (!isOwnPackage) {
+                sh("am force-stop ${config.packageName}")
+                Thread.sleep(200)
+                sh("am start -n ${config.packageName}/$escapedActivity --display ${config.displayId} --windowingMode 5")
+            } else {
+                Log.w(TAG, "Skipping force-stop/start for own package ${config.packageName}")
+                // For own package, we might need a different way to move it if it's already running,
+                // but am force-stop definitely crashes the app.
+                // For now, if it's not already on the target display, we don't force it to move here
+                // to avoid the crash. User might need to launch it manually there or use move-stack.
+            }
             Thread.sleep(300)
 
             val newStackId = findStackIdForPackage(config.packageName, config.displayId)

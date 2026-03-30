@@ -8,5 +8,7 @@ data class DisplayAppConfig(
     val y: Int,
     val width: Int,
     val height: Int,
-    val substituteIcon: String? = null
+    val substituteIcon: String? = null,
+    val iconColor: String? = null,
+    val customName: String? = null
 )

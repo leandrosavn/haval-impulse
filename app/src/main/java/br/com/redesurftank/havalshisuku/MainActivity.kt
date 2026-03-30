@@ -2,6 +2,7 @@
 
 package br.com.redesurftank.havalshisuku
 
+import android.app.Application
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.ComponentName
@@ -10,6 +11,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
+import android.graphics.Color as AndroidColor
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -20,183 +22,49 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.layout.wrapContentWidth
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items as gridItems
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Android
-import androidx.compose.material.icons.filled.DirectionsCar
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DeveloperMode
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Place
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.filled.SmartDisplay
-import androidx.compose.material.icons.filled.Style
-import androidx.compose.material.icons.filled.SystemUpdate
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MenuAnchorType
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
-import br.com.redesurftank.havalshisuku.models.BottomBarState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.*
+import androidx.compose.ui.draw.*
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.*
+import androidx.compose.ui.platform.*
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.DpOffset
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import androidx.core.content.FileProvider
-import androidx.core.content.edit
+import androidx.compose.ui.text.*
+import androidx.compose.ui.text.font.*
+import androidx.compose.ui.text.style.*
+import androidx.compose.ui.unit.*
+import androidx.compose.ui.window.*
 import br.com.redesurftank.App
+import br.com.redesurftank.havalshisuku.models.*
+import br.com.redesurftank.havalshisuku.managers.*
+import br.com.redesurftank.havalshisuku.services.*
 import br.com.redesurftank.havalshisuku.listeners.IDataChanged
-import br.com.redesurftank.havalshisuku.managers.AutoBrightnessManager
-import br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
-import br.com.redesurftank.havalshisuku.managers.ServiceManager
-import br.com.redesurftank.havalshisuku.managers.ThemeManager
-import br.com.redesurftank.havalshisuku.models.AppInfo
-import br.com.redesurftank.havalshisuku.models.CarConstants
-import br.com.redesurftank.havalshisuku.models.DisplayAppConfig
-import br.com.redesurftank.havalshisuku.models.ReleaseInfo
-import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys
-import br.com.redesurftank.havalshisuku.models.SteeringWheelCustomActionType
-import br.com.redesurftank.havalshisuku.models.TargetDisplay
-import br.com.redesurftank.havalshisuku.models.ThemeMetadata
-import br.com.redesurftank.havalshisuku.models.UpdateCheckResult
-import br.com.redesurftank.havalshisuku.ui.components.AppColors
-import br.com.redesurftank.havalshisuku.ui.components.AppDimensions
-import br.com.redesurftank.havalshisuku.ui.components.SettingCard
-import br.com.redesurftank.havalshisuku.ui.components.SettingItem
-import br.com.redesurftank.havalshisuku.ui.components.StyledCard
-import br.com.redesurftank.havalshisuku.ui.components.StyledTextField
-import br.com.redesurftank.havalshisuku.ui.components.TwoColumnSettingsLayout
-import br.com.redesurftank.havalshisuku.ui.theme.HavalShisukuTheme
-import br.com.redesurftank.havalshisuku.utils.FridaUtils
+import br.com.redesurftank.havalshisuku.ui.components.*
+import br.com.redesurftank.havalshisuku.ui.theme.*
+import br.com.redesurftank.havalshisuku.utils.*
 import coil.compose.AsyncImage
-import coil.request.CachePolicy
-import coil.request.ImageRequest
-import java.io.BufferedInputStream
-import java.io.BufferedReader
-import java.io.File
-import java.io.FileOutputStream
-import java.io.InputStreamReader
+import coil.request.*
+import java.io.*
 import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
-import kotlin.math.min
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import java.util.*
+import kotlinx.coroutines.*
 import org.json.JSONArray
+import kotlin.math.min
 
 const val TAG = "HavalShisuku"
 
@@ -3770,6 +3638,7 @@ fun DisplayAppConfigDialog(
         )
     }
     var displayDropdownExpanded by remember { mutableStateOf(false) }
+    var selectedIconColor by remember { mutableStateOf(existingConfig?.iconColor ?: "#FFFFFF") }
 
     // Get display resolution for sliders
     val resolution =
@@ -3785,17 +3654,24 @@ fun DisplayAppConfigDialog(
     var selectedSubIcon by remember { mutableStateOf(existingConfig?.substituteIcon) }
 
     val substituteIcons = listOf(
-        "nav" to "Navegação",
+        "nav" to "Mapa",
         "music" to "Música",
         "video" to "Vídeo",
-        "settings" to "Configurações",
-        "haval" to "Haval",
-        "android" to "Android"
+        "settings" to "Ajustes",
+        "haval" to "Carro",
+        "game" to "Jogo",
+        "tv" to "TV",
+        "phone" to "Telefone",
+        "chat" to "Conversa",
+        "map_alt" to "Explorar"
     )
 
     // Preview tracking
     var previewActive by remember { mutableStateOf(false) }
     var previewJob by remember { mutableStateOf<Job?>(null) }
+
+    var customName by remember { mutableStateOf(existingConfig?.customName ?: "") }
+    var isRenaming by remember { mutableStateOf(false) }
 
     // Helper to build config from current state
     fun currentConfig(): DisplayAppConfig? {
@@ -3808,7 +3684,9 @@ fun DisplayAppConfigDialog(
                 y = posY,
                 width = sizeW,
                 height = sizeH,
-                substituteIcon = selectedSubIcon
+                substituteIcon = selectedSubIcon,
+                iconColor = selectedIconColor,
+                customName = if (customName.isBlank()) null else customName
         )
     }
 
@@ -3877,9 +3755,8 @@ fun DisplayAppConfigDialog(
     ) {
         Card(
                 modifier =
-                        Modifier.fillMaxWidth(0.85f)
+                        Modifier.fillMaxWidth(0.35f)
                                 .wrapContentHeight()
-                                .offset(y = (-60).dp)
                                 .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp)),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A).copy(alpha = 1.0f)),
                 shape = RoundedCornerShape(12.dp)
@@ -3892,14 +3769,78 @@ fun DisplayAppConfigDialog(
                                     .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                        if (existingConfig != null) "Editar App" else "Adicionar App",
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (existingConfig != null) "Editar App" else "Adicionar App",
                         color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                )
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Fechar",
+                            tint = Color.White
+                        )
+                    }
+                }
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Nome do Link (Opcional)", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (isRenaming) {
+                                TextField(
+                                    value = customName,
+                                    onValueChange = { customName = it },
+                                    modifier = Modifier.weight(1f),
+                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, color = Color.White),
+                                    placeholder = { Text(selectedApp?.label ?: "Nome padrão", color = Color.Gray, fontSize = 14.sp) },
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color(0xFF2A2F37),
+                                        unfocusedContainerColor = Color(0xFF2A2F37),
+                                        focusedIndicatorColor = Color(0xFF4A9EFF),
+                                        unfocusedIndicatorColor = Color(0xFF3A3F47)
+                                    ),
+                                    trailingIcon = {
+                                        IconButton(onClick = { isRenaming = false }) {
+                                            Icon(Icons.Default.Check, contentDescription = "Salvar nome", tint = Color(0xFF4A9EFF))
+                                        }
+                                    }
+                                )
+                            } else {
+                                Text(
+                                    text = if (customName.isNotBlank()) customName else selectedApp?.label ?: "Selecionar app...",
+                                    color = if (customName.isNotBlank()) Color(0xFF4A9EFF) else Color.White,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(onClick = { isRenaming = true }) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Renomear", tint = Color(0xFFB0B8C4), modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
 
                 Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -3993,6 +3934,27 @@ fun DisplayAppConfigDialog(
                     }
                 }
 
+                // Icon color options
+                Text("Cor do ícone customizado", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                val colors = listOf("#FFFFFF", "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF", "#FFA500", "#800080", "#C0C0C0", "#FFC0CB")
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                ) {
+                    items(colors) { colorHex ->
+                        val color = try { Color(android.graphics.Color.parseColor(colorHex)) } catch (_: Exception) { Color.White }
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(color, CircleShape)
+                                .border(if (selectedIconColor == colorHex) 2.dp else 1.dp, if (selectedIconColor == colorHex) Color.White else Color.Transparent, CircleShape)
+                                .clickable { selectedIconColor = colorHex }
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(4.dp))
+
                 // Resolution info
                 Text(
                         "Resolução: ${resolution.first} x ${resolution.second}",
@@ -4047,52 +4009,83 @@ fun DisplayAppConfigDialog(
                     }
                 }
 
-                // Substitute Icon Selection
-                Text("Ícone Substituto (opcional)", color = Color(0xFFB0B8C4), fontSize = 12.sp)
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (selectedSubIcon == null) Color(0xFF4A9EFF) else Color(0xFF2A2F37))
-                                .clickable { selectedSubIcon = null }
-                                .padding(4.dp),
-                            contentAlignment = Alignment.Center
+                // Substitute Icon Selection & Colors
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(if (selectedSubIcon != null) 0.6f else 1f)) {
+                        Text("Ícone Substituto", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                        Spacer(Modifier.height(4.dp))
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("Padrão", color = Color.White, fontSize = 10.sp, textAlign = TextAlign.Center)
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (selectedSubIcon == null) Color(0xFF4A9EFF) else Color(0xFF2A2F37))
+                                        .clickable { selectedSubIcon = null }
+                                        .padding(4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("Padrão", color = Color.White, fontSize = 9.sp, textAlign = TextAlign.Center)
+                                }
+                            }
+                            items(substituteIcons) { (id, label) ->
+                                val isSelected = selectedSubIcon == id
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSelected) Color(0xFF4A9EFF) else Color(0xFF2A2F37))
+                                        .clickable { selectedSubIcon = id }
+                                        .padding(4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                     Icon(
+                                         imageVector = when(id) {
+                                             "nav" -> Icons.Default.Place
+                                             "music" -> Icons.Default.PlayArrow
+                                             "video" -> Icons.Default.Movie
+                                             "settings" -> Icons.Default.Settings
+                                             "haval" -> Icons.Default.DirectionsCar
+                                             "game" -> Icons.Default.SportsEsports
+                                             "tv" -> Icons.Default.Tv
+                                             "phone" -> Icons.Default.Phone
+                                             "chat" -> Icons.Default.Chat
+                                             "map_alt" -> Icons.Default.Map
+                                             else -> Icons.Default.Android
+                                         },
+                                         contentDescription = null,
+                                         tint = Color.White,
+                                         modifier = Modifier.size(24.dp)
+                                     )
+                                }
+                            }
                         }
                     }
-                    items(substituteIcons) { (id, label) ->
-                        val isSelected = selectedSubIcon == id
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSelected) Color(0xFF4A9EFF) else Color(0xFF2A2F37))
-                                .clickable { selectedSubIcon = id }
-                                .padding(4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                 Icon(
-                                     imageVector = when(id) {
-                                         "nav" -> Icons.Default.Place
-                                         "music" -> Icons.Default.PlayArrow
-                                         "video" -> Icons.Default.Movie
-                                         "settings" -> Icons.Default.Settings
-                                         "haval" -> Icons.Default.DirectionsCar
-                                         else -> Icons.Default.Android
-                                     },
-                                     contentDescription = null,
-                                     tint = Color.White,
-                                     modifier = Modifier.size(20.dp)
-                                 )
-                                 Text(label, color = Color.White, fontSize = 8.sp, maxLines = 1)
-                             }
+
+                    if (selectedSubIcon != null) {
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(0.4f)) {
+                            Text("Cor", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                            Spacer(Modifier.height(4.dp))
+                            val iconColors = listOf(
+                                Color.White, Color.Red, Color(0xFF2196F3), Color(0xFF4CAF50), Color.Yellow
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                iconColors.forEach { color ->
+                                    val hexString = String.format("#%06X", (0xFFFFFF and color.toArgb()))
+                                    val isSelected = selectedIconColor.uppercase() == hexString.uppercase() || (color == Color.White && selectedIconColor == "#FFFFFF")
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .background(color)
+                                            .border(1.dp, if (isSelected) Color.White else Color.Transparent, CircleShape)
+                                            .clickable { selectedIconColor = hexString }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -4107,22 +4100,16 @@ fun DisplayAppConfigDialog(
                 }
 
                 // Action buttons
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(8.dp))
                 Button(
                         onClick = {
                             currentConfig()?.let { onSave(it) }
                         },
                         enabled = selectedApp != null,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF)),
-                        modifier = Modifier.fillMaxWidth()
-                ) { Text("Salvar", color = Color.White, fontSize = 13.sp) }
-
-                // Cancel button
-                Button(
-                        onClick = onDismiss,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                        modifier = Modifier.fillMaxWidth()
-                ) { Text("Cancelar", color = Color(0xFFB0B8C4), fontSize = 13.sp) }
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                ) { Text("Salvar", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
             }
         }
     }
@@ -4214,24 +4201,8 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                 }
                 .toMutableList()
         
-        // Add Haval Impulse if not present
-        if (apps.none { it.packageName == context.packageName }) {
-            apps.add(0, InstalledAppInfo(
-                packageName = context.packageName,
-                activityName = "br.com.redesurftank.havalshisuku.MainActivity",
-                label = "Haval Impulse",
-                icon = try { pm.getApplicationIcon(context.packageName) } catch (_: Exception) { null }
-            ))
-        } else {
-             // Move to top if exists
-             val index = apps.indexOfFirst { it.packageName == context.packageName }
-             if (index > 0) {
-                 val app = apps.removeAt(index)
-                 apps.add(0, app)
-             }
-        }
-
-        apps.sortedBy { if (it.packageName == context.packageName) "" else it.label.lowercase() }
+        apps.filter { it.packageName != context.packageName }
+            .sortedBy { it.label.lowercase() }
     }
     
     var showManualInput by remember { mutableStateOf(false) }
@@ -4245,21 +4216,35 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
     ) {
         Card(
                 modifier =
-                        Modifier.fillMaxWidth(0.85f)
+                        Modifier.fillMaxWidth(0.30f)
                                 .wrapContentHeight()
-                                .offset(y = (-60).dp)
                                 .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp)),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A).copy(alpha = 1.0f)),
                 shape = RoundedCornerShape(12.dp)
         ) {
-            Column(modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(16.dp)) {
-                Text(
-                        "Selecionar Aplicativo",
+            Column(modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Selecionar Aplicativo",
                         color = Color.White,
-                        fontSize = 18.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                )
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Fechar",
+                            tint = Color.White
+                        )
+                    }
+                }
 
                 if (showManualInput) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -4330,9 +4315,9 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                             onClick = { showManualInput = true },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2F37)),
                             shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(8.dp)
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
+                            Text("MANUAL", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -4345,31 +4330,30 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                                             it.packageName.contains(searchQuery, ignoreCase = true)
                                 }
 
-                LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 64.dp),
+                    modifier = Modifier.heightIn(max = 350.dp),
+                    contentPadding = PaddingValues(0.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     items(filteredApps) { app ->
-                        Row(
-                                modifier =
-                                        Modifier.fillMaxWidth()
-                                                .clickable { onAppSelected(app) }
-                                                .padding(vertical = 8.dp, horizontal = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF2A2F37).copy(alpha = 0.5f))
+                                .clickable { onAppSelected(app) }
+                                .padding(8.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             AsyncImage(
-                                    model = app.icon,
-                                    contentDescription = null,
-                                    modifier =
-                                            Modifier.size(40.dp)
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(Color(0xFF2A2F37)),
-                                    contentScale = ContentScale.Fit
+                                model = app.icon,
+                                contentDescription = app.label,
+                                modifier = Modifier.size(44.dp),
+                                contentScale = ContentScale.Fit
                             )
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(app.label, color = Color.White, fontSize = 14.sp)
-                                Text(app.packageName, color = Color(0xFF808080), fontSize = 11.sp)
-                            }
                         }
-                        HorizontalDivider(color = Color(0xFF1D2430), thickness = 0.5.dp)
                     }
                 }
             }

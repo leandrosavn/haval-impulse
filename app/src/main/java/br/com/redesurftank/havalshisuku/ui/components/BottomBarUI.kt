@@ -1,47 +1,35 @@
 package br.com.redesurftank.havalshisuku.ui.components
 
 import android.content.Context
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.*
+import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.*
+import androidx.compose.ui.draw.*
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import br.com.redesurftank.havalshisuku.managers.ServiceManager
-import br.com.redesurftank.havalshisuku.models.BottomBarState
-import br.com.redesurftank.havalshisuku.models.CarConstants
-import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys
+import androidx.compose.ui.platform.*
+import androidx.compose.ui.text.*
+import androidx.compose.ui.text.font.*
+import androidx.compose.ui.text.style.*
+import androidx.compose.ui.unit.*
+import br.com.redesurftank.havalshisuku.managers.*
+import br.com.redesurftank.havalshisuku.models.*
 import br.com.redesurftank.havalshisuku.ui.theme.Michroma
-import br.com.redesurftank.havalshisuku.utils.ShizukuUtils
+import br.com.redesurftank.havalshisuku.utils.*
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 
 private val commonTextStyle =
         TextStyle(
@@ -60,6 +48,15 @@ private val labelStyle =
                 fontWeight = FontWeight.Medium,
                 letterSpacing = 0.5.sp
         )
+
+private fun String?.toComposeColor(): Color {
+    if (this == null || !this.startsWith("#")) return Color.White
+    return try {
+        Color(android.graphics.Color.parseColor(this))
+    } catch (_: Exception) {
+        Color.White
+    }
+}
 
 @Composable
 fun BottomBarContent() {
@@ -324,6 +321,23 @@ fun BottomBarContent() {
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
+fun getSubstituteIconVector(substituteIcon: String?): ImageVector? {
+    return when (substituteIcon) {
+        "nav" -> Icons.Default.Place
+        "music" -> Icons.Default.PlayArrow
+        "video" -> Icons.Default.Movie
+        "settings" -> Icons.Default.Tune
+        "haval" -> Icons.Default.DirectionsCar
+        "game" -> Icons.Default.SportsEsports
+        "tv" -> Icons.Default.Tv
+        "phone" -> Icons.Default.Phone
+        "chat" -> Icons.Default.Chat
+        "map_alt" -> Icons.Default.Map
+        else -> null
+    }
+}
+
+@Composable
 fun AppSwitcherSection() {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -337,6 +351,9 @@ fun AppSwitcherSection() {
 
     val selectedPackage = br.com.redesurftank.havalshisuku.models.BottomBarState.selectedPackage
     val showMenu = br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded
+    
+    val selectedConfig = configs.find { it.packageName == selectedPackage }
+    val substituteIconVector = getSubstituteIconVector(selectedConfig?.substituteIcon)
 
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(
@@ -366,7 +383,15 @@ fun AppSwitcherSection() {
                                 },
                 contentAlignment = Alignment.Center
         ) {
-            if (selectedPackage.isNotEmpty()) {
+            if (substituteIconVector != null) {
+                val iconTint = selectedConfig?.iconColor.toComposeColor()
+                Icon(
+                    substituteIconVector,
+                    contentDescription = "App Icon",
+                    tint = iconTint,
+                    modifier = Modifier.size(32.dp)
+                )
+            } else if (selectedPackage.isNotEmpty()) {
                 AsyncImage(
                         model =
                                 ImageRequest.Builder(context)
@@ -415,30 +440,60 @@ fun AppMenuContent() {
 
     Box(
             modifier =
-                    Modifier.background(Color.Black.copy(alpha = 0.9f), RoundedCornerShape(12.dp))
-                            .width(300.dp)
-                            .padding(12.dp)
+                    Modifier.background(Color(0xFF13151A).copy(alpha = 0.95f), RoundedCornerShape(12.dp))
+                            .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp))
+                            .fillMaxWidth(0.3f)
+                            .padding(16.dp)
     ) {
         val appList = configs.toList()
         val columns = 3
-        val rows = (appList.size + columns - 1) / columns
+        val totalApps = appList.size
+        val rows = (totalApps + columns - 1) / columns
 
-        Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-            for (r in 0 until rows) {
-                Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            // Header with Title and Close Button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Aplicativos",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(
+                    onClick = { br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded = false },
+                    modifier = Modifier.size(24.dp)
                 ) {
-                    for (c in 0 until columns) {
-                        val index = r * columns + c
-                        if (index < appList.size) {
-                            val pkg = appList[index].packageName
-                            AppGridItem(pkg, context, scope) {
-                                br.com.redesurftank.havalshisuku.models.BottomBarState
-                                        .isMenuExpanded = false
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Fechar",
+                        tint = Color.White.copy(alpha = 0.7f)
+                    )
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                for (r in 0 until rows) {
+                    Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        for (c in 0 until columns) {
+                            val index = r * columns + c
+                            if (index < totalApps) {
+                                val config = appList[index]
+                                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                                    AppGridItem(config.packageName, config.substituteIcon, context, scope) {
+                                        br.com.redesurftank.havalshisuku.models.BottomBarState
+                                                .isMenuExpanded = false
+                                    }
+                                }
+                            } else {
+                                Spacer(modifier = Modifier.weight(1f))
                             }
-                        } else {
-                            Spacer(modifier = Modifier.weight(1f))
                         }
                     }
                 }
@@ -474,7 +529,7 @@ fun CarSettingsSection() {
                     contentAlignment = Alignment.Center
             ) {
                 Icon(
-                        imageVector = Icons.Default.Settings,
+                        imageVector = Icons.Default.Tune,
                         contentDescription = null,
                         tint = if (showSettings) Color(0xFF2196F3) else Color.White,
                         modifier = Modifier.size(14.dp)
@@ -888,7 +943,13 @@ fun SmallButton(
 }
 
 @Composable
-fun AppGridItem(pkg: String, context: Context, scope: CoroutineScope, onClick: () -> Unit) {
+fun AppGridItem(
+        pkg: String,
+        substituteIcon: String?,
+        context: Context,
+        scope: CoroutineScope,
+        onClick: () -> Unit
+) {
     val appLabel =
             remember(pkg) {
                 try {
@@ -906,6 +967,14 @@ fun AppGridItem(pkg: String, context: Context, scope: CoroutineScope, onClick: (
                     null
                 }
             }
+
+    val substituteIconVector = getSubstituteIconVector(substituteIcon)
+
+    val appConfig = remember(pkg) {
+        br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAppConfig(pkg)
+    }
+    val iconTint = appConfig?.iconColor.toComposeColor()
+    val displayName = appConfig?.customName ?: appLabel
 
     Column(
             modifier =
@@ -933,7 +1002,14 @@ fun AppGridItem(pkg: String, context: Context, scope: CoroutineScope, onClick: (
                                 ),
                 contentAlignment = Alignment.Center
         ) {
-            if (appIcon != null) {
+            if (substituteIconVector != null) {
+                Icon(
+                        substituteIconVector,
+                        contentDescription = null,
+                        tint = iconTint,
+                        modifier = Modifier.size(40.dp)
+                )
+            } else if (appIcon != null) {
                 AsyncImage(
                         model = appIcon,
                         contentDescription = null,
@@ -943,7 +1019,7 @@ fun AppGridItem(pkg: String, context: Context, scope: CoroutineScope, onClick: (
         }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-                text = appLabel,
+                text = displayName,
                 color = Color.White,
                 fontSize = 11.sp,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -988,7 +1064,7 @@ fun OverrideMenuContent() {
     Box(
             modifier =
                     Modifier.background(Color.Black.copy(alpha = 0.95f), RoundedCornerShape(12.dp))
-                            .width(400.dp)
+                            .width(280.dp)
                             .padding(16.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
