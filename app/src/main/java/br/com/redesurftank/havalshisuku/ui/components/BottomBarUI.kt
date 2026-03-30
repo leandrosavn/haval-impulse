@@ -10,15 +10,8 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Layers
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,10 +32,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import br.com.redesurftank.havalshisuku.models.BottomBarState
-import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys
 import br.com.redesurftank.havalshisuku.managers.ServiceManager
+import br.com.redesurftank.havalshisuku.models.BottomBarState
 import br.com.redesurftank.havalshisuku.models.CarConstants
+import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys
 import br.com.redesurftank.havalshisuku.ui.theme.Michroma
 import br.com.redesurftank.havalshisuku.utils.ShizukuUtils
 import coil.compose.AsyncImage
@@ -123,8 +116,12 @@ fun BottomBarContent() {
                         ?: 1
         )
     }
-    var hvacPower by remember {
-        mutableStateOf(serviceManager.getData(CarConstants.CAR_HVAC_POWER_MODE.getValue()) ?: "1")
+    var hvacPower by remember { mutableStateOf(serviceManager.getData(CarConstants.CAR_HVAC_POWER_MODE.getValue()) ?: "1") }
+    var acSync by remember {
+        mutableStateOf(serviceManager.getData(CarConstants.CAR_HVAC_SYNC_ENABLE.getValue()) ?: "0")
+    }
+    var acAuto by remember {
+        mutableStateOf(serviceManager.getData(CarConstants.CAR_HVAC_AUTO_ENABLE.getValue()) ?: "0")
     }
 
     // Update states when data changes
@@ -150,6 +147,8 @@ fun BottomBarContent() {
                             CarConstants.CAR_HVAC_FAN_SPEED.getValue() ->
                                     fanSpeed = value.toIntOrNull() ?: fanSpeed
                             CarConstants.CAR_HVAC_POWER_MODE.getValue() -> hvacPower = value
+                            CarConstants.CAR_HVAC_SYNC_ENABLE.getValue() -> acSync = value
+                            CarConstants.CAR_HVAC_AUTO_ENABLE.getValue() -> acAuto = value
                         }
                     }
                 }
@@ -159,20 +158,22 @@ fun BottomBarContent() {
 
     Box(
             modifier =
-                    Modifier.fillMaxSize()
-                        .pointerInput(BottomBarState.isVisible, BottomBarState.autoHideEnabled) {
-                            detectVerticalDragGestures { change, dragAmount ->
-                                change.consume()
-                                // Down swipe to hide
-                                if (BottomBarState.isVisible && dragAmount > 10f) {
-                                    BottomBarState.isVisible = false
-                                } 
-                                // Up swipe to show - only if near the bottom when hidden
-                                else if (!BottomBarState.isVisible && dragAmount < -5f) {
-                                    BottomBarState.isVisible = true
-                                }
+                    Modifier.fillMaxSize().pointerInput(
+                                    BottomBarState.isVisible,
+                                    BottomBarState.autoHideEnabled
+                            ) {
+                        detectVerticalDragGestures { change, dragAmount ->
+                            change.consume()
+                            // Down swipe to hide
+                            if (BottomBarState.isVisible && dragAmount > 10f) {
+                                BottomBarState.isVisible = false
                             }
-                        },
+                            // Up swipe to show - only if near the bottom when hidden
+                            else if (!BottomBarState.isVisible && dragAmount < -5f) {
+                                BottomBarState.isVisible = true
+                            }
+                        }
+                    },
             contentAlignment = Alignment.BottomCenter
     ) {
         if (BottomBarState.isVisible) {
@@ -187,13 +188,13 @@ fun BottomBarContent() {
                         verticalAlignment = Alignment.CenterVertically
                 ) {
 
-                    // 1. App Switcher (Leftmost 10%)
-                    Box(modifier = Modifier.weight(0.10f)) { AppSwitcherSection() }
+                    // 1. App Switcher (15%)
+                    Box(modifier = Modifier.weight(0.15f)) { AppSwitcherSection() }
 
                     val isACEnabled = hvacPower == "1"
 
-                    // 2. AC Driver (15%)
-                    Box(modifier = Modifier.weight(0.15f), contentAlignment = Alignment.Center) {
+                    // 2. AC Driver (14%)
+                    Box(modifier = Modifier.weight(0.14f), contentAlignment = Alignment.Center) {
                         TempControlSection("Motorista", driverTemp, isACEnabled) { delta ->
                             val newTemp = (driverTemp.toFloatOrNull() ?: 22.0f) + delta
                             serviceManager.updateData(
@@ -203,13 +204,46 @@ fun BottomBarContent() {
                         }
                     }
 
-                    // Shortcuts Area (20%)
-                    Box(modifier = Modifier.weight(0.2f), contentAlignment = Alignment.Center) {
-                        CarSettingsSection(driveMode, powerModel, energyRecovery, steeringMode)
+                    // 3. Controls Group (Back, Settings) (10%)
+                    Box(modifier = Modifier.weight(0.10f), contentAlignment = Alignment.Center) {
+                        ControlsSection(scope)
                     }
 
-                    // 3. AC Fan Speed (15%)
-                    Box(modifier = Modifier.weight(0.15f), contentAlignment = Alignment.Center) {
+                    // 4. AC Sync/Auto (14%)
+                    Box(modifier = Modifier.weight(0.14f), contentAlignment = Alignment.Center) {
+                        Row(
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ACControlButton(
+                                    icon = Icons.Default.Sync,
+                                    label = "SYNC",
+                                    isActive = acSync == "1",
+                                    isEnabled = isACEnabled
+                            ) {
+                                val next = if (acSync == "1") "0" else "1"
+                                serviceManager.updateData(
+                                        CarConstants.CAR_HVAC_SYNC_ENABLE.getValue(),
+                                        next
+                                )
+                            }
+                            ACControlButton(
+                                    icon = Icons.Default.AutoMode,
+                                    label = "AUTO",
+                                    isActive = acAuto == "1",
+                                    isEnabled = isACEnabled
+                            ) {
+                                val next = if (acAuto == "1") "0" else "1"
+                                serviceManager.updateData(
+                                        CarConstants.CAR_HVAC_AUTO_ENABLE.getValue(),
+                                        next
+                                )
+                            }
+                        }
+                    }
+
+                    // 5. AC Fan Speed (14%)
+                    Box(modifier = Modifier.weight(0.14f), contentAlignment = Alignment.Center) {
                         FanControlSection(fanSpeed, true) { delta ->
                             val newSpeed = (fanSpeed + delta).coerceIn(0, 7)
                             serviceManager.updateData(
@@ -232,8 +266,8 @@ fun BottomBarContent() {
                         }
                     }
 
-                    // 4. Volume (15%)
-                    Box(modifier = Modifier.weight(0.15f), contentAlignment = Alignment.Center) {
+                    // 6. Volume (14%)
+                    Box(modifier = Modifier.weight(0.14f), contentAlignment = Alignment.Center) {
                         VolumeControlSection(label = "Volume", volume) { delta ->
                             val newVol = (volume + delta).coerceIn(0, 30)
                             serviceManager.updateData(
@@ -243,8 +277,8 @@ fun BottomBarContent() {
                         }
                     }
 
-                    // 5. AC Passenger (15%)
-                    Box(modifier = Modifier.weight(0.15f), contentAlignment = Alignment.Center) {
+                    // 7. AC Passenger (14%)
+                    Box(modifier = Modifier.weight(0.14f), contentAlignment = Alignment.Center) {
                         TempControlSection("Passageiro", passTemp, isACEnabled) { delta ->
                             val newTemp = (passTemp.toFloatOrNull() ?: 22.0f) + delta
                             serviceManager.updateData(
@@ -254,24 +288,35 @@ fun BottomBarContent() {
                         }
                     }
 
-                    // 6. Navigation (Rightmost 10%)
-                    Box(modifier = Modifier.weight(0.1f)) { NavigationSection(scope) }
+                    // 8. Override Section (5%)
+                    Box(modifier = Modifier.weight(0.05f), contentAlignment = Alignment.Center) {
+                        NavIcon(Icons.Default.Height) {
+                            BottomBarState.isOverrideMenuExpanded =
+                                    !BottomBarState.isOverrideMenuExpanded
+                            if (BottomBarState.isOverrideMenuExpanded) {
+                                BottomBarState.isMenuExpanded = false
+                                BottomBarState.isSettingsMenuExpanded = false
+                            }
+                        }
+                    }
                 }
             }
         } else {
             // Trigger zone - larger area at the bottom when hidden
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(60.dp) // Match window height for maximum trigger area
-                    .align(Alignment.BottomCenter)
-                    .background(Color.Transparent)
-                    .clickable(
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        BottomBarState.isVisible = true
-                    }
+                    modifier =
+                            Modifier.fillMaxWidth()
+                                    .height(60.dp) // Match window height for maximum trigger area
+                                    .align(Alignment.BottomCenter)
+                                    .background(Color.Transparent)
+                                    .clickable(
+                                            interactionSource =
+                                                    remember {
+                                                        androidx.compose.foundation.interaction
+                                                                .MutableInteractionSource()
+                                                    },
+                                            indication = null
+                                    ) { BottomBarState.isVisible = true }
             )
         }
     }
@@ -403,77 +448,39 @@ fun AppMenuContent() {
 }
 
 @Composable
-fun CarSettingsSection(drive: String, ev: String, regen: String, steer: String) {
-    val showSettings = br.com.redesurftank.havalshisuku.models.BottomBarState.isSettingsMenuExpanded
-    Row(
+fun CarSettingsSection() {
+    val showSettings = BottomBarState.isSettingsMenuExpanded
+    Box(
             modifier =
-                    Modifier.wrapContentHeight().clickable {
-                        br.com.redesurftank.havalshisuku.models.BottomBarState
-                                .isSettingsMenuExpanded = !showSettings
+                    Modifier.fillMaxHeight().width(40.dp).clickable {
+                        BottomBarState.isSettingsMenuExpanded = !showSettings
                     },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            contentAlignment = Alignment.Center
     ) {
-        val toggle = {
-            br.com.redesurftank.havalshisuku.models.BottomBarState.isSettingsMenuExpanded =
-                    !showSettings
+        Box(modifier = Modifier.size(38.dp), contentAlignment = Alignment.Center) {
+            Icon(
+                    imageVector = Icons.Default.DirectionsCar,
+                    contentDescription = "Configurações do Carro",
+                    tint = if (showSettings) Color(0xFF2196F3) else Color.White,
+                    modifier = Modifier.size(32.dp)
+            )
+            // Smaller gear icon overlay
+            Box(
+                    modifier =
+                            Modifier.size(16.dp)
+                                    .offset(x = 10.dp, y = 10.dp)
+                                    .background(Color.Black, RoundedCornerShape(4.dp))
+                                    .padding(1.dp),
+                    contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = null,
+                        tint = if (showSettings) Color(0xFF2196F3) else Color.White,
+                        modifier = Modifier.size(14.dp)
+                )
+            }
         }
-
-        ShortcutItem(
-                "Condução",
-                when (drive) {
-                    "2" -> "ECO"
-                    "0" -> "NORM"
-                    "1" -> "SPORT"
-                    else -> "DRIVE"
-                },
-                when (drive) {
-                    "2" -> Color.Green
-                    "1" -> Color.Red
-                    else -> Color.White
-                },
-                toggle
-        )
-
-        ShortcutItem(
-                "Regen",
-                when (regen) {
-                    "2" -> "LOW"
-                    "0" -> "MED"
-                    "1" -> "HIGH"
-                    else -> "REG"
-                },
-                Color.White,
-                toggle
-        )
-
-        ShortcutItem(
-                "Modo EV",
-                when (ev) {
-                    "0" -> "HEV"
-                    "1" -> "EVP"
-                    "3" -> "EV"
-                    else -> "EV"
-                },
-                when (ev) {
-                    "1" -> Color.Green
-                    "3" -> Color.Cyan
-                    else -> Color.White
-                },
-                toggle
-        )
-
-        ShortcutItem(
-                "Direção",
-                when (steer) {
-                    "2" -> "COMF"
-                    "0" -> "NORM"
-                    "1" -> "SPRT"
-                    else -> "STR"
-                },
-                Color.White,
-                toggle
-        )
     }
 }
 
@@ -614,55 +621,48 @@ fun BottomBarMenus() {
     }
 
     Box(
-            modifier = Modifier.fillMaxSize()
-                .clickable(
-                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                    indication = null
-                ) {
-                    BottomBarState.isMenuExpanded = false
-                    BottomBarState.isSettingsMenuExpanded = false
-                    BottomBarState.isOverrideMenuExpanded = false
-                },
+            modifier =
+                    Modifier.fillMaxSize().clickable(
+                                    interactionSource =
+                                            remember {
+                                                androidx.compose.foundation.interaction
+                                                        .MutableInteractionSource()
+                                            },
+                                    indication = null
+                            ) {
+                        BottomBarState.isMenuExpanded = false
+                        BottomBarState.isSettingsMenuExpanded = false
+                        BottomBarState.isOverrideMenuExpanded = false
+                    },
             contentAlignment = Alignment.BottomCenter
     ) {
-        Row(
-                modifier = Modifier.fillMaxWidth().alpha(0.95f)
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 60.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
+        // We use a Box with fillMaxWidth to contain our menus at the bottom
+        Box(
+                modifier = Modifier.fillMaxWidth().alpha(0.95f).padding(bottom = 60.dp),
         ) {
             // App Menu (Left side)
-            Box(
-                modifier = Modifier.weight(0.15f)
-                    .clickable(enabled = false) {}, // Prevent clicks on this specific area from closing if needed, but better on content
-                contentAlignment = Alignment.BottomStart
-            ) {
-                if (br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded) {
-                    Box(modifier = Modifier.clickable(enabled = false) {}) {
-                        AppMenuContent()
-                    }
-                }
+            if (br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded) {
+                Box(
+                        modifier =
+                                Modifier.padding(start = 16.dp)
+                                        .align(Alignment.BottomStart)
+                                        .clickable(enabled = false) {}
+                ) { AppMenuContent() }
             }
 
-            // Settings Menu (Center)
-            Box(
-                modifier = Modifier.weight(0.70f),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                if (BottomBarState.isSettingsMenuExpanded) {
-                    Box(modifier = Modifier.clickable(enabled = false) {}) {
+            // Settings/Override Menu (Aligned to Left as requested)
+            if (BottomBarState.isSettingsMenuExpanded || BottomBarState.isOverrideMenuExpanded) {
+                Box(
+                        modifier =
+                                Modifier.align(Alignment.BottomStart).clickable(enabled = false) {}
+                ) {
+                    if (BottomBarState.isSettingsMenuExpanded) {
                         SettingsMenuContent(driveMode, powerModel, energyRecovery, steeringMode)
-                    }
-                } else if (BottomBarState.isOverrideMenuExpanded) {
-                    Box(modifier = Modifier.clickable(enabled = false) {}) {
+                    } else if (BottomBarState.isOverrideMenuExpanded) {
                         OverrideMenuContent()
                     }
                 }
             }
-
-            // Right side spacer
-            Spacer(modifier = Modifier.weight(0.15f))
         }
     }
 }
@@ -710,46 +710,6 @@ fun SettingsCategoryRow(
                 }
             }
         }
-    }
-}
-
-@Composable
-fun ShortcutItem(label: String, value: String, color: Color, onClick: () -> Unit) {
-    Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.height(30.dp).offset(y = 3.dp).clickable { onClick() }
-    ) {
-        Text(
-                text = label,
-                color = Color.Gray,
-                fontSize = 8.sp,
-                lineHeight = 8.sp,
-                fontWeight = FontWeight.Normal,
-                fontFamily = Michroma,
-                modifier = Modifier.width(60.dp),
-                textAlign = TextAlign.Center
-        )
-        ShortcutLabel(text = value, color = color, onClick = onClick)
-    }
-}
-
-@Composable
-fun ShortcutLabel(text: String, color: Color, onClick: () -> Unit) {
-    Surface(
-            onClick = onClick,
-            color = Color.Transparent,
-            modifier = Modifier.padding(horizontal = 1.dp).width(60.dp)
-    ) {
-        Text(
-                text = text,
-                color = color,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Normal,
-                fontFamily = Michroma,
-                modifier = Modifier.padding(horizontal = 3.dp, vertical = 0.dp).fillMaxWidth(),
-                textAlign = TextAlign.Center
-        )
     }
 }
 
@@ -851,28 +811,17 @@ fun VolumeControlSection(label: String, volume: Int, onValueChange: (Int) -> Uni
 }
 
 @Composable
-fun NavigationSection(scope: kotlinx.coroutines.CoroutineScope) {
-    Row {
-        NavIcon(Icons.AutoMirrored.Filled.ArrowBack) {
+fun ControlsSection(scope: CoroutineScope) {
+    Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        NavIcon(Icons.AutoMirrored.Filled.Undo) {
             scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 ShizukuUtils.runCommandAndGetOutput(arrayOf("input", "keyevent", "4"))
             }
         }
-        // Replace Home with Hide
-        NavIcon(Icons.Default.KeyboardArrowDown) {
-            BottomBarState.isVisible = false
-            BottomBarState.isMenuExpanded = false
-            BottomBarState.isSettingsMenuExpanded = false
-            BottomBarState.isOverrideMenuExpanded = false
-        }
-        // Add Config Icon
-        NavIcon(Icons.Default.Settings) {
-            BottomBarState.isOverrideMenuExpanded = !BottomBarState.isOverrideMenuExpanded
-            if (BottomBarState.isOverrideMenuExpanded) {
-                BottomBarState.isMenuExpanded = false
-                BottomBarState.isSettingsMenuExpanded = false
-            }
-        }
+        CarSettingsSection()
     }
 }
 
@@ -880,6 +829,36 @@ fun NavigationSection(scope: kotlinx.coroutines.CoroutineScope) {
 fun NavIcon(icon: ImageVector, onClick: () -> Unit) {
     IconButton(onClick = onClick) {
         Icon(icon, contentDescription = null, tint = Color.White.copy(alpha = 0.8f))
+    }
+}
+
+@Composable
+fun ACControlButton(
+        icon: ImageVector,
+        label: String,
+        isActive: Boolean,
+        isEnabled: Boolean,
+        onClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val alpha = if (isEnabled) 1f else 0.4f
+    val activeColor = Color(0xFF2196F3) // Vibrant blue for active state
+    val contentColor = if (isActive && isEnabled) activeColor else Color.White
+
+    Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.alpha(alpha).clickable(enabled = isEnabled) { onClick() }
+    ) {
+        Icon(icon, contentDescription = label, tint = contentColor, modifier = Modifier.size(20.dp))
+        Text(
+                text = label,
+                style =
+                        labelStyle.copy(
+                                fontSize = 8.sp,
+                                color = contentColor,
+                                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium
+                        )
+        )
     }
 }
 
@@ -975,84 +954,109 @@ fun AppGridItem(pkg: String, context: Context, scope: CoroutineScope, onClick: (
         )
     }
 }
+
 @Composable
 fun OverrideMenuContent() {
     val context = LocalContext.current
     val pkg = BottomBarState.currentPackage
-    val prefs = remember { 
+    val prefs = remember {
         br.com.redesurftank.App.getDeviceProtectedContext()
-            .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE) 
+                .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
     }
-    
+
     // Load current app settings from SharedPreferences
     val overridesJson = prefs.getString(SharedPreferencesKeys.BOTTOM_BAR_OVERRIDES.key, null)
     val gson = com.google.gson.Gson()
-    val type = object : com.google.gson.reflect.TypeToken<MutableMap<String, Map<String, Int>>>() {}.type
-    val overrides: MutableMap<String, Map<String, Int>> = if (overridesJson != null) {
-        try { gson.fromJson(overridesJson, type) } catch (e: Exception) { mutableMapOf() }
-    } else {
-        mutableMapOf()
-    }
+    val type =
+            object : com.google.gson.reflect.TypeToken<MutableMap<String, Map<String, Int>>>() {}
+                    .type
+    val overrides: MutableMap<String, Map<String, Int>> =
+            if (overridesJson != null) {
+                try {
+                    gson.fromJson(overridesJson, type)
+                } catch (e: Exception) {
+                    mutableMapOf()
+                }
+            } else {
+                mutableMapOf()
+            }
 
     val currentSettings = overrides[pkg]
     var overscan by remember(pkg) { mutableIntStateOf(currentSettings?.get("overscan") ?: 0) }
     var offset by remember(pkg) { mutableIntStateOf(currentSettings?.get("offset") ?: 0) }
 
     Box(
-        modifier = Modifier
-            .background(Color.Black.copy(alpha = 0.95f), RoundedCornerShape(12.dp))
-            .width(400.dp)
-            .padding(16.dp)
+            modifier =
+                    Modifier.background(Color.Black.copy(alpha = 0.95f), RoundedCornerShape(12.dp))
+                            .width(400.dp)
+                            .padding(16.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(
-                text = "Ajuste Real-time: $pkg",
-                style = labelStyle.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    text = "Ajuste Real-time: $pkg",
+                    style = labelStyle.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)
             )
 
-            OverrideControlRow("Overscan (Move o app para cima)", overscan, 0..120) { overscan = it }
-            OverrideControlRow("Offset (Move a barra para baixo)", offset, -100..100) { offset = it }
+            OverrideControlRow("Overscan (Move o app para cima)", overscan, 0..120) {
+                overscan = it
+            }
+            OverrideControlRow("Offset (Move a barra para baixo)", offset, -100..100) {
+                offset = it
+            }
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
-                    onClick = {
-                        // Apply immediately via Shizuku if service is bound or via broadcast
-                        // For simplicity, we can use ShizukuUtils directly here as well
-                        val density = context.resources.displayMetrics.density
-                        val overscanPx = (overscan * density).toInt()
-                        val yOffsetPx = (offset * density).toInt()
-                        
-                        ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,$overscanPx"))
-                        // We need a way to tell the service to update its layout params
-                        // For now, let's assume the service will pick it up or we can send an internal intent
-                        context.sendBroadcast(android.content.Intent("br.com.redesurftank.havalshisuku.UPDATE_BAR_POSITION").apply {
-                            putExtra("overscan", overscan)
-                            putExtra("offset", offset)
-                        })
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
-                ) {
-                    Text("Aplicar", color = Color.White)
-                }
+                        onClick = {
+                            // Apply immediately via Shizuku if service is bound or via broadcast
+                            // For simplicity, we can use ShizukuUtils directly here as well
+                            val density = context.resources.displayMetrics.density
+                            val overscanPx = (overscan * density).toInt()
+                            val yOffsetPx = (offset * density).toInt()
+
+                            ShizukuUtils.runCommandAndGetOutput(
+                                    arrayOf("wm", "overscan", "0,0,0,$overscanPx")
+                            )
+                            // We need a way to tell the service to update its layout params
+                            // For now, let's assume the service will pick it up or we can send an
+                            // internal intent
+                            context.sendBroadcast(
+                                    android.content.Intent(
+                                                    "br.com.redesurftank.havalshisuku.UPDATE_BAR_POSITION"
+                                            )
+                                            .apply {
+                                                putExtra("overscan", overscan)
+                                                putExtra("offset", offset)
+                                            }
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
+                ) { Text("Aplicar", color = Color.White) }
 
                 Button(
-                    onClick = {
-                        val newOverrides = overrides.toMutableMap()
-                        newOverrides[pkg] = mapOf("overscan" to overscan, "offset" to offset)
-                        prefs.edit().putString(SharedPreferencesKeys.BOTTOM_BAR_OVERRIDES.key, gson.toJson(newOverrides)).apply()
-                        BottomBarState.isOverrideMenuExpanded = false
-                        // Alert service to reload
-                        context.sendBroadcast(android.content.Intent("br.com.redesurftank.havalshisuku.UPDATE_BAR_POSITION"))
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
-                ) {
-                    Text("Salvar", color = Color.White)
-                }
+                        onClick = {
+                            val newOverrides = overrides.toMutableMap()
+                            newOverrides[pkg] = mapOf("overscan" to overscan, "offset" to offset)
+                            prefs.edit()
+                                    .putString(
+                                            SharedPreferencesKeys.BOTTOM_BAR_OVERRIDES.key,
+                                            gson.toJson(newOverrides)
+                                    )
+                                    .apply()
+                            BottomBarState.isOverrideMenuExpanded = false
+                            // Alert service to reload
+                            context.sendBroadcast(
+                                    android.content.Intent(
+                                            "br.com.redesurftank.havalshisuku.UPDATE_BAR_POSITION"
+                                    )
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
+                ) { Text("Salvar", color = Color.White) }
             }
         }
     }
@@ -1066,10 +1070,14 @@ fun OverrideControlRow(label: String, value: Int, range: IntRange, onValueChange
             Text(text = value.toString(), style = commonTextStyle.copy(fontSize = 14.sp))
         }
         Slider(
-            value = value.toFloat(),
-            onValueChange = { onValueChange(it.toInt()) },
-            valueRange = range.first.toFloat()..range.last.toFloat(),
-            colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White)
+                value = value.toFloat(),
+                onValueChange = { onValueChange(it.toInt()) },
+                valueRange = range.first.toFloat()..range.last.toFloat(),
+                colors =
+                        SliderDefaults.colors(
+                                thumbColor = Color.White,
+                                activeTrackColor = Color.White
+                        )
         )
     }
 }

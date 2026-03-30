@@ -47,7 +47,10 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -59,6 +62,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -69,7 +74,9 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -133,11 +140,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
@@ -3455,18 +3462,44 @@ fun DisplayAppConfigSection() {
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (appIcon != null) {
-                                AsyncImage(
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFF2A2F37)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (config.substituteIcon != null) {
+                                    Icon(
+                                        imageVector = when(config.substituteIcon) {
+                                            "nav" -> Icons.Default.Place
+                                            "music" -> Icons.Default.PlayArrow
+                                            "video" -> Icons.Default.Movie
+                                            "settings" -> Icons.Default.Settings
+                                            "haval" -> Icons.Default.DirectionsCar
+                                            else -> Icons.Default.Android
+                                        },
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                } else if (appIcon != null) {
+                                    AsyncImage(
                                         model = appIcon,
                                         contentDescription = null,
-                                        modifier =
-                                                Modifier.size(48.dp)
-                                                        .clip(RoundedCornerShape(10.dp))
-                                                        .background(Color(0xFF2A2F37)),
+                                        modifier = Modifier.fillMaxSize(),
                                         contentScale = ContentScale.Fit
-                                )
-                                Spacer(Modifier.width(16.dp))
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Default.Android,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                }
                             }
+                            Spacer(Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(4f)) {
                                 Text(
                                         appName,
@@ -3749,6 +3782,16 @@ fun DisplayAppConfigDialog(
     var posY by remember { mutableIntStateOf(existingConfig?.y ?: 0) }
     var sizeW by remember { mutableIntStateOf(existingConfig?.width ?: resolution.first) }
     var sizeH by remember { mutableIntStateOf(existingConfig?.height ?: resolution.second) }
+    var selectedSubIcon by remember { mutableStateOf(existingConfig?.substituteIcon) }
+
+    val substituteIcons = listOf(
+        "nav" to "Navegação",
+        "music" to "Música",
+        "video" to "Vídeo",
+        "settings" to "Configurações",
+        "haval" to "Haval",
+        "android" to "Android"
+    )
 
     // Preview tracking
     var previewActive by remember { mutableStateOf(false) }
@@ -3764,7 +3807,8 @@ fun DisplayAppConfigDialog(
                 x = posX,
                 y = posY,
                 width = sizeW,
-                height = sizeH
+                height = sizeH,
+                substituteIcon = selectedSubIcon
         )
     }
 
@@ -3834,15 +3878,16 @@ fun DisplayAppConfigDialog(
         Card(
                 modifier =
                         Modifier.fillMaxWidth(0.85f)
-                                .fillMaxHeight(0.9f)
+                                .wrapContentHeight()
                                 .offset(y = (-60).dp)
                                 .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A).copy(alpha = 0.9f)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A).copy(alpha = 1.0f)),
                 shape = RoundedCornerShape(12.dp)
         ) {
             Column(
                     modifier =
-                            Modifier.fillMaxSize()
+                            Modifier.fillMaxWidth()
+                                    .wrapContentHeight()
                                     .padding(16.dp)
                                     .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -3988,19 +4033,67 @@ fun DisplayAppConfigDialog(
                         SliderWithLabel(
                                 label = "Largura",
                                 value = sizeW,
-                                range = 10..1920,
-                                onValueChange = { sizeW = it },
-                                specialSnap = resolution.first
+                                range = 100..resolution.first,
+                                onValueChange = { sizeW = it }
                         )
                     }
                     Box(modifier = Modifier.weight(1f)) {
                         SliderWithLabel(
                                 label = "Altura",
                                 value = sizeH,
-                                range = 10..720,
-                                onValueChange = { sizeH = it },
-                                specialSnap = 510
+                                range = 100..resolution.second,
+                                onValueChange = { sizeH = it }
                         )
+                    }
+                }
+
+                // Substitute Icon Selection
+                Text("Ícone Substituto (opcional)", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (selectedSubIcon == null) Color(0xFF4A9EFF) else Color(0xFF2A2F37))
+                                .clickable { selectedSubIcon = null }
+                                .padding(4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Padrão", color = Color.White, fontSize = 10.sp, textAlign = TextAlign.Center)
+                        }
+                    }
+                    items(substituteIcons) { (id, label) ->
+                        val isSelected = selectedSubIcon == id
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) Color(0xFF4A9EFF) else Color(0xFF2A2F37))
+                                .clickable { selectedSubIcon = id }
+                                .padding(4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                 Icon(
+                                     imageVector = when(id) {
+                                         "nav" -> Icons.Default.Place
+                                         "music" -> Icons.Default.PlayArrow
+                                         "video" -> Icons.Default.Movie
+                                         "settings" -> Icons.Default.Settings
+                                         "haval" -> Icons.Default.DirectionsCar
+                                         else -> Icons.Default.Android
+                                     },
+                                     contentDescription = null,
+                                     tint = Color.White,
+                                     modifier = Modifier.size(20.dp)
+                                 )
+                                 Text(label, color = Color.White, fontSize = 8.sp, maxLines = 1)
+                             }
+                        }
                     }
                 }
 
@@ -4017,19 +4110,7 @@ fun DisplayAppConfigDialog(
                 Spacer(Modifier.height(16.dp))
                 Button(
                         onClick = {
-                            if (selectedApp != null) {
-                                onSave(
-                                        DisplayAppConfig(
-                                                packageName = selectedApp!!.packageName,
-                                                activityName = selectedApp!!.activityName,
-                                                displayId = selectedDisplay.id,
-                                                x = posX,
-                                                y = posY,
-                                                width = sizeW,
-                                                height = sizeH
-                                        )
-                                )
-                            }
+                            currentConfig()?.let { onSave(it) }
                         },
                         enabled = selectedApp != null,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF)),
@@ -4117,7 +4198,7 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
     val installedApps = remember {
         val pm = context.packageManager
         val intent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
-        pm.queryIntentActivities(intent, 0)
+        val apps = pm.queryIntentActivities(intent, 0)
                 .map { resolveInfo ->
                     InstalledAppInfo(
                             packageName = resolveInfo.activityInfo.packageName,
@@ -4131,8 +4212,32 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                                     }
                     )
                 }
-                .sortedBy { it.label.lowercase() }
+                .toMutableList()
+        
+        // Add Haval Impulse if not present
+        if (apps.none { it.packageName == context.packageName }) {
+            apps.add(0, InstalledAppInfo(
+                packageName = context.packageName,
+                activityName = "br.com.redesurftank.havalshisuku.MainActivity",
+                label = "Haval Impulse",
+                icon = try { pm.getApplicationIcon(context.packageName) } catch (_: Exception) { null }
+            ))
+        } else {
+             // Move to top if exists
+             val index = apps.indexOfFirst { it.packageName == context.packageName }
+             if (index > 0) {
+                 val app = apps.removeAt(index)
+                 apps.add(0, app)
+             }
+        }
+
+        apps.sortedBy { if (it.packageName == context.packageName) "" else it.label.lowercase() }
     }
+    
+    var showManualInput by remember { mutableStateOf(false) }
+    var manualPkg by remember { mutableStateOf("") }
+    var manualActivity by remember { mutableStateOf("") }
+    var manualLabel by remember { mutableStateOf("") }
 
     Dialog(
             onDismissRequest = onDismiss,
@@ -4141,13 +4246,13 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
         Card(
                 modifier =
                         Modifier.fillMaxWidth(0.85f)
-                                .fillMaxHeight(0.9f)
+                                .wrapContentHeight()
                                 .offset(y = (-60).dp)
                                 .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A).copy(alpha = 0.9f)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A).copy(alpha = 1.0f)),
                 shape = RoundedCornerShape(12.dp)
         ) {
-            Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(16.dp)) {
                 Text(
                         "Selecionar Aplicativo",
                         color = Color.White,
@@ -4156,22 +4261,81 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                         modifier = Modifier.padding(bottom = 12.dp)
                 )
 
-                TextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        placeholder = { Text("Buscar...", color = Color(0xFF808080)) },
+                if (showManualInput) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextField(
+                            value = manualLabel,
+                            onValueChange = { manualLabel = it },
+                            placeholder = { Text("Nome do App (ex: YouTube)", color = Color(0xFF808080)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(focusedContainerColor = Color(0xFF2A2F37), unfocusedContainerColor = Color(0xFF2A2F37), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                        )
+                        TextField(
+                            value = manualPkg,
+                            onValueChange = { manualPkg = it },
+                            placeholder = { Text("Pacote (ex: com.google.android.youtube)", color = Color(0xFF808080)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(focusedContainerColor = Color(0xFF2A2F37), unfocusedContainerColor = Color(0xFF2A2F37), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                        )
+                        TextField(
+                            value = manualActivity,
+                            onValueChange = { manualActivity = it },
+                            placeholder = { Text("Atividade (opcional)", color = Color(0xFF808080)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(focusedContainerColor = Color(0xFF2A2F37), unfocusedContainerColor = Color(0xFF2A2F37), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                        )
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = { showManualInput = false },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2F37))
+                            ) { Text("Cancelar", color = Color.White) }
+                            Button(
+                                onClick = {
+                                    if (manualPkg.isNotBlank() && manualLabel.isNotBlank()) {
+                                        onAppSelected(InstalledAppInfo(manualPkg, manualActivity, manualLabel, null))
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                enabled = manualPkg.isNotBlank() && manualLabel.isNotBlank(),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF))
+                            ) { Text("Adicionar", color = Color.White) }
+                        }
+                    }
+                } else {
+                    Row(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                        singleLine = true,
-                        colors =
-                                TextFieldDefaults.colors(
-                                        focusedContainerColor = Color(0xFF2A2F37),
-                                        unfocusedContainerColor = Color(0xFF2A2F37),
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White,
-                                        focusedIndicatorColor = Color(0xFF4A9EFF),
-                                        unfocusedIndicatorColor = Color(0xFF3A3F47)
-                                )
-                )
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = { Text("Buscar...", color = Color(0xFF808080)) },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                colors =
+                                        TextFieldDefaults.colors(
+                                                focusedContainerColor = Color(0xFF2A2F37),
+                                                unfocusedContainerColor = Color(0xFF2A2F37),
+                                                focusedTextColor = Color.White,
+                                                unfocusedTextColor = Color.White,
+                                                focusedIndicatorColor = Color(0xFF4A9EFF),
+                                                unfocusedIndicatorColor = Color(0xFF3A3F47)
+                                        )
+                        )
+                        Button(
+                            onClick = { showManualInput = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2F37)),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(8.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
+                        }
+                    }
+                }
 
                 val filteredApps =
                         if (searchQuery.isBlank()) installedApps
@@ -4181,7 +4345,7 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                                             it.packageName.contains(searchQuery, ignoreCase = true)
                                 }
 
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
                     items(filteredApps) { app ->
                         Row(
                                 modifier =

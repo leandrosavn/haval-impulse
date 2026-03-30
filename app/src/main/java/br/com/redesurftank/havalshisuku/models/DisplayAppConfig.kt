@@ -7,5 +7,6 @@ data class DisplayAppConfig(
     val x: Int,
     val y: Int,
     val width: Int,
-    val height: Int
+    val height: Int,
+    val substituteIcon: String? = null
 )
