@@ -83,6 +83,10 @@ class InstrumentProjector(outerContext: Context, display: Display) : BaseProject
     }
 
     private fun updateView() {
+        // [DEPRECATED] Maintenance and revision information has been migrated to the WebView-based 
+        // instrument cluster (InstrumentProjector2.kt). This logic is kept for reference only.
+        if (true) return 
+
         val enableWarning = preferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_REVISION_WARNING.key, false)
         if (!enableWarning) {
             maintenanceTextView?.let {

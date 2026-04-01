@@ -113,6 +113,11 @@ var stateManager = new StateManager({
     clockTime: '--:--',
     gearState: 'P',
     evModeLabel: 'NORMAL',
+    odometer: 0,
+    nextRevisionKm: 0,
+    nextRevisionDate: 0,
+    enableRevisionWarning: false,
+    warningActive: false,
 });
 
 var getState = function (key) { return stateManager.get(key); };

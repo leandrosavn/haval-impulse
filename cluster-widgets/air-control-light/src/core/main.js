@@ -65,16 +65,15 @@ function render() {
     // Update app class based on display mode
     if (appContainer) {
         console.log('[Debug] Rendering screen:', screen);
-        let classes = appContainer.className.split(' ').filter(c => !c.startsWith('display-') && !c.startsWith('theme-') && c !== 'cluster-disabled' && c !== 'card-is-0');
+        let classes = appContainer.className.split(' ').filter(c => !c.startsWith('display-') && !c.startsWith('theme-') && c !== 'cluster-disabled' && c !== 'warn-is-active');
         classes.push('display-' + displayMode.toLowerCase());
-        classes.push('theme-night'); // Default for this project
-        
+
         if (get('clusterEnabled') === false) {
             classes.push('cluster-disabled');
         }
 
-        if (get('cardId') === 0) {
-            classes.push('card-is-0');
+        if (get('cardId') === 0 || get('warningActive') === true) {
+            classes.push('warn-is-active');
         }
 
         appContainer.className = classes.join(' ').trim();
@@ -115,7 +114,7 @@ function render() {
         if (onMount) {
             onMount();
         }
-        
+
         currentComponent = componentResult;
     } else {
         currentComponent = null;
@@ -123,7 +122,8 @@ function render() {
     logger.leave('render');
 }
 
-initializeLayout();
+    subscribe('warningActive', () => render());
+    initializeLayout();
 
 // Start rendering and subscribe to listen for screen changes thus triggering new render
 subscribe('screen', render);
@@ -174,6 +174,9 @@ window.focus = function (item) {
 };
 
 window.control = function (key, value) {
+    if (key !== 'carSpeed' && key !== 'engineRPM') {
+        console.log(`[JS Bridge Light] control('${key}', ${value})`);
+    }
     logger.enter('window.control', { key, value });
     let val = value;
     // Automatically convert numeric strings to numbers for compatibility with components
@@ -181,6 +184,9 @@ window.control = function (key, value) {
         val = Number(value);
     }
     setState(key, val);
+    if (key === 'warningActive') {
+        render();
+    }
     logger.leave('window.control');
 };
 

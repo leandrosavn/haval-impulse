@@ -2179,16 +2179,14 @@ canvas.graph-chart {
   pointer-events: none !important;
 }
 
-/* Card 0 Mode */
-.card-is-0 .dashboard-menu-container,
-.card-is-0 .mask-circle.right {
+/* Warning Mode & Card 0 Mode */
+.warn-is-active .dashboard-menu-container,
+.warn-is-active .mask-circle.right,
+.warn-is-active .mask-circle-border.right {
   opacity: 0 !important;
   visibility: hidden !important;
+  display: none !important;
   pointer-events: none !important;
-}
-
-.card-is-0 .mask-circle-border.right {
-  background: #0000;
 }
 
 .display-clean .dashboard-speed-content {
@@ -2289,8 +2287,24 @@ canvas.graph-chart {
   background:
     radial-gradient(circle at calc(var(--mask-right-x) + var(--display-right-offset)) var(--mask-center-y),
       transparent calc(var(--mask-radius) * var(--display-scale)),
-      var(--color-white-50) calc(var(--mask-radius) * var(--display-scale) * 0.5 + 30px),
-      var(--bg-color) calc(var(--mask-radius) * var(--display-scale) * 0.6 + 120px));
+      var(--bg-black-60) calc(var(--mask-radius) * var(--display-scale) * 0.5 + 30px),
+      var(--bg-black-100) calc(var(--mask-radius) * var(--display-scale) * 0.6 + 120px));
+  opacity: 0;
+  transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.warn-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 720px;
+  pointer-events: none;
+  z-index: 10;
+  /* Simple linear fade for warning mode */
+  mask-image: linear-gradient(to left, transparent 27%, black 28%);
+  -webkit-mask-image: linear-gradient(to left, transparent 27%, black 28%);
+  background: linear-gradient(to right, transparent 60%, var(--bg-color) 74%);
   opacity: 0;
   transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -2601,7 +2615,22 @@ canvas.graph-chart {
   flex-direction: column;
   align-items: center;
   gap: 0px;
+  position: relative;
 }
+
+.dashboard-warning-label {
+  position: absolute;
+  bottom: 75px;
+  right: 20px;
+  color: #ff3b30;
+  font-size: 22px;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-shadow: 0 0 10px rgba(255, 59, 48, 0.3);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 
 .gauge-top-info {
   display: flex;
@@ -2843,6 +2872,107 @@ canvas.graph-chart {
 .bottom-ev-label {
   color: var(--text-main);
   /* Default theme color */
+}
+
+/* ==========================================================================
+   ODOMETER & REVISION INFO
+   ========================================================================== */
+.odometer-info-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex: 1;
+}
+
+.odometer-text-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0px;
+  transition: all 0.5s ease;
+  transform: translateY(8px);
+}
+
+.odometer-line {
+  font-size: 26px;
+  font-weight: 300;
+  color: var(--text-main);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  text-shadow: 0 4px 8px var(--bg-black-100);
+}
+
+.odometer-label {
+  font-size: 18px;
+  color: var(--menu-text);
+}
+
+.odometer-value {
+  font-family: 'Eurostile', sans-serif;
+  font-size: 28px;
+  letter-spacing: 1px;
+  transition: all 0.5s ease;
+}
+
+.odometer-unit {
+  font-size: 20px;
+  color: var(--menu-text);
+  transition: all 0.5s ease;
+}
+
+.revision-line {
+  font-size: 20px;
+  font-weight: 300;
+  color: var(--menu-text);
+  text-shadow: 0 4px 8px var(--bg-black-100);
+  transition: opacity 0.5s ease;
+  transform: translateY(-4px);
+}
+
+.odometer-text-wrapper.single-line {
+  transform: translateY(8px);
+}
+
+.odometer-text-wrapper.single-line .odometer-value {
+  font-size: 30px;
+}
+
+.odometer-text-wrapper.single-line .odometer-label,
+.odometer-text-wrapper.single-line .odometer-unit {
+  font-size: 22px;
+}
+
+.warning-blink .revision-text {
+  color: var(--menu-text);
+}
+
+.startup-flash .revision-text {
+  color: var(--menu-text);
+  animation: single-flash 2.5s 1 ease-in-out;
+}
+
+@keyframes single-flash {
+  0% {
+    opacity: 0;
+  }
+
+  25% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.2;
+  }
+
+  75% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 1;
+  }
 }
 
 /* ==========================================================================

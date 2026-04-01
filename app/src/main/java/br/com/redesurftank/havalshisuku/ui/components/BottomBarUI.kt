@@ -3,6 +3,7 @@ package br.com.redesurftank.havalshisuku.ui.components
 import android.content.Context
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.*
@@ -185,8 +186,8 @@ fun BottomBarContent() {
                         verticalAlignment = Alignment.CenterVertically
                 ) {
 
-                    // 1. App Switcher (15%)
-                    Box(modifier = Modifier.weight(0.15f)) { AppSwitcherSection() }
+                    // 1. App Switcher (11%)
+                    Box(modifier = Modifier.weight(0.11f)) { AppSwitcherSection() }
 
                     val isACEnabled = hvacPower == "1"
 
@@ -201,45 +202,12 @@ fun BottomBarContent() {
                         }
                     }
 
-                    // 3. Controls Group (Back, Settings) (10%)
-                    Box(modifier = Modifier.weight(0.10f), contentAlignment = Alignment.Center) {
+                    // 3. Controls Group (Back, Settings) (14%)
+                    Box(modifier = Modifier.weight(0.14f), contentAlignment = Alignment.Center) {
                         ControlsSection(scope)
                     }
 
-                    // 4. AC Sync/Auto (14%)
-                    Box(modifier = Modifier.weight(0.14f), contentAlignment = Alignment.Center) {
-                        Row(
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            ACControlButton(
-                                    icon = Icons.Default.Sync,
-                                    label = "SYNC",
-                                    isActive = acSync == "1",
-                                    isEnabled = isACEnabled
-                            ) {
-                                val next = if (acSync == "1") "0" else "1"
-                                serviceManager.updateData(
-                                        CarConstants.CAR_HVAC_SYNC_ENABLE.getValue(),
-                                        next
-                                )
-                            }
-                            ACControlButton(
-                                    icon = Icons.Default.AutoMode,
-                                    label = "AUTO",
-                                    isActive = acAuto == "1",
-                                    isEnabled = isACEnabled
-                            ) {
-                                val next = if (acAuto == "1") "0" else "1"
-                                serviceManager.updateData(
-                                        CarConstants.CAR_HVAC_AUTO_ENABLE.getValue(),
-                                        next
-                                )
-                            }
-                        }
-                    }
-
-                    // 5. AC Fan Speed (14%)
+                    // 4. AC Fan Speed (14%)
                     Box(modifier = Modifier.weight(0.14f), contentAlignment = Alignment.Center) {
                         FanControlSection(fanSpeed, true) { delta ->
                             val newSpeed = (fanSpeed + delta).coerceIn(0, 7)
@@ -258,6 +226,39 @@ fun BottomBarContent() {
                                 serviceManager.updateData(
                                         CarConstants.CAR_HVAC_POWER_MODE.getValue(),
                                         "1"
+                                )
+                            }
+                        }
+                    }
+
+                    // 5. AC Sync/Auto (14%)
+                    Box(modifier = Modifier.weight(0.14f), contentAlignment = Alignment.Center) {
+                        Row(
+                                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ACControlButton(
+                                    icon = Icons.Default.Sync,
+                                    label = "Sync",
+                                    isActive = acSync == "1",
+                                    isEnabled = isACEnabled
+                            ) {
+                                val next = if (acSync == "1") "0" else "1"
+                                serviceManager.updateData(
+                                        CarConstants.CAR_HVAC_SYNC_ENABLE.getValue(),
+                                        next
+                                )
+                            }
+                            ACControlButton(
+                                    icon = Icons.Default.AutoMode,
+                                    label = "Auto",
+                                    isActive = acAuto == "1",
+                                    isEnabled = isACEnabled
+                            ) {
+                                val next = if (acAuto == "1") "0" else "1"
+                                serviceManager.updateData(
+                                        CarConstants.CAR_HVAC_AUTO_ENABLE.getValue(),
+                                        next
                                 )
                             }
                         }
@@ -377,9 +378,23 @@ fun AppSwitcherSection() {
                 modifier =
                         Modifier.size(55.dp)
                                 .background(Color.Black, RoundedCornerShape(4.dp))
-                                .clickable {
-                                    br.com.redesurftank.havalshisuku.models.BottomBarState
-                                            .isMenuExpanded = !showMenu
+                                .pointerInput(showMenu, selectedPackage) {
+                                    detectTapGestures(
+                                        onTap = {
+                                            br.com.redesurftank.havalshisuku.models.BottomBarState
+                                                    .isMenuExpanded = !showMenu
+                                        },
+                                        onDoubleTap = {
+                                            if (selectedPackage.isNotEmpty()) {
+                                                br.com.redesurftank.havalshisuku.models.BottomBarState
+                                                        .isMenuExpanded = false
+                                                scope.launch {
+                                                    br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                                                            .launchAnyApp(context, selectedPackage)
+                                                }
+                                            }
+                                        }
+                                    )
                                 },
                 contentAlignment = Alignment.Center
         ) {
@@ -693,7 +708,7 @@ fun BottomBarMenus() {
     ) {
         // We use a Box with fillMaxWidth to contain our menus at the bottom
         Box(
-                modifier = Modifier.fillMaxWidth().alpha(0.95f).padding(bottom = 60.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 60.dp),
         ) {
             // App Menu (Left side)
             if (br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded) {
@@ -783,15 +798,17 @@ fun TempControlSection(
                 modifier = Modifier.width(120.dp)
         ) {
             Text(text = label, style = labelStyle)
-            val currentTemp = temp.toFloatOrNull() ?: 22.0f
-            val tempColor = if (currentTemp > 30f) Color.Red else Color.White
+            val floatTemp = temp.toFloatOrNull() ?: -200f
+            val isAbnormal = floatTemp >= 85f || floatTemp <= -40f || floatTemp == -1f
+            val displayTemp = if (!isEnabled || isAbnormal) "--" else temp
+            val tempColor = if (floatTemp > 30f) Color.Red else Color.White
             Text(
                     text =
                             buildAnnotatedString {
-                                withStyle(style = SpanStyle(color = tempColor)) { append(temp) }
-                                append(" °C")
+                                withStyle(style = SpanStyle(color = tempColor)) { append(displayTemp) }
+                                if (displayTemp != "--") append("°C")
                             },
-                    style = commonTextStyle,
+                    style = commonTextStyle.copy(fontSize = 18.sp),
                     modifier = Modifier.padding(horizontal = 4.dp)
             )
         }
@@ -869,14 +886,66 @@ fun VolumeControlSection(label: String, volume: Int, onValueChange: (Int) -> Uni
 fun ControlsSection(scope: CoroutineScope) {
     Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        NavIcon(Icons.AutoMirrored.Filled.Undo) {
-            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                ShizukuUtils.runCommandAndGetOutput(arrayOf("input", "keyevent", "4"))
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.clickable {
+                scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    ShizukuUtils.runCommandAndGetOutput(arrayOf("input", "keyevent", "4"))
+                }
+            }
+        ) {
+            Text(
+                text = "Voltar",
+                style = labelStyle.copy(fontSize = 10.sp, color = Color.White)
+            )
+            Icon(
+                Icons.AutoMirrored.Filled.Undo,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.8f),
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        val showSettings = BottomBarState.isSettingsMenuExpanded
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.clickable {
+                BottomBarState.isSettingsMenuExpanded = !showSettings
+            }
+        ) {
+            Text(
+                text = "Condução",
+                style = labelStyle.copy(
+                    fontSize = 10.sp,
+                    color = if (showSettings) Color(0xFF2196F3) else Color.White
+                )
+            )
+            Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Default.DirectionsCar,
+                    contentDescription = null,
+                    tint = if (showSettings) Color(0xFF2196F3) else Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .offset(x = 6.dp, y = 6.dp)
+                        .background(Color.Black, RoundedCornerShape(2.dp))
+                        .padding(0.5.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Tune,
+                        contentDescription = null,
+                        tint = if (showSettings) Color(0xFF2196F3) else Color.White,
+                        modifier = Modifier.size(8.dp)
+                    )
+                }
             }
         }
-        CarSettingsSection()
     }
 }
 
@@ -904,16 +973,16 @@ fun ACControlButton(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.alpha(alpha).clickable(enabled = isEnabled) { onClick() }
     ) {
-        Icon(icon, contentDescription = label, tint = contentColor, modifier = Modifier.size(20.dp))
         Text(
                 text = label,
                 style =
                         labelStyle.copy(
-                                fontSize = 8.sp,
+                                fontSize = 10.sp,
                                 color = contentColor,
                                 fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium
                         )
         )
+        Icon(icon, contentDescription = label, tint = contentColor, modifier = Modifier.size(20.dp))
     }
 }
 

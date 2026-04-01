@@ -94,6 +94,15 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                 shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn
                         updateVirtualClusterVisibility()
                     }
+                } else if (key == SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key) {
+                    val nextRevisionKm = preferences.getInt(key, 12000)
+                    ensureUi { evaluateJsIfReady(webView, "control('nextRevisionKm', $nextRevisionKm)") }
+                } else if (key == SharedPreferencesKeys.INSTRUMENT_REVISION_NEXT_DATE.key) {
+                    val nextRevisionDate = preferences.getLong(key, 0L)
+                    ensureUi { evaluateJsIfReady(webView, "control('nextRevisionDate', $nextRevisionDate)") }
+                } else if (key == SharedPreferencesKeys.ENABLE_INSTRUMENT_REVISION_WARNING.key) {
+                    val enableWarning = preferences.getBoolean(key, false)
+                    ensureUi { evaluateJsIfReady(webView, "control('enableRevisionWarning', $enableWarning)") }
                 }
             }
 
@@ -111,13 +120,54 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 )
     }
 
+    private var cardBeforeWarning = 1
+    
+    // Efficient warning tracking
+    private val activeWarningKeys = setOf(
+        CarConstants.CAR_BASIC_COOLANT_TEMP_WARNING.value,
+        CarConstants.CAR_BASIC_ENGINE_OIL_LOW_PRESSURE_WARNING.value,
+        CarConstants.CAR_BASIC_FATIGUE_WARNING.value,
+        CarConstants.CAR_BASIC_MAINTENANCE_WARNING.value,
+        CarConstants.CAR_BASIC_OIL_LOW_WARNING.value,
+        CarConstants.CAR_BASIC_SEAT_BELT_WARNING.value,
+        CarConstants.CAR_BASIC_TIREPRESS_WARNING.value,
+        CarConstants.CAR_BASIC_TIRETEMP_WARNING.value,
+        CarConstants.CAR_BASIC_TPMS_WARNING.value,
+        CarConstants.CAR_IPK_INFO_BSD_LCA_WARNING_REQLEFT.value,
+        CarConstants.CAR_IPK_INFO_BSD_LCA_WARNING_REQRIGHT.value,
+        CarConstants.CAR_IPK_INFO_DOW_WARNING_REQLEFT.value,
+        CarConstants.CAR_IPK_INFO_DOW_WARNING_REQRIGHT.value,
+        CarConstants.CAR_IPK_INFO_FCTA_WARNING.value,
+        CarConstants.CAR_IPK_INFO_FCW_WARNING.value,
+        CarConstants.CAR_IPK_INFO_WARNING_TTS_NOTIFY.value,
+        CarConstants.CAR_IPK_LIGHT_DOOR_WARNING.value,
+        CarConstants.CAR_IPK_LIGHT_ENGINE_OIL_LOW_PRESSURE_WARNING.value,
+        CarConstants.CAR_IPK_LIGHT_SEAT_BELT_WARNING_INDICATOR.value,
+        CarConstants.CAR_IPK_LIGHT_TPMS_WARNING.value
+    )
+    private val currentlyActiveWarnings = mutableSetOf<String>()
+
     private val eventListener = br.com.redesurftank.havalshisuku.listeners.IServiceManagerEvent { event, args ->
         ensureUi {
+            // Reset warning on any interaction
+            when (event) {
+                ServiceManagerEventType.CLUSTER_CARD_CHANGED,
+                ServiceManagerEventType.STEERING_WHEEL_AC_CONTROL,
+                ServiceManagerEventType.GRAPH_SCREEN_NAVIGATION,
+                ServiceManagerEventType.UPDATE_SCREEN,
+                ServiceManagerEventType.MENU_ITEM_NAVIGATION,
+                ServiceManagerEventType.DISPLAY_SCREEN_SELECTION -> {
+                    updateWarningUI(false, true)
+                }
+                else -> {}
+            }
+
             when (event) {
                 ServiceManagerEventType.CLUSTER_CARD_CHANGED -> {
                     currentCard = args[0] as Int
                     evaluateJsIfReady(webView, "control('cardId', $currentCard)")
                     resizeActiveApp(currentCard)
+                    updateWarningUI(false, false)
                     updateVirtualClusterVisibility()
 
                     if (currentCard == 1 || currentCard == 3) {
@@ -185,7 +235,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
                 ServiceManagerEventType.DISPLAY_3_APP_STATE_CHANGED -> {
                     isAnyAppOnDisplay3 = args[0] as Boolean
-                    android.util.Log.w(TAG, "Display 3 app state changed in cluster projector: $isAnyAppOnDisplay3")
+                    Log.w(TAG, "Display 3 app state changed in cluster projector: $isAnyAppOnDisplay3")
                     updateVirtualClusterVisibility()
                     if (isAnyAppOnDisplay3) {
                         resizeActiveApp(currentCard)
@@ -194,7 +244,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
                 ServiceManagerEventType.DISPLAY_1_APP_STATE_CHANGED -> {
                     isAnyAppOnDisplay1 = args[0] as Boolean
-                    android.util.Log.w(TAG, "Display 1 app state changed in cluster projector: $isAnyAppOnDisplay1")
+                    Log.w(TAG, "Display 1 app state changed in cluster projector: $isAnyAppOnDisplay1")
                     updateVirtualClusterVisibility()
                 }
 
@@ -207,7 +257,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+    protected override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handler.post(clockRunnable)
         preferences.registerOnSharedPreferenceChangeListener(prefsListener)
@@ -219,9 +269,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT
         )
-        window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
 
-        root = FrameLayout(context).apply { setBackgroundColor(Color.TRANSPARENT) }
+        root = FrameLayout(outerContext).apply { setBackgroundColor(Color.TRANSPARENT) }
         setContentView(root)
         setupControlView(root)
         isAnyAppOnDisplay3 =
@@ -254,6 +303,9 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                 "control('carSpeed', $speedStr)"
                         )
                     }
+                    CarConstants.CAR_BASIC_TOTAL_ODOMETER.value -> {
+                        evaluateJsIfReady(webView, "control('odometer', $value)")
+                    }
                     CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE.value -> {
                         evaluateJsIfReady(webView, "control('fuelPercent', $value)")
                     }
@@ -283,7 +335,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     CarConstants.CAR_HVAC_ANION_ENABLE.value ->
                             evaluateJsIfReady(webView, "control('aion', $value)")
                     CarConstants.CAR_CONFIGURE_DEFAULT_TEMP_UNIT.value -> {
-                        val unitLabel = if (value == "1") "F" else "C"
+                        val unitLabel = if (value == "1") "°F" else "°C"
                         evaluateJsIfReady(webView, "control('tempUnit', '$unitLabel')")
                     }
                     CarConstants.CAR_BASIC_OUTSIDE_TEMP.value -> {
@@ -361,6 +413,19 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         evaluateJsIfReady(webView, "control('engineRPM',$value)")
                     }
                 }
+
+                // --- Warning Management Logic ---
+                if (key in activeWarningKeys) {
+                    val s = value.toString()
+                    val isThisActive = s != "0" && s != "{0,0,0,0}" && s != "{0,0,0,0,0}" && s != "" && s != "false"
+                    
+                    if (isThisActive) {
+                        currentlyActiveWarnings.add(key)
+                    } else {
+                        currentlyActiveWarnings.remove(key)
+                    }
+                    updateWarningUI(isThisActive, true)
+                }
             }
         }
     }
@@ -382,7 +447,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupControlView(parent: FrameLayout) {
         if (webView == null) {
-            webView = WebView(context).apply {
+            webView = WebView(outerContext).apply {
                 layoutParams = FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT
@@ -452,8 +517,9 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         )
         evaluateJsIfReady(
                 webView,
-                "control('tempUnit', '${if (sm.getData(CarConstants.CAR_CONFIGURE_DEFAULT_TEMP_UNIT.value) == "1") "F" else "C"}')"
+                "control('tempUnit', '${if (sm.getData(CarConstants.CAR_CONFIGURE_DEFAULT_TEMP_UNIT.value) == "1") "°F" else "°C"}')"
         )
+
         evaluateJsIfReady(
                 webView,
                 "control('onepedal', ${sm.getData(CarConstants.CAR_CONFIGURE_PEDAL_CONTROL_ENABLE.value) == "1"})"
@@ -479,6 +545,15 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 webView,
                 "control('gearState', '${getGearLabel(sm.getData(CarConstants.CAR_BASIC_GEAR_STATUS.value))}')"
         )
+
+        // Revision info
+        val nextRevisionKm = preferences.getInt(SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key, 12000)
+        val nextRevisionDate = preferences.getLong(SharedPreferencesKeys.INSTRUMENT_REVISION_NEXT_DATE.key, 0L)
+        val enableRevisionWarning = preferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_REVISION_WARNING.key, false)
+        evaluateJsIfReady(webView, "control('nextRevisionKm', $nextRevisionKm)")
+        evaluateJsIfReady(webView, "control('nextRevisionDate', $nextRevisionDate)")
+        evaluateJsIfReady(webView, "control('enableRevisionWarning', $enableRevisionWarning)")
+        evaluateJsIfReady(webView, "control('odometer', ${sm.getData(CarConstants.CAR_BASIC_TOTAL_ODOMETER.value) ?: 0})")
 
         // Speed and Engine
         val speedStr = getAdjustedSpeed(sm.getData(CarConstants.CAR_BASIC_VEHICLE_SPEED.value))
@@ -693,5 +768,19 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         }
 
         return finalSpeed.toInt().toString()
+    }
+
+    private fun updateWarningUI(anyWarningActive: Boolean, resizeApp: Boolean) {
+        if (anyWarningActive) {
+            Log.w(TAG, "Warning detected. Storing cardId $currentCard and forcing app resize if needed")
+            if (resizeApp) resizeActiveApp(0)
+
+        } else {
+            Log.w(TAG, "Warnings cleared.")
+            if (resizeApp) resizeActiveApp(1)
+        }
+
+        // Propagate current warning state
+        evaluateJsIfReady(webView, "control('warningActive', $anyWarningActive)")
     }
 }

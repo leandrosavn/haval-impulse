@@ -15,6 +15,10 @@ export function createTempInfoElement() {
         if (temp === null || temp === undefined || temp === '--' || temp === -1 || isNaN(temp)) {
             return '--';
         }
+        const numericTemp = parseFloat(temp);
+        if (numericTemp >= 85 || numericTemp <= -40) {
+            return '--';
+        }
         return temp + (unit || '°C');
     }
 

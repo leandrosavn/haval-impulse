@@ -17,6 +17,17 @@ document.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.altKey || e.metaKey) return;
 
     const currentState = stateManager.getState();
+    if (e.key.toLowerCase() === 'w') {
+        const currentWarn = stateManager.getState().warningActive;
+        console.log('[Warning Debug] Toggling warningActive to:', !currentWarn);
+        setState('warningActive', !currentWarn);
+        return;
+    }
+    
+    if (e.key === 'Escape') {
+        console.log('[Warning Debug] Force clear warningActive');
+        setState('warningActive', false);
+    }
     const currentScreen = currentState.screen;
     const currentCardId = (currentState.cardId !== undefined) ? currentState.cardId : 1;
     const cards = [0, 1, 3];
@@ -260,6 +271,24 @@ document.addEventListener('keydown', (e) => {
         console.log(`[Mode Simulation] Toggle onepedal -> ${!currentOnePedal}`);
         setState('onepedal', !currentOnePedal);
     }
+
+    if (e.key.toLowerCase() === 'm') {
+        const modes = ['km', 'date', 'none'];
+        if (!window.maintenanceMode) window.maintenanceMode = 'km';
+        const currentIndex = modes.indexOf(window.maintenanceMode);
+        const nextIndex = (currentIndex + 1) % modes.length;
+        window.maintenanceMode = modes[nextIndex];
+        console.log(`[Maintenance Simulation] Toggle Mode -> ${window.maintenanceMode}`);
+    }
+
+    if (e.key.toLowerCase() === 'w') {
+        const currentWarning = stateManager.getState().warningActive;
+        console.log(`[Warning Simulation] Toggle warningActive -> ${!currentWarning}`);
+        setState('warningActive', !currentWarning);
+        if (!currentWarning) {
+            setState('cardId', 0);
+        }
+    }
 });
 
 let lastValue = 0;
@@ -397,6 +426,38 @@ window.simulationInterval = setInterval(() => {
     setState('batteryPercent', currentBatteryPercent);
     setState('fuelRange', Math.round((currentFuelPercent / 100) * MAX_FUEL_RANGE));
     setState('batteryRange', Math.round((currentBatteryPercent / 100) * MAX_BATTERY_RANGE));
+
+    // Odometer Simulation
+    if (!window.simulatedOdo) window.simulatedOdo = 11450.5; // Start near revision
+    if (currentSpeed > 0) {
+        // km/h to km/step: (speed * interval_ms) / (1000 * 3600)
+        const delta = (currentSpeed * SIMULATION_INTERVAL) / 3600000;
+        window.simulatedOdo += delta;
+    }
+    setState('odometer', Math.floor(window.simulatedOdo));
+
+    // Revision Simulation (Testing Warning logic)
+    if (window.simulatedOdo > 0) {
+        if (!window.maintenanceMode) window.maintenanceMode = 'km';
+        
+        if (window.maintenanceMode === 'none') {
+            setState('enableRevisionWarning', false);
+        } else {
+            setState('enableRevisionWarning', true);
+            
+            if (window.maintenanceMode === 'km') {
+                // Target: 12.000km, Current is around 11.450 -> Warning active (< 1000km)
+                setState('nextRevisionKm', 12000);
+                // Far date
+                setState('nextRevisionDate', Date.now() + 60 * 24 * 60 * 60 * 1000); 
+            } else if (window.maintenanceMode === 'date') {
+                // Far mileage (target 20k)
+                setState('nextRevisionKm', 20000);
+                // Close date (15 days)
+                setState('nextRevisionDate', Date.now() + 15 * 24 * 60 * 60 * 1000);
+            }
+        }
+    }
 
 }, SIMULATION_INTERVAL);
 

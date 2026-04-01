@@ -9,6 +9,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import androidx.core.content.edit
+import androidx.core.content.FileProvider
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.graphics.Color as AndroidColor
@@ -28,6 +30,8 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
@@ -63,6 +67,8 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlinx.coroutines.*
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import org.json.JSONArray
 import kotlin.math.min
 
@@ -3301,12 +3307,16 @@ fun DisplayAppConfigSection() {
             configs.forEach { config ->
                 val pm = context.packageManager
                 val appName =
-                        try {
-                            pm.getApplicationInfo(config.packageName, 0).let {
-                                pm.getApplicationLabel(it).toString()
+                        if (!config.customName.isNullOrBlank()) {
+                            config.customName
+                        } else {
+                            try {
+                                pm.getApplicationInfo(config.packageName, 0).let {
+                                    pm.getApplicationLabel(it).toString()
+                                }
+                            } catch (_: Exception) {
+                                config.packageName
                             }
-                        } catch (_: Exception) {
-                            config.packageName
                         }
                 val appIcon =
                         try {
@@ -4201,8 +4211,7 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                 }
                 .toMutableList()
         
-        apps.filter { it.packageName != context.packageName }
-            .sortedBy { it.label.lowercase() }
+        apps.sortedBy { it.label.lowercase() }
     }
     
     var showManualInput by remember { mutableStateOf(false) }
@@ -4331,27 +4340,36 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                                 }
 
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 64.dp),
+                    columns = GridCells.Adaptive(minSize = 80.dp),
                     modifier = Modifier.heightIn(max = 350.dp),
                     contentPadding = PaddingValues(0.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(filteredApps) { app ->
-                        Box(
+                        Column(
                             modifier = Modifier
-                                .size(64.dp)
+                                .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(Color(0xFF2A2F37).copy(alpha = 0.5f))
                                 .clickable { onAppSelected(app) }
                                 .padding(8.dp),
-                            contentAlignment = Alignment.Center
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             AsyncImage(
                                 model = app.icon,
                                 contentDescription = app.label,
                                 modifier = Modifier.size(44.dp),
                                 contentScale = ContentScale.Fit
+                            )
+                            Text(
+                                text = app.label,
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
@@ -4876,7 +4894,7 @@ fun InstallAppsTab() {
                             )
                     )
 
-            gridItems(sortedApps) { app ->
+            items(sortedApps) { app ->
                 val installedVersion = getInstalledVersion(app.packageName)
                 val isInstalled = installedVersion != null
                 val needsUpdate = isInstalled && compareVersions(installedVersion, app.version) < 0

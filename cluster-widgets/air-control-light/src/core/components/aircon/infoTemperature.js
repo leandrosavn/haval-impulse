@@ -12,7 +12,8 @@ export function createTempInfoElement() {
        children: [ 'Outside',],
     });
     function formatTemp(temp, unit) {
-        if (temp === null || temp === undefined || temp === '--' || temp === -1 || isNaN(temp)) {
+        const numericTemp = parseFloat(temp);
+        if (numericTemp >= 85 || numericTemp <= -40) {
             return '--';
         }
         return temp + (unit || '°C');

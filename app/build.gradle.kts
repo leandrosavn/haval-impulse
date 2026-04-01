@@ -58,6 +58,7 @@ kotlin {
 dependencies {
 
     implementation(libs.appcompat)
+    implementation(libs.core.ktx)
     implementation(libs.material)
     implementation(libs.shizuku)
     implementation(libs.shizuku.provider)

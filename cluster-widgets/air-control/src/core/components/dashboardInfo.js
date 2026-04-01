@@ -1,6 +1,7 @@
 import { getState, setState, subscribe } from '../state.js';
 import { div, span, img } from '../../utils/createElement.js';
 import { logger } from '../../utils/logger.js';
+import { createOdometerInfo } from './display/odometer/odometerInfo.js';
 
 const fuelIconBase64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xLDEyTDUsOVYxNVoiLz48cGF0aCBkPSJNMjIsMTBWOGEyLDIsMCwwLDAtMi0yaC0zVjRhMiwyLDAsMCwwLTItMkg5QTIsMiwwLDAsMCw3LDR2MTZhMiwyLDAsMCwwLDIsMmg4YTIsMiwwLDAsMCwyLTJWMTJoMXY0YTIsMiwwLDAsMCw0LDBWMTBaTTksNGg4djZIOVptOCwxNkg5VjEyaDhaIi8+PC9zdmc+";
 const batteryIconBase64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjwhLS0gQm9keSAtLT48cGF0aCBkPSJNMyw2aDE4YzEuMSwwLDIsMC45LDIsMnYxMGMwLDEuMS0wLjksMi0yLDJIM2MtMS4xLDAtMi0wLjktMi0yVjhDMSw2LjksMS45LDYsMyw2eiBNMyw4djEwaDE4VjhIM3oiLz48IS0tIFBvbGVzIC0tPjxyZWN0IHg9IjUiIHk9IjMiIHdpZHRoPSI0IiBoZWlnaHQ9IjMiLz48cmVjdCB4PSIxNSIgeT0iMyIgd2lkdGg9IjQiIGhlaWdodD0iMyIvPjwhLS0gTWludXMgc2lnbiAoLSkgLS0+PHJlY3QgeD0iNiIgeT0iMTIiIHdpZHRoPSI0IiBoZWlnaHQ9IjMiLz48IS0tIFBsdXMgc2lnbiAoKykgLS0+PHBhdGggZD0iTTE2LDEwaC0ydjJoLTJ2MmgydjJoMnYtMmgydi0yaC0yVjEweiIvPjwvc3ZnPg==";
@@ -161,10 +162,14 @@ export function createDashboardInfo() {
     batteryContainer.appendChild(batteryBar);
     batteryContainer.appendChild(batteryLabels);
 
-    bottomGauges.appendChild(fuelContainer);
+    const { element: odometerElement, cleanup: odometerCleanup } = createOdometerInfo();
 
     function formatTemp(temp, unit) {
         if (temp === null || temp === undefined || temp === '--' || temp === -1 || isNaN(temp)) {
+            return '--';
+        }
+        const numericTemp = parseFloat(temp);
+        if (numericTemp >= 85 || numericTemp <= -40) {
             return '--';
         }
         return temp + (unit || '°C');
@@ -203,10 +208,28 @@ export function createDashboardInfo() {
     updateBottomEv(getState('evMode'));
 
     bottomEvMode.appendChild(bottomEvLabel);
+
+    // Warning Label (Red label below right circle)
+    const warningLabel = div({
+        className: 'dashboard-warning-label',
+        children: ['WARN']
+    });
+    if (!getState('warningActive')) {
+        warningLabel.style.display = 'none';
+    }
+
+    batteryContainer.appendChild(batteryBar);
+    batteryContainer.appendChild(batteryLabels);
+    container.appendChild(warningLabel);
+
     bottomGauges.appendChild(batteryContainer);
 
     container.appendChild(topCenter);
     container.appendChild(speedContainer);
+
+    bottomGauges.appendChild(fuelContainer);
+    bottomGauges.appendChild(odometerElement);
+    bottomGauges.appendChild(batteryContainer);
     container.appendChild(bottomGauges);
     container.appendChild(externalTempContainer);
     container.appendChild(internalTempContainer);
@@ -287,6 +310,10 @@ export function createDashboardInfo() {
         subscribe('tempUnit', unit => {
             externalTempValue.textContent = formatTemp(getState('outside_temp'), unit);
             internalTempValue.textContent = formatTemp(getState('inside_temp'), unit);
+        }),
+        subscribe('warningActive', val => {
+            console.log('[DashboardInfo] warningActive changed to:', val);
+            warningLabel.style.display = val ? 'block' : 'none';
         })
     ];
 
@@ -297,6 +324,7 @@ export function createDashboardInfo() {
     const cleanup = () => {
         clearInterval(clockInterval);
         subscriptions.forEach(unsubscribe => unsubscribe());
+        if (odometerCleanup) odometerCleanup();
     };
 
     return { element: container, menuWrapper, cleanup };
