@@ -141,9 +141,10 @@ class InstrumentProjector(outerContext: Context, display: Display) : BaseProject
         }
     }
 
-    override fun onDataChanged(key: String, value: String) {
+    override fun onDataChanged(key: String, value: String?) {
+        if (value == null) return
         if (key == CarConstants.CAR_BASIC_TOTAL_ODOMETER.value) {
-            currentKm = value.toInt()
+            currentKm = value.toIntOrNull() ?: currentKm
         }
     }
 

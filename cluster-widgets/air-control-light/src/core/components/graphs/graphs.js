@@ -53,12 +53,9 @@ export const graphList = [
                 smoothFactor: 100, // Join data close by 100ms
                 unity: 'kWatts',
                 yAxisID: 'y',
-                lineColor: '--blue-600',
-                lineColorLight: '--blue-600',
-                positiveColor: '--color-ac-dark-blue',
-                positiveColorLight: '--color-ac-dark-blue',
-                negativeColor: '--color-emerald',
-                negativeColorLight: '--color-emerald'
+                lineColor: '--graph-evpower-line-color',
+                positiveColor: '--graph-evpower-positive-color',
+                negativeColor: '--graph-evpower-negative-color'
             },
             {
                 label: 'Média',
@@ -68,10 +65,10 @@ export const graphList = [
                 smooth: true,
                 unity: 'kWavg',
                 yAxisID: 'y1',
-                lineColor: '--text-cold-gray',
-                lineColorLight: '--text-cold-gray' // Deep Sky Blue (readable on white)
+                lineColor: '--graph-evpower-avg-line-color'
             }
-        ]
+        ],
+        secondaryTooltipColor: '--graph-evpower-secondary-tooltip-color'
     },
     {
         id: 'gasConsumption',
@@ -96,8 +93,7 @@ export const graphList = [
                 smoothFactor: 100, // Join data close by 100ms
                 unity: 'KWh/100km',
                 yAxisID: 'y',
-                lineColor: '--text-main',
-                lineColorLight: '--blue-600',
+                lineColor: '--graph-mixed-electric-line-color',
                 valueFilter: 'positive'
             },
             {
@@ -108,7 +104,7 @@ export const graphList = [
                 yAxisID: 'y1',
                 idleKey: 'gasConsumptionIdle',
                 idleUnity: 'l/100km',
-                lineColor: '--color-orange',
+                lineColor: '--graph-mixed-instant-line-color',
                 valueFilter: 'positive'
             },
             {
@@ -120,11 +116,11 @@ export const graphList = [
                 unity: 'KWh/100km',
                 yAxisID: 'y2',
                 followAxis: 'y',
-                lineColor: '--color-blue-400',
-                lineColorLight: '--color-blue-400', // Deep Sky Blue for white background contrast
+                lineColor: '--graph-mixed-ev-avg-line-color',
                 valueFilter: 'positive'
             }
-        ]
+        ],
+        secondaryTooltipColor: '--graph-mixed-secondary-tooltip-color'
     },
     {
         id: 'carSpeed',
@@ -148,8 +144,7 @@ export const graphList = [
                 smooth: true,
                 unity: 'km/h',
                 yAxisID: 'y',
-                lineColor: '--text-main',
-                lineColorLight: '--blue-600'
+                lineColor: '--graph-speed-line-color'
             },
             {
                 label: 'Consumo',
@@ -157,23 +152,21 @@ export const graphList = [
                 smooth: true,
                 unity: 'km/L',
                 yAxisID: 'y1',
-                lineColor: '--color-orange'
+                lineColor: '--graph-consumption-line-color'
             }
-        ]
+        ],
+        secondaryTooltipColor: '--graph-speed-secondary-tooltip-color'
     },
 ];
 
 const historicalData = {};
 
-const getChartColor = (dataset, colorType, isNight = null) => {
-    const night = isNight !== null ? isNight : true;
+const getChartColor = (dataset, colorType) => {
     let colorVal = dataset[colorType];
-    if (!night && dataset[`${colorType}Light`]) {
-        colorVal = dataset[`${colorType}Light`];
-    }
     if (colorVal && colorVal.startsWith('--')) {
         const computed = getComputedStyle(document.documentElement).getPropertyValue(colorVal).trim();
         if (computed) return computed;
+        return undefined; // Return undefined if variable is not found
     }
     return colorVal;
 };
@@ -618,19 +611,31 @@ export function createGraphScreen() {
             scales.y1.ticks.stepSize = graphInfo.y1Axis.stepSize;
         }
 
-        const isNight = true;
-
         const yDS = graphInfo.datasets.find(ds => ds.yAxisID === 'y');
-        if (yDS && getChartColor(yDS, 'lineColor', isNight)) scales.y.ticks.color = getChartColor(yDS, 'lineColor', isNight) + 'B3';
+        if (yDS && getChartColor(yDS, 'lineColor')) scales.y.ticks.color = getChartColor(yDS, 'lineColor') + 'B3';
 
         const y1DS = graphInfo.datasets.find(ds => ds.yAxisID === 'y1');
-        if (y1DS && getChartColor(y1DS, 'lineColor', isNight)) scales.y1.ticks.color = getChartColor(y1DS, 'lineColor', isNight) + 'B3';
+        if (y1DS && getChartColor(y1DS, 'lineColor')) scales.y1.ticks.color = getChartColor(y1DS, 'lineColor') + 'B3';
+
+        // Set initial tooltip colors
+        if (yDS) {
+            const txtColor = getChartColor(yDS, 'tooltipColor') || getChartColor(yDS, 'lineColor');
+            dynamicTooltip.querySelector('.tooltip-value').style.color = txtColor;
+            dynamicTooltip.querySelector('.tooltip-unity').style.color = txtColor;
+            dynamicTooltipLine.style.backgroundColor = getChartColor(yDS, 'lineColor');
+        }
+        if (y1DS) {
+            const txtColor = getChartColor(graphInfo, 'secondaryTooltipColor') || getChartColor(y1DS, 'tooltipColor') || getChartColor(y1DS, 'lineColor');
+            secondaryTooltip.querySelector('.tooltip-value').style.color = txtColor;
+            secondaryTooltip.querySelector('.tooltip-unity').style.color = txtColor;
+            secondaryTooltipLine.style.backgroundColor = getChartColor(y1DS, 'lineColor');
+        }
 
         const newDatasets = [];
         graphInfo.datasets.forEach((datasetInfo) => {
             const dataKey = datasetInfo.avgInternalKey || datasetInfo.filterInternalKey || datasetInfo.dataKey;
             if (dataKey) {
-                let color = getChartColor(datasetInfo, 'lineColor', isNight) || '#ffffff';
+                let color = getChartColor(datasetInfo, 'lineColor') || '#ffffff';
                 if (datasetInfo.yAxisID === 'y2' && datasetInfo.followAxis) {
                     const followScale = datasetInfo.followAxis === 'y1' ? scales.y1 : scales.y;
                     scales.y2.min = followScale.min;
@@ -653,9 +658,9 @@ export function createGraphScreen() {
                         ds[key] = datasetInfo[key];
                     }
                 });
-                if (datasetInfo.positiveColor || datasetInfo.negativeColor || datasetInfo.positiveColorLight || datasetInfo.negativeColorLight) {
-                    const posColor = getChartColor(datasetInfo, 'positiveColor', isNight) || color;
-                    const negColor = getChartColor(datasetInfo, 'negativeColor', isNight) || color;
+                if (datasetInfo.positiveColor || datasetInfo.negativeColor) {
+                    const posColor = getChartColor(datasetInfo, 'positiveColor') || color;
+                    const negColor = getChartColor(datasetInfo, 'negativeColor') || color;
                     ds.segment = {
                         borderColor: ctx => ctx.p0.parsed.y < 0 ? negColor : posColor,
                         backgroundColor: ctx => ctx.p0.parsed.y < 0 ? hexToRgba(negColor, 0.15) : hexToRgba(posColor, 0.15)
@@ -698,10 +703,10 @@ export function createGraphScreen() {
                     x: { type: 'realtime', display: false, realtime: { duration: HISTORY_DURATION, refresh: 250 } },
                     y: {
                         min: -20, max: 120,
-                        ticks: { display: true, mirror: true, padding: 0, stepSize: 20, color: getComputedStyle(document.documentElement).getPropertyValue('--color-ring-blue-70').trim() || 'rgba(100,172,255,0.7)' },
-                        grid: { display: true, drawOnChartArea: true, drawTicks: false, color: (ctx) => (ctx.tick.value === 0 ? getComputedStyle(document.documentElement).getPropertyValue('--color-cyan-20').trim() || 'rgba(0, 195, 255, 1)' : getComputedStyle(document.documentElement).getPropertyValue('--color-blue-30').trim() || 'rgba(0,160,255,0.3)'), lineWidth: (ctx) => (ctx.tick.value === 0 ? 4 : 1) },
+                        ticks: { display: true, mirror: true, padding: 0, stepSize: 20, color: getComputedStyle(document.documentElement).getPropertyValue('--graph-tick-label-color').trim() || 'rgba(100,172,255,0.7)' },
+                        grid: { display: true, drawOnChartArea: true, drawTicks: false, color: (ctx) => (ctx.tick.value === 0 ? getComputedStyle(document.documentElement).getPropertyValue('--graph-zero-grid-line-color').trim() || 'rgba(0, 195, 255, 1)' : getComputedStyle(document.documentElement).getPropertyValue('--graph-grid-line-color').trim() || 'rgba(0,160,255,0.3)'), lineWidth: (ctx) => (ctx.tick.value === 0 ? 4 : 1) },
                     },
-                    y1: { id: 'y1', position: 'right', min: 0, max: 200, ticks: { display: true, mirror: true, padding: 0, align: 'start', stepSize: 2, color: getComputedStyle(document.documentElement).getPropertyValue('--color-cyan-20').trim() || 'rgba(0, 255, 187, 0.5)' }, grid: { drawOnChartArea: false } },
+                    y1: { id: 'y1', position: 'right', min: 0, max: 200, ticks: { display: true, mirror: true, padding: 0, align: 'start', stepSize: 2, color: getComputedStyle(document.documentElement).getPropertyValue('--graph-zero-grid-line-color').trim() || 'rgba(0, 255, 187, 0.5)' }, grid: { drawOnChartArea: false } },
                     y2: { id: 'y2', display: false, grid: { drawOnChartArea: false } }
                 }
             }
@@ -752,27 +757,27 @@ export function createGraphScreen() {
                     const vEl = dynamicTooltip.querySelector('.tooltip-value');
                     const uEl = dynamicTooltip.querySelector('.tooltip-unity');
 
-                    const isNight = true;
-                    let dsColor = getChartColor(primaryDS, 'lineColor', isNight) || '#ffffff';
-                    let txtColor = getChartColor(primaryDS, 'tooltipColor', isNight) || dsColor;
+                    if (primaryDS.positiveColor || primaryDS.negativeColor) {
+                        let dsColor = getChartColor(primaryDS, 'lineColor') || '#ffffff';
+                        let txtColor = getChartColor(primaryDS, 'tooltipColor') || dsColor;
 
-                    if ((primaryDS.positiveColor || primaryDS.positiveColorLight) && activeVal >= 0) {
-                        dsColor = getChartColor(primaryDS, 'positiveColor', isNight) || dsColor;
-                        txtColor = getChartColor(primaryDS, 'tooltipColor', isNight) || dsColor;
-                    }
-                    else if ((primaryDS.negativeColor || primaryDS.negativeColorLight) && activeVal < 0) {
-                        dsColor = getChartColor(primaryDS, 'negativeColor', isNight) || dsColor;
-                        txtColor = getChartColor(primaryDS, 'tooltipColor', isNight) || dsColor;
+                        if (primaryDS.positiveColor && activeVal >= 0) {
+                            dsColor = getChartColor(primaryDS, 'positiveColor') || dsColor;
+                            txtColor = getChartColor(primaryDS, 'tooltipColor') || dsColor;
+                        } else if (primaryDS.negativeColor && activeVal < 0) {
+                            dsColor = getChartColor(primaryDS, 'negativeColor') || dsColor;
+                            txtColor = getChartColor(primaryDS, 'tooltipColor') || dsColor;
+                        }
+                        vEl.style.color = txtColor;
+                        uEl.style.color = txtColor;
+                        dynamicTooltipLine.style.backgroundColor = dsColor;
                     }
 
                     dynamicTooltip.style.display = 'flex';
                     dynamicTooltip.style.opacity = '1';
                     vEl.textContent = activeVal.toFixed(decimalPlaces);
-                    vEl.style.color = txtColor;
-                    uEl.style.color = txtColor;
                     uEl.textContent = activeUnity;
                     dynamicTooltipLine.style.top = `${yAxis.getPixelForValue(activeVal) + LINE_OFFSET}px`;
-                    dynamicTooltipLine.style.backgroundColor = dsColor;
                     dynamicTooltipLine.style.opacity = 0.5;
                 }
                 if (secondaryDS) {
@@ -781,124 +786,160 @@ export function createGraphScreen() {
                     const vEl = secondaryTooltip.querySelector('.tooltip-value');
                     const uEl = secondaryTooltip.querySelector('.tooltip-unity');
 
-                    const isNight = true;
-                    let dsColor = getChartColor(secondaryDS, 'lineColor', isNight) || '#ffffff';
-                    let txtColor = getChartColor(secondaryDS, 'tooltipColor', isNight) || dsColor;
+                    if (secondaryDS.positiveColor || secondaryDS.negativeColor) {
+                        let dsColor = getChartColor(secondaryDS, 'lineColor') || '#ffffff';
+                        let txtColor = getChartColor(graphInfo, 'secondaryTooltipColor') || getChartColor(secondaryDS, 'tooltipColor') || dsColor;
 
-                    if ((secondaryDS.positiveColor || secondaryDS.positiveColorLight) && val >= 0) {
-                        dsColor = getChartColor(secondaryDS, 'positiveColor', isNight) || dsColor;
-                        txtColor = getChartColor(secondaryDS, 'tooltipColor', isNight) || dsColor;
-                    }
-                    else if ((secondaryDS.negativeColor || secondaryDS.negativeColorLight) && val < 0) {
-                        dsColor = getChartColor(secondaryDS, 'negativeColor', isNight) || dsColor;
-                        txtColor = getChartColor(secondaryDS, 'tooltipColor', isNight) || dsColor;
+                        if (secondaryDS.positiveColor && val >= 0) {
+                            dsColor = getChartColor(secondaryDS, 'positiveColor') || dsColor;
+                            txtColor = getChartColor(graphInfo, 'secondaryTooltipColor') || getChartColor(secondaryDS, 'tooltipColor') || dsColor;
+                        } else if (secondaryDS.negativeColor && val < 0) {
+                            dsColor = getChartColor(secondaryDS, 'negativeColor') || dsColor;
+                            txtColor = getChartColor(graphInfo, 'secondaryTooltipColor') || getChartColor(secondaryDS, 'tooltipColor') || dsColor;
+                        }
+                        vEl.style.color = txtColor;
+                        uEl.style.color = txtColor;
+                        secondaryTooltipLine.style.backgroundColor = dsColor;
                     }
 
                     secondaryTooltip.style.display = 'flex';
                     secondaryTooltip.style.opacity = '1';
                     vEl.textContent = val.toFixed(decimalPlaces);
-                    vEl.style.color = txtColor;
-                    uEl.style.color = txtColor;
                     uEl.textContent = secUnity;
-                    const axis = (secondaryDS.yAxisID === 'y1') ? y1Axis : yAxis;
-                    secondaryTooltipLine.style.top = `${axis.getPixelForValue(val) + LINE_OFFSET}px`;
-                    secondaryTooltipLine.style.backgroundColor = dsColor;
+                    secondaryTooltipLine.style.top = `${y1Axis.getPixelForValue(val) + LINE_OFFSET}px`;
                     secondaryTooltipLine.style.opacity = 0.5;
                 }
 
-                if (graphInfo.id === 'carSpeed') {
-                    const currentSpeed = getState('carSpeed') || 0.0;
-                    const drivingMode = getState('drivingMode');
-                    const acceleration = parseFloat(currentSpeed - lastCarSpeed) * (1000 / UI_UPDATE_INTERVAL);
-                    const isFastAcc = acceleration >= (100 / ACCELERATION_THRESHOLD);
-
-                    if (isSpeedTimerRunning) {
-                        const elapsed = (Date.now() - speedTimerStartTime) / 1000;
-                        if (elapsed > 15) { triggerFlash('red'); setWarpAnimation(false); setChronometer('stop'); }
-                        else if (currentSpeed >= 100) {
-                            if (!last0To100Time) last0To100Time = elapsed.toFixed(1);
-                            timerTooltipValue.textContent = `${last0To100Time}s`;
-                            if (drivingMode === 'Sport') triggerFlash('white');
-                            setChronometer('success_hold');
-                        } else if (currentSpeed === 0) { setWarpAnimation(false); setChronometer('stop'); }
-                        else {
-                            timerTooltipValue.textContent = `${elapsed.toFixed(1)}s`;
-                            timerTooltip.classList.add('visible');
-                            if (acceleration > 0 && drivingMode === 'Sport') { setWarpAnimation(true); if (warpTunnel) warpTunnel.setSpeed(currentSpeed); }
-                        }
-                    } else if (currentSpeed === 0) { last0To100Time = null; }
-                    else if (isFastAcc && currentSpeed < 10 && currentSpeed > 1 && drivingMode === 'Sport') { setChronometer('start'); }
-
-                    if (lastCarSpeed === 0 && currentSpeed > 0 && isFastAcc && drivingMode === 'Sport') { triggerFlash('orange'); setChronometer('start'); setWarpAnimation(true); }
-                    else if (currentSpeed >= 100 && currentSpeed < lastCarSpeed) { setWarpAnimation(false); }
-                    lastCarSpeed = currentSpeed;
-                } else { setWarpAnimation(false); setChronometer('stop'); }
-
-                if (chartInstance && chartInstance.ctx && chartInstance.canvas) {
-                    chartInstance.update('quiet');
-                }
-
-                // Update Rings
-                const powerV = getState('evPowerFactor');
-                const rpmV = getState('engineRPM');
-                const powerBarEl = document.getElementById('graph-power-bar-svg');
                 const rpmBarEl = document.getElementById('graph-rpm-bar-svg');
-                if (powerBarEl && rpmBarEl) {
-                    const isRegen = powerV < 0;
-                    if (isRegen) powerBarEl.classList.add('regen-active'); else powerBarEl.classList.remove('regen-active');
-                    const wrapAngle = (a) => ((a % 360) + 360) % 360;
-                    const pAngleWidth = powerV >= 0 ? (powerV / 100) * 180 : (powerV / 100) * 90;
-                    const rAngleWidth = (rpmV / 7000) * 90;
-                    const pStart = 270;
-                    const tipAngle = wrapAngle(pStart + pAngleWidth);
-                    const rStart = (powerV >= 0 ? tipAngle : 270) + 2;
-                    const rEnd = wrapAngle(rStart + rAngleWidth);
-                    const radius = 217, cx = 250, cy = 250;
-                    const getCoords = (deg) => { const rad = (deg - 90) * Math.PI / 180; return { x: cx + radius * Math.cos(rad), y: cy + radius * Math.sin(rad) }; };
-                    const pS = getCoords(pStart), pE = getCoords(tipAngle), pLarge = Math.abs(pAngleWidth) > 180 ? 1 : 0, pSweep = powerV >= 0 ? 1 : 0;
-                    if (Math.abs(pAngleWidth) > 0.1) {
-                        powerBarEl.setAttribute("d", `M ${pS.x} ${pS.y} A ${radius} ${radius} 0 ${pLarge} ${pSweep} ${pE.x} ${pE.y}`);
-                        powerBarEl.style.opacity = 1; powerBarEl.setAttribute("stroke-width", "8");
-                        const dash = isRegen ? 30.2 : 64.4; powerBarEl.setAttribute("stroke-dasharray", `${dash} 4.0`);
-                    } else powerBarEl.style.opacity = 0;
-                    const rS = getCoords(rStart), rE = getCoords(rEnd), rLarge = Math.abs(rAngleWidth) > 180 ? 1 : 0;
-                    if (rpmV > 1) {
-                        rpmBarEl.setAttribute("d", `M ${rS.x} ${rS.y} A ${radius} ${radius} 0 ${rLarge} 1 ${rE.x} ${rE.y}`);
-                        rpmBarEl.style.opacity = 1; rpmBarEl.setAttribute("stroke-width", "8");
-                        rpmBarEl.setAttribute("stroke-dasharray", "44.9 4.01");
-                    } else rpmBarEl.style.opacity = 0;
-                    if (rpmLabel) { const rpmVal = (rpmV / 1000).toFixed(1); rpmLabel.innerHTML = `<span class="val">${rpmVal}</span><span class="unit">RPM</span>`; rpmLabel.style.opacity = rpmVal > 0 ? 1 : 0; }
-                    if (powerLabel) { const pwrVal = Math.abs(Math.round(powerV)); powerLabel.innerHTML = `<span class="val">${pwrVal}</span><span class="symbol">%</span>`; powerLabel.style.opacity = pwrVal > 0 ? 1 : 0; if (isRegen) powerLabel.classList.add('regen'); else powerLabel.classList.remove('regen'); }
-                    if (labelContainer) { if (rpmV > 1) labelContainer.classList.add('has-rpm'); else labelContainer.classList.remove('has-rpm'); }
+                const powerBarEl = document.getElementById('graph-power-bar-svg');
+                const rpmLabelEl = document.getElementById('graph-rpm-label-html');
+                const powerLabelEl = document.getElementById('graph-power-label-html');
+
+                if (rpmBarEl && rpmLabelEl) {
+                    const rpm = getState('engineRPM') || 0;
+                    const rpmNorm = Math.min(Math.max(rpm / 7000, 0), 1);
+                    const startAngle = -220;
+                    const endAngle = -140;
+                    const currentAngle = startAngle + (endAngle - startAngle) * rpmNorm;
+
+                    const radius = 224;
+                    const centerX = 250;
+                    const centerY = 250;
+                    const x1 = centerX + radius * Math.cos(startAngle * Math.PI / 180);
+                    const y1 = centerY + radius * Math.sin(startAngle * Math.PI / 180);
+                    const x2 = centerX + radius * Math.cos(currentAngle * Math.PI / 180);
+                    const y2 = centerY + radius * Math.sin(currentAngle * Math.PI / 180);
+
+                    rpmBarEl.setAttribute("d", `M ${x1} ${y1} A ${radius} ${radius} 0 0 1 ${x2} ${y2}`);
+                    rpmLabelEl.querySelector('.val').textContent = (rpm / 1000).toFixed(1);
+
+                    const ringEl = document.getElementById('graph-power-rpm-ring');
+                    if (ringEl) {
+                        const rStart = 180 + (startAngle + (endAngle - startAngle) * 0.85);
+                        const rEnd = 180 + endAngle;
+                        ringEl.style.setProperty('--r-start', `${rStart}deg`);
+                        ringEl.style.setProperty('--r-end', `${rEnd}deg`);
+                    }
                 }
-            } catch (e) { console.error('Error: ', e); }
+
+                if (powerBarEl && powerLabelEl) {
+                    const power = getState('evPowerFactor') || 0;
+                    const isRegen = power < 0;
+                    const powerNorm = Math.min(Math.max(Math.abs(power) / 100, 0), 1);
+                    const startAngle = 40;
+                    const endAngle = isRegen ? 100 : -40;
+                    const currentAngle = startAngle + (endAngle - startAngle) * powerNorm;
+
+                    const radius = 224;
+                    const centerX = 250;
+                    const centerY = 250;
+                    const x1 = centerX + radius * Math.cos(startAngle * Math.PI / 180);
+                    const y1 = centerY + radius * Math.sin(startAngle * Math.PI / 180);
+                    const x2 = centerX + radius * Math.cos(currentAngle * Math.PI / 180);
+                    const y2 = centerY + radius * Math.sin(currentAngle * Math.PI / 180);
+
+                    powerBarEl.setAttribute("d", `M ${x1} ${y1} A ${radius} ${radius} 0 0 ${isRegen ? 1 : 0} ${x2} ${y2}`);
+                    powerLabelEl.querySelector('.val').textContent = Math.round(Math.abs(power));
+
+                    if (isRegen) {
+                        powerBarEl.classList.add('regen-active');
+                    } else {
+                        powerBarEl.classList.remove('regen-active');
+                    }
+
+                    const ringEl = document.getElementById('graph-power-rpm-ring');
+                    if (ringEl) {
+                        const pStart = 180 + startAngle;
+                        const pEnd = 180 + endAngle;
+                        if (isRegen) {
+                            ringEl.style.setProperty('--p-start', `${pEnd}deg`);
+                            ringEl.style.setProperty('--p-end', `${pStart}deg`);
+                        } else {
+                            ringEl.style.setProperty('--p-start', `${pEnd}deg`);
+                            ringEl.style.setProperty('--p-end', `${pStart}deg`);
+                        }
+                    }
+                }
+
+                if (isSpeedTimerRunning) {
+                    const speed = parseFloat(getState('carSpeed')) || 0;
+                    const currentTime = Date.now();
+                    const elapsed = (currentTime - speedTimerStartTime) / 1000;
+
+                    if (speed >= 100) {
+                        setChronometer('success_hold');
+                        last0To100Time = elapsed;
+                        timerTooltipValue.textContent = elapsed.toFixed(1) + 's';
+                        triggerFlash('var(--color-success)');
+                    } else if (speed < 2) {
+                        // Reset if speed drops back to near 0
+                        speedTimerStartTime = currentTime;
+                        timerTooltipValue.textContent = '0.0s';
+                    } else {
+                        timerTooltipValue.textContent = elapsed.toFixed(1) + 's';
+                    }
+                }
+
+                const currentSpeed = parseFloat(getState('carSpeed')) || 0;
+                if (currentSpeed > 2 && lastCarSpeed <= 2 && !isSpeedTimerRunning) {
+                    setChronometer('start');
+                }
+                lastCarSpeed = currentSpeed;
+
+            } catch (err) {
+                console.error('[UI Update Error]', err);
+            }
         }, UI_UPDATE_INTERVAL);
 
+        updateFocus(currentGraphId);
         switchTo(currentGraphId);
     };
 
-    const unsubCurrentGraph = subscribe('currentGraph', (id) => {
-        switchTo(id);
-        updateFocus(id);
-    });
-
     const cleanup = () => {
-        if (uiUpdateInterval) { clearInterval(uiUpdateInterval); uiUpdateInterval = null; }
-        if (warpTunnel) { warpTunnel.stop(); }
-        if (timerHideTimeoutId) { clearTimeout(timerHideTimeoutId); timerHideTimeoutId = null; }
-        if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
-        unsubCurrentGraph();
+        if (uiUpdateInterval) {
+            clearInterval(uiUpdateInterval);
+            uiUpdateInterval = null;
+        }
+        if (chartInstance) {
+            chartInstance.destroy();
+            chartInstance = null;
+        }
+        if (warpTunnel) {
+            warpTunnel.stop();
+            warpTunnel = null;
+        }
+        if (timerHideTimeoutId) {
+            clearTimeout(timerHideTimeoutId);
+            timerHideTimeoutId = null;
+        }
     };
-
-    updateFocus(currentGraphId);
 
     return {
         element: container,
         onMount: () => {
-            initChart(canvas);
+            const ctx = canvas.getContext('2d');
+            initChart(ctx);
         },
         cleanup
     };
 }
-
-

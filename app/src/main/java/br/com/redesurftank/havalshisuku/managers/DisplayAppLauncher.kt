@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 object DisplayAppLauncher {
@@ -43,6 +44,10 @@ object DisplayAppLauncher {
                 emptyList()
             }
         }
+    }
+
+    fun getAppConfig(packageName: String): DisplayAppConfig? {
+        return getAllConfigs().find { it.packageName == packageName }
     }
 
     fun saveConfig(config: DisplayAppConfig) {
@@ -107,6 +112,7 @@ object DisplayAppLauncher {
             val right = config.x + config.width
             val bottom = config.y + config.height
             val escapedActivity = config.activityName.replace("$", "\\$")
+            val isOwnPackage = config.packageName == App.getContext().packageName
 
             // Already on target display — just resize
             val existingStack = findStackIdForPackage(config.packageName, config.displayId)
@@ -116,9 +122,17 @@ object DisplayAppLauncher {
             }
 
             // Force-stop + start fresh on target display
-            sh("am force-stop ${config.packageName}")
-            Thread.sleep(200)
-            sh("am start -n ${config.packageName}/$escapedActivity --display ${config.displayId} --windowingMode 5")
+            if (!isOwnPackage) {
+                sh("am force-stop ${config.packageName}")
+                Thread.sleep(200)
+                sh("am start -n ${config.packageName}/$escapedActivity --display ${config.displayId} --windowingMode 5")
+            } else {
+                Log.w(TAG, "Skipping force-stop/start for own package ${config.packageName}")
+                // For own package, we might need a different way to move it if it's already running,
+                // but am force-stop definitely crashes the app.
+                // For now, if it's not already on the target display, we don't force it to move here
+                // to avoid the crash. User might need to launch it manually there or use move-stack.
+            }
             Thread.sleep(300)
 
             val newStackId = findStackIdForPackage(config.packageName, config.displayId)
@@ -143,6 +157,9 @@ object DisplayAppLauncher {
             val stackId = findStackIdForPackage(config.packageName, config.displayId)
             if (stackId != null) {
                 sh("am stack resize $stackId ${config.x} ${config.y} $right $bottom")
+                ServiceManager.getInstance().dispatchServiceManagerEvent(
+                    br.com.redesurftank.havalshisuku.models.ServiceManagerEventType.APP_GEOMETRY_CHANGED
+                )
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error resizing app ${config.packageName}", e)
@@ -317,13 +334,26 @@ object DisplayAppLauncher {
     }
 
     fun notifyDisplayStateChanged(displayId: Int) {
-        if (displayId == 3) {
-            val isActive = isAnyAppOnDisplay(3)
-            Log.w(TAG, "Display 3 app state changed: isActive=$isActive")
-            ServiceManager.getInstance().dispatchServiceManagerEvent(
-                br.com.redesurftank.havalshisuku.models.ServiceManagerEventType.DISPLAY_3_APP_STATE_CHANGED,
-                isActive
-            )
+        scope.launch {
+            // Check multiple times with increasing delays to ensure system has updated stack state
+            val delays = listOf(0L, 500L, 1000L)
+            for (d in delays) {
+                if (d > 0) delay(d)
+                val isActive = isAnyAppOnDisplay(displayId)
+                val eventType = when (displayId) {
+                    1 -> br.com.redesurftank.havalshisuku.models.ServiceManagerEventType.DISPLAY_1_APP_STATE_CHANGED
+                    3 -> br.com.redesurftank.havalshisuku.models.ServiceManagerEventType.DISPLAY_3_APP_STATE_CHANGED
+                    else -> null
+                }
+                
+                if (eventType != null) {
+                    Log.w(TAG, "Display $displayId app state changed (delay $d): isActive=$isActive")
+                    ServiceManager.getInstance().dispatchServiceManagerEvent(eventType, isActive)
+                }
+                
+                // If we found it active, we're likely done with launch updates
+                if (isActive) break
+            }
         }
     }
 
@@ -332,9 +362,9 @@ object DisplayAppLauncher {
     }
 
     private data class StackInfo(val stackId: Int, val windowingMode: String, val isFreeform: Boolean)
-    private data class TaskInfo(val taskId: Int, val stackId: Int, val displayId: Int)
+    data class TaskInfo(val taskId: Int, val stackId: Int, val displayId: Int)
 
-    private fun findTaskForPackage(packageName: String): TaskInfo? {
+    fun findTaskForPackage(packageName: String): TaskInfo? {
         var currentStackId: Int? = null
         var currentDisplayId: Int? = null
         for (line in getStackList().lines()) {

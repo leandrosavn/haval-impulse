@@ -16,9 +16,9 @@
     "prerelease": "bun run build"
   },
   "devDependencies": {
-    "baseline-browser-mapping": "^2.9.14",
+    "baseline-browser-mapping": "^2.10.11",
     "bun": "^1.3.0",
-    "parcel": "^2.15.4",
+    "parcel": "^2.16.4",
     "rimraf": "^6.0.1"
   },
   "dependencies": {

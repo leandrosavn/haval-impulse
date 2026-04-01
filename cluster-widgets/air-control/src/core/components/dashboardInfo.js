@@ -64,7 +64,7 @@ export function createDashboardInfo() {
 
         if (isMainTrail) {
             trailLoader.style.borderWidth = '3px';
-            trailLoader.style.borderColor = 'var(--text-main) transparent transparent transparent';
+            trailLoader.style.borderColor = 'white transparent transparent transparent';
         } else {
             trailLoader.style.borderWidth = '15px';
             // Apply a blue tint that increases towards the tail
@@ -163,15 +163,22 @@ export function createDashboardInfo() {
 
     bottomGauges.appendChild(fuelContainer);
 
+    function formatTemp(temp, unit) {
+        if (temp === null || temp === undefined || temp === '--' || temp === -1 || isNaN(temp)) {
+            return '--';
+        }
+        return temp + (unit || '°C');
+    }
+
     // Temperature Labels
     const externalTempContainer = div({ className: 'external-temp-container' });
-    const externalTempValue = span({ className: 'temp-value', children: [getState('outside_temp') + '°C'] });
+    const externalTempValue = span({ className: 'temp-value', children: [formatTemp(getState('outside_temp'), getState('tempUnit'))] });
     const externalTempLabel = span({ className: 'temp-sub-label', children: ['External'] });
     externalTempContainer.appendChild(externalTempValue);
     externalTempContainer.appendChild(externalTempLabel);
 
     const internalTempContainer = div({ className: 'internal-temp-container' });
-    const internalTempValue = span({ className: 'temp-value', children: [getState('inside_temp') + '°C'] });
+    const internalTempValue = span({ className: 'temp-value', children: [formatTemp(getState('inside_temp'), getState('tempUnit'))] });
     const internalTempLabel = span({ className: 'temp-sub-label', children: ['Internal'] });
     internalTempContainer.appendChild(internalTempValue);
     internalTempContainer.appendChild(internalTempLabel);
@@ -275,8 +282,12 @@ export function createDashboardInfo() {
             const rangeSpan = batteryTop.querySelector('.battery-range');
             if (rangeSpan && rangeSpan.childNodes[0]) rangeSpan.childNodes[0].textContent = val;
         }),
-        subscribe('outside_temp', val => externalTempValue.textContent = val + '°C'),
-        subscribe('inside_temp', val => internalTempValue.textContent = val + '°C')
+        subscribe('outside_temp', val => externalTempValue.textContent = formatTemp(val, getState('tempUnit'))),
+        subscribe('inside_temp', val => internalTempValue.textContent = formatTemp(val, getState('tempUnit'))),
+        subscribe('tempUnit', unit => {
+            externalTempValue.textContent = formatTemp(getState('outside_temp'), unit);
+            internalTempValue.textContent = formatTemp(getState('inside_temp'), unit);
+        })
     ];
 
     updateBarSegments(fuelSegments, getState('fuelPercent'));

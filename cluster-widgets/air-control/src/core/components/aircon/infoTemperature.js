@@ -11,10 +11,17 @@ export function createTempInfoElement() {
        className: 'temp-info-label',
        children: [ 'Outside',],
     });
+    function formatTemp(temp, unit) {
+        if (temp === null || temp === undefined || temp === '--' || temp === -1 || isNaN(temp)) {
+            return '--';
+        }
+        return temp + (unit || '°C');
+    }
+
     var externalTemp = div({
        className: 'temp-info-value-left',
        children: [
-           stateManager.get('outside_temp') + '°C',
+           formatTemp(stateManager.get('outside_temp'), stateManager.get('tempUnit')),
        ],
     });
     var internalTempLabel = div({
@@ -24,7 +31,7 @@ export function createTempInfoElement() {
     var internalTemp = div({
        className: 'temp-info-value-right',
        children: [
-           stateManager.get('inside_temp') + '°C',
+           formatTemp(stateManager.get('inside_temp'), stateManager.get('tempUnit')),
        ],
     });
 
@@ -35,10 +42,14 @@ export function createTempInfoElement() {
 
     container.onMount = () => {
        const internalSub = subscribe('inside_temp', (newValue) => {
-           internalTemp.textContent = `${newValue}°C`;
+           internalTemp.textContent = formatTemp(newValue, stateManager.get('tempUnit'));
        });
        const externalSub = subscribe('outside_temp', (newValue) => {
-           externalTemp.textContent = `${newValue}°C`;
+           externalTemp.textContent = formatTemp(newValue, stateManager.get('tempUnit'));
+       });
+       const unitSub = subscribe('tempUnit', (newUnit) => {
+           internalTemp.textContent = formatTemp(stateManager.get('inside_temp'), newUnit);
+           externalTemp.textContent = formatTemp(stateManager.get('outside_temp'), newUnit);
        });
        const unsubscribePower = subscribe('power', function(newPower) {
            document.getElementById('ac-power-icon').source = (newPower == 1 ? acON : acOFF);

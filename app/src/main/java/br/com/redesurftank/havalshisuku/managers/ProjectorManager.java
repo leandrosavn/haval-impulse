@@ -52,7 +52,8 @@ public class ProjectorManager {
             Log.w(TAG, "InstrumentProjector2 (Mask) initialized on Display " + disp.getDisplayId());
         });
 
-        projectorCreators.put(hudDisplayId, (ctx, disp) -> {
+        // Moved InstrumentProjector to Display 3 so it shows on top of the theme/virtual cluster
+        projectorCreators.put(maskDisplayId, (ctx, disp) -> {
             instrumentProjector = new InstrumentProjector(ctx, disp);
             instrumentProjector.show();
             Log.w(TAG, "InstrumentProjector (HUD) initialized on Display " + disp.getDisplayId());
@@ -84,13 +85,24 @@ public class ProjectorManager {
 
             ServiceManager.getInstance().addDataChangedListener((key, value) -> {
                 if (key.equals(CarConstants.CAR_BASIC_ENGINE_STATE.getValue())) {
-                    if (value.equals("-1") || value.equals("15") || value.equals("14") || value.equals("10")) {
+                    if ("-1".equals(value) || "15".equals(value) || "14".equals(value) || "10".equals(value)) {
                         if (instrumentProjector != null) {
                             instrumentProjector.carMainScreenOff();
                         }
                         if (instrumentProjector2 != null) {
                             instrumentProjector2.carMainScreenOff();
                         }
+                        
+                        // Kill all apps on display 1 and 3
+                        java.util.List<br.com.redesurftank.havalshisuku.models.DisplayAppConfig> configs = DisplayAppLauncher.INSTANCE.getAllConfigs();
+                        for (br.com.redesurftank.havalshisuku.models.DisplayAppConfig config : configs) {
+                             DisplayAppLauncher.TaskInfo task = DisplayAppLauncher.INSTANCE.findTaskForPackage(config.getPackageName());
+                             if (task != null && (task.getDisplayId() == 1 || task.getDisplayId() == 3)) {
+                                 Log.w(TAG, "Shutting down: killing app " + config.getPackageName() + " on display " + task.getDisplayId());
+                                 DisplayAppLauncher.killAppAsync(config.getPackageName());
+                             }
+                        }
+
                         String defaultPackage = sharedPreferences.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.getKey(), "");
                         if (!defaultPackage.isEmpty()) {
                             DisplayAppLauncher.killAppAsync(defaultPackage);

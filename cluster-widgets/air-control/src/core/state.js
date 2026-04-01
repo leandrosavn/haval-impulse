@@ -62,6 +62,7 @@ var stateManager = new StateManager({
     // Main Menu state
     screen: 'main_menu',
     cardId: 1,
+    tempUnit: '°C',
     focusedMenuItem: 'option_4',
     espStatus: 'ON',
     drivingMode: 'Normal',
@@ -102,8 +103,7 @@ var stateManager = new StateManager({
     evPowerKwAvg: 0,
 
     // Template states
-    template: 'Normal',
-    display: 'Normal',
+    display: 'Normal', //Display mode, should be either Normal, Reduzido or Clean
     displayFocus: 'sel_template',
     appInDash: false,
     brightness: 100,
@@ -113,8 +113,6 @@ var stateManager = new StateManager({
     clockTime: '--:--',
     gearState: 'P',
     evModeLabel: 'NORMAL',
-    readyState: true,
-    limitSpeed: '--'
 });
 
 var getState = function (key) { return stateManager.get(key); };

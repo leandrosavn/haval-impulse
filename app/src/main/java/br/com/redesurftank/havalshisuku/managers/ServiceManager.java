@@ -2,6 +2,7 @@ package br.com.redesurftank.havalshisuku.managers;
 
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothManager;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -1074,7 +1075,8 @@ public class ServiceManager {
 
     private boolean currentBluetoothState() {
         try {
-            BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+            BluetoothManager bluetoothManager = (BluetoothManager) App.getContext().getSystemService(Context.BLUETOOTH_SERVICE);
+            BluetoothAdapter bluetoothAdapter = bluetoothManager != null ? bluetoothManager.getAdapter() : null;
             return bluetoothAdapter != null && bluetoothAdapter.isEnabled();
         } catch (Exception e) {
             Log.e(TAG, "Error checking Bluetooth state", e);
@@ -1201,6 +1203,7 @@ public class ServiceManager {
                 updateData(CarConstants.CAR_HVAC_SYNC_ENABLE.getValue(), "1");
                 updateData(CarConstants.CAR_HVAC_SETTING_COMFORT_CURVE.getValue(), "2"); // Max Cold
                 isMaxAcActive = true;
+                dispatchServiceManagerEvent(ServiceManagerEventType.MAX_AUTO_AC_STATUS_CHANGED, 1);
 
                 int timeoutMinutes = sharedPreferences.getInt(SharedPreferencesKeys.MAX_AC_TIMEOUT.getKey(), 0);
                 if (timeoutMinutes > 0) {

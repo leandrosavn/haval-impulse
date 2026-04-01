@@ -60,8 +60,9 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private var batteryVoltage = 0f
     private var batteryCurrent = 0f
     private var isAnyAppOnDisplay3 = false
+    private var isAnyAppOnDisplay1 = false
     private var currentCard = 0
-    private var isPageReady = false
+    private var hasAutoLaunched = false
 
     private val prefsListener =
             SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -110,10 +111,107 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 )
     }
 
+    private val eventListener = br.com.redesurftank.havalshisuku.listeners.IServiceManagerEvent { event, args ->
+        ensureUi {
+            when (event) {
+                ServiceManagerEventType.CLUSTER_CARD_CHANGED -> {
+                    currentCard = args[0] as Int
+                    evaluateJsIfReady(webView, "control('cardId', $currentCard)")
+                    resizeActiveApp(currentCard)
+                    updateVirtualClusterVisibility()
+
+                    if (currentCard == 1 || currentCard == 3) {
+                        MainUiManager.getInstance().handleCardChange(currentCard)
+                        updateValuesWebView()
+                    }
+                }
+
+                ServiceManagerEventType.STEERING_WHEEL_AC_CONTROL -> {
+                    val action = args[0]
+                    if (action is SteeringWheelAcControlType) {
+                        when (action) {
+                            SteeringWheelAcControlType.FAN_SPEED ->
+                                    evaluateJsIfReady(webView, "focus('fan')")
+                            SteeringWheelAcControlType.TEMPERATURE ->
+                                    evaluateJsIfReady(webView, "focus('temp')")
+                            SteeringWheelAcControlType.POWER ->
+                                    evaluateJsIfReady(webView, "focus('power')")
+                        }
+                    } else if (action is String) {
+                        evaluateJsIfReady(webView, "control('acAction', '$action')")
+                    }
+                }
+
+                ServiceManagerEventType.GRAPH_SCREEN_NAVIGATION -> {
+                    val screen = args[0]
+                    if (screen is String) {
+                        evaluateJsIfReady(webView, "control('currentGraph','$screen')")
+                    }
+                }
+
+                ServiceManagerEventType.UPDATE_SCREEN -> {
+                    val arg0 = args[0]
+                    if (arg0 is Screen) {
+                        evaluateJsIfReady(webView, "showScreen('${arg0.jsName}')")
+                    } else {
+                        evaluateJsIfReady(webView, "control('updateScreen', true)")
+                    }
+                }
+
+                ServiceManagerEventType.MENU_ITEM_NAVIGATION -> {
+                    val menuNav = args[0] as String
+                    evaluateJsIfReady(webView, "control('menuNav', '$menuNav')")
+                    evaluateJsIfReady(webView, "focus('$menuNav')")
+                }
+
+                ServiceManagerEventType.MAX_AUTO_AC_STATUS_CHANGED -> {
+                    val status = args[0]
+                    val intStatus = when (status) {
+                        is Int -> status
+                        is Boolean -> if (status) 1 else 0
+                        else -> 0
+                    }
+                    evaluateJsIfReady(webView, "control('maxauto', $intStatus)")
+                }
+
+                ServiceManagerEventType.DISPLAY_SCREEN_SELECTION -> {
+                    val arg0 = args[0] as String
+                    if (args.size > 1 && args[1] == 3) {
+                        webView?.loadUrl(arg0)
+                    } else {
+                        evaluateJsIfReady(webView, arg0)
+                    }
+                }
+
+                ServiceManagerEventType.DISPLAY_3_APP_STATE_CHANGED -> {
+                    isAnyAppOnDisplay3 = args[0] as Boolean
+                    android.util.Log.w(TAG, "Display 3 app state changed in cluster projector: $isAnyAppOnDisplay3")
+                    updateVirtualClusterVisibility()
+                    if (isAnyAppOnDisplay3) {
+                        resizeActiveApp(currentCard)
+                    }
+                }
+
+                ServiceManagerEventType.DISPLAY_1_APP_STATE_CHANGED -> {
+                    isAnyAppOnDisplay1 = args[0] as Boolean
+                    android.util.Log.w(TAG, "Display 1 app state changed in cluster projector: $isAnyAppOnDisplay1")
+                    updateVirtualClusterVisibility()
+                }
+
+                ServiceManagerEventType.APP_GEOMETRY_CHANGED -> {
+                    updateVirtualClusterVisibility()
+                }
+
+                else -> {}
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handler.post(clockRunnable)
         preferences.registerOnSharedPreferenceChangeListener(prefsListener)
+        ServiceManager.getInstance().addServiceManagerEventListener(eventListener)
         WebView.setWebContentsDebuggingEnabled(true)
         window?.setBackgroundDrawable(Color.TRANSPARENT.toDrawable())
         window?.addFlags(WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED)
@@ -128,6 +226,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         setupControlView(root)
         isAnyAppOnDisplay3 =
                 br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.isAnyAppOnDisplay(3)
+        isAnyAppOnDisplay1 =
+                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.isAnyAppOnDisplay(1)
         updateVirtualClusterVisibility()
         setupDataListeners()
 
@@ -137,19 +237,21 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     override fun onStop() {
         super.onStop()
         handler.removeCallbacks(clockRunnable)
-        preferences.unregisterOnSharedPreferenceChangeListener(prefsListener)
         scope.cancel()
+        preferences.unregisterOnSharedPreferenceChangeListener(prefsListener)
+        ServiceManager.getInstance().removeServiceManagerEventListener(eventListener)
     }
 
     private fun setupDataListeners() {
         ServiceManager.getInstance().addDataChangedListener { key, value ->
+            if (value == null) return@addDataChangedListener
             ensureUi {
                 when (key) {
                     CarConstants.CAR_BASIC_VEHICLE_SPEED.value -> {
-                        val speedStr = value.toString().split(".")[0]
+                        val speedStr = getAdjustedSpeed(value)
                         evaluateJsIfReady(
                                 webView,
-                                "control('${GraphicsScreen.GraphOptions.CAR_SPEED}', $speedStr)"
+                                "control('carSpeed', $speedStr)"
                         )
                     }
                     CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE.value -> {
@@ -180,16 +282,20 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                             evaluateJsIfReady(webView, "control('auto', $value)")
                     CarConstants.CAR_HVAC_ANION_ENABLE.value ->
                             evaluateJsIfReady(webView, "control('aion', $value)")
+                    CarConstants.CAR_CONFIGURE_DEFAULT_TEMP_UNIT.value -> {
+                        val unitLabel = if (value == "1") "F" else "C"
+                        evaluateJsIfReady(webView, "control('tempUnit', '$unitLabel')")
+                    }
                     CarConstants.CAR_BASIC_OUTSIDE_TEMP.value -> {
                         evaluateJsIfReady(
                                 webView,
-                                "control('outside_temp', ${value.toFloat().roundToInt()})"
+                                "control('outside_temp', ${formatTemp(value.toString())})"
                         )
                     }
                     CarConstants.CAR_BASIC_INSIDE_TEMP.value -> {
                         evaluateJsIfReady(
                                 webView,
-                                "control('inside_temp', ${value.toFloat().roundToInt()})"
+                                "control('inside_temp', ${formatTemp(value.toString())})"
                         )
                     }
                     CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value -> {
@@ -257,55 +363,16 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 }
             }
         }
+    }
 
-        ServiceManager.getInstance().addServiceManagerEventListener { event, args ->
-            ensureUi {
-                when (event) {
-                    ServiceManagerEventType.CLUSTER_CARD_CHANGED -> {
-                        currentCard = args[0] as Int
-                        evaluateJsIfReady(webView, "control('cardId', $currentCard)")
-                        resizeActiveApp(currentCard)
-                        updateVirtualClusterVisibility()
-
-                        if (currentCard == 1 || currentCard == 3) {
-                            MainUiManager.getInstance().handleCardChange(currentCard)
-                            updateValuesWebView()
-                        }
-                    }
-                    ServiceManagerEventType.STEERING_WHEEL_AC_CONTROL -> {
-                        when (args[0] as SteeringWheelAcControlType) {
-                            SteeringWheelAcControlType.FAN_SPEED ->
-                                    evaluateJsIfReady(webView, "focus('fan')")
-                            SteeringWheelAcControlType.TEMPERATURE ->
-                                    evaluateJsIfReady(webView, "focus('temp')")
-                            SteeringWheelAcControlType.POWER ->
-                                    evaluateJsIfReady(webView, "focus('power')")
-                        }
-                    }
-                    ServiceManagerEventType.MENU_ITEM_NAVIGATION -> {
-                        val item = args[0] as String
-                        evaluateJsIfReady(webView, "focus('$item')")
-                    }
-                    ServiceManagerEventType.UPDATE_SCREEN -> {
-                        val screen = args[0] as Screen
-                        evaluateJsIfReady(webView, "showScreen('${screen.jsName}')")
-                    }
-                    ServiceManagerEventType.GRAPH_SCREEN_NAVIGATION -> {
-                        val screen = args[0] as String
-                        evaluateJsIfReady(webView, "control('currentGraph','$screen')")
-                    }
-                    ServiceManagerEventType.MAX_AUTO_AC_STATUS_CHANGED -> {
-                        val status = args[0] as Int
-                        evaluateJsIfReady(webView, "control('maxauto', $status)")
-                    }
-                    ServiceManagerEventType.DISPLAY_SCREEN_SELECTION -> {
-                        val payload = args[0] as String
-                        evaluateJsIfReady(webView, payload)
-                    }
-                    ServiceManagerEventType.DISPLAY_3_APP_STATE_CHANGED -> {
-                        isAnyAppOnDisplay3 = args[0] as Boolean
-                        Log.w(TAG, "Display 3 app state changed in projector: $isAnyAppOnDisplay3")
-                        updateVirtualClusterVisibility()
+    private fun triggerAutoLaunch() {
+        ensureUi {
+            val defaultPackage = preferences.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "") ?: ""
+            if (defaultPackage.isNotEmpty()) {
+                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs().find { it.packageName == defaultPackage }?.let { config ->
+                    Log.d(TAG, "Auto-launching default app: $defaultPackage")
+                    scope.launch {
+                        br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.launchApp(config)
                     }
                 }
             }
@@ -324,7 +391,6 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.allowContentAccess = true
-                addJavascriptInterface(WebBridge(), "Android")
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
@@ -378,11 +444,15 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         )
         evaluateJsIfReady(
                 webView,
-                "control('inside_temp', ${sm.getData(CarConstants.CAR_BASIC_INSIDE_TEMP.value).toFloat().roundToInt()})"
+                "control('inside_temp', ${formatTemp(sm.getData(CarConstants.CAR_BASIC_INSIDE_TEMP.value))})"
         )
         evaluateJsIfReady(
                 webView,
-                "control('outside_temp', ${sm.getData(CarConstants.CAR_BASIC_OUTSIDE_TEMP.value).toFloat().roundToInt()})"
+                "control('outside_temp', ${formatTemp(sm.getData(CarConstants.CAR_BASIC_OUTSIDE_TEMP.value))})"
+        )
+        evaluateJsIfReady(
+                webView,
+                "control('tempUnit', '${if (sm.getData(CarConstants.CAR_CONFIGURE_DEFAULT_TEMP_UNIT.value) == "1") "F" else "C"}')"
         )
         evaluateJsIfReady(
                 webView,
@@ -411,8 +481,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         )
 
         // Speed and Engine
-        val speedValue = sm.getData(CarConstants.CAR_BASIC_VEHICLE_SPEED.value)
-        val speedStr = speedValue.toString().split(".")[0]
+        val speedStr = getAdjustedSpeed(sm.getData(CarConstants.CAR_BASIC_VEHICLE_SPEED.value))
         evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.CAR_SPEED}', $speedStr)")
         evaluateJsIfReady(
                 webView,
@@ -471,40 +540,50 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private fun updateVirtualClusterVisibility() {
         val clusterEnabled =
                 preferences.getBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, true)
-        evaluateJsIfReady(webView, "control('clusterEnabled', $clusterEnabled)")
-        evaluateJsIfReady(webView, "control('appInDash', $isAnyAppOnDisplay3)")
-
-        val theme =
-                preferences.getString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Básico")
-                        ?: "Básico"
-        val themeEngineName =
-                when (theme) {
-                    "Básico" -> "padrao"
-                    else -> theme.replace(" ", "_").lowercase()
+        
+        var isLeftCovered = false
+        var isRightCovered = false
+        
+        val configs = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()
+        
+        for (displayId in listOf(1, 3)) {
+            val res = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getDisplayResolution(displayId)
+            val fullWidth = res.first
+            if (fullWidth <= 0) continue
+            
+            val appsOnDisplay = configs.filter { config: br.com.redesurftank.havalshisuku.models.DisplayAppConfig ->
+                val task = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.findTaskForPackage(config.packageName)
+                task != null && task.displayId == displayId
+            }
+            
+            for (app in appsOnDisplay) {
+                if (app.x <= (fullWidth * 0.3f).toInt()) {
+                    isLeftCovered = true
                 }
-        evaluateJsIfReady(webView, "control('nightMode', true)")
+                if (app.x + app.width >= (fullWidth * 0.7f).toInt()) {
+                    isRightCovered = true
+                }
+            }
+        }
+        
+        val appInDashValue = when {
+            isLeftCovered && isRightCovered -> "true"
+            isLeftCovered -> "'left'"
+            isRightCovered -> "'right'"
+            else -> "false"
+        }
 
-        evaluateJsIfReady(webView, "control('theme', '$themeEngineName')")
-
-        // val displayMode =
-        // preferences.getString(SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key, "Normal")
-
-        /*        val maskState = when (displayMode) {
-            "Clean" -> 0
-            "Normal" -> 1
-            "Reduzido" -> 2
-            else -> if (isAnyAppOnDisplay3) 1 else 2
-        }*/
-
-        // val displayMode =
-        // preferences.getString(SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key, "Normal") ?:
-        // "Normal"
-        // evaluateJsIfReady(webView, "control('display', '$displayMode')")
+        evaluateJsIfReady(webView, "control('clusterEnabled', $clusterEnabled)")
+        evaluateJsIfReady(webView, "control('appInDash', $appInDashValue)")
     }
 
     private fun evaluateJsIfReady(webView: WebView?, js: String) {
         if (webView == null) return
         if (webViewsLoaded.getOrDefault(webView, false)) {
+            if (!hasAutoLaunched) {
+                hasAutoLaunched = true
+                triggerAutoLaunch()
+            }
             webView.evaluateJavascript(js, null)
         } else {
             pendingJsQueues.getOrPut(webView) { mutableListOf() }.add(js)
@@ -554,40 +633,28 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     }
 
     private fun resizeActiveApp(cardId: Int) {
-        val defaultPackage =
-                preferences.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "")
-                        ?: ""
-        if (defaultPackage.isEmpty()) return
-
-        val config =
-                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs().find {
-                    it.packageName == defaultPackage
-                }
-                        ?: return
-
+        val configs = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()
+        
         scope.launch {
-            val res =
-                    br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
-                            .getDisplayResolution(3)
+            val res = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getDisplayResolution(3)
             val fullWidth = res.first
 
-            val newX =
-                    if (cardId == 0) {
-                        kotlin.math.max(config.x, (fullWidth * 0.3f).toInt())
-                    } else {
-                        config.x
-                    }
-            val newWidth =
-                    if (cardId == 0) {
-                        kotlin.math.min(config.width, (fullWidth * 0.4f).toInt())
+            configs.forEach { config ->
+                val taskInfo = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.findTaskForPackage(config.packageName)
+                if (taskInfo != null && (taskInfo.displayId == 1 || taskInfo.displayId == 3)) {
+                    val newWidth = if (cardId == 0) {
+                        kotlin.math.min(config.width, (fullWidth * 0.7f).toInt() - config.x)
                     } else {
                         config.width
                     }
 
-            val newConfig = config.copy(width = newWidth, x = newX)
+                    val newConfig = config.copy(width = newWidth)
+                    Log.d(TAG, "Resizing running app ${config.packageName} on for cardId $cardId: width=$newWidth")
+                    br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.resizeApp(newConfig)
+                }
+            }
 
-            Log.d(TAG, "Resizing app $defaultPackage for cardId $cardId: width=$newWidth x=$newX")
-            br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.resizeApp(newConfig)
+            updateVirtualClusterVisibility();
         }
     }
 
@@ -602,24 +669,29 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         return gearLabel
     }
 
-    inner class WebBridge {
-        @JavascriptInterface
-        fun onPageReady() {
-            ensureUi {
-                Log.d(TAG, "JS signaled Page Ready")
-                isPageReady = true
-                
-                // Auto-launch default app if configured
-                val defaultPackage = preferences.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "") ?: ""
-                if (defaultPackage.isNotEmpty()) {
-                    br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs().find { it.packageName == defaultPackage }?.let { config ->
-                        Log.d(TAG, "Auto-launching default app on Page Ready: $defaultPackage")
-                        scope.launch {
-                            br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.launchApp(config)
-                        }
-                    }
-                }
-            }
+
+    private fun formatTemp(value: String?): String {
+        if (value == null || value == "--" || value == "-1" || value == "255") return "null"
+        return try {
+            val floatVal = value.toFloat()
+            // Format to 1 decimal place. Use dot as decimal separator for JS.
+            String.format(java.util.Locale.US, "%.1f", floatVal)
+        } catch (e: Exception) {
+            "null"
         }
+    }
+
+    private fun getAdjustedSpeed(value: Any?): String {
+        val speedValue = value?.toString()?.toDoubleOrNull() ?: 0.0
+        val enableAdjustment = preferences.getBoolean(SharedPreferencesKeys.ENABLE_SPEED_ADJUSTMENT.key, false)
+        val offset = preferences.getFloat(SharedPreferencesKeys.SPEED_ADJUSTMENT_OFFSET.key, 0f)
+
+        val finalSpeed = if (enableAdjustment) {
+            speedValue * (1.0 + (offset / 100.0))
+        } else {
+            speedValue
+        }
+
+        return finalSpeed.toInt().toString()
     }
 }
