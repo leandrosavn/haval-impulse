@@ -12,7 +12,8 @@ export function createTempInfoElement() {
        children: [ 'Outside',],
     });
     function formatTemp(temp, unit) {
-        if (temp === null || temp === undefined || temp === '--' || temp === -1 || isNaN(temp)) {
+        const numericTemp = parseFloat(temp);
+        if (numericTemp >= 85 || numericTemp <= -40) {
             return '--';
         }
         return temp + (unit || '°C');
@@ -51,14 +52,9 @@ export function createTempInfoElement() {
            internalTemp.textContent = formatTemp(stateManager.get('inside_temp'), newUnit);
            externalTemp.textContent = formatTemp(stateManager.get('outside_temp'), newUnit);
        });
-       const unsubscribePower = subscribe('power', function(newPower) {
-           document.getElementById('ac-power-icon').source = (newPower == 1 ? acON : acOFF);
-       });
-
        return () => {
            internalSub();
            externalSub();
-           unsubscribePower()
        };
     };
 

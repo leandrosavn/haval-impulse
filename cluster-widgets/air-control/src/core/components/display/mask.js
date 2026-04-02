@@ -26,14 +26,17 @@ export function createMask() {
     const noAppMaskL = div({ className: 'no-app-mask-l' });
     const noAppMaskR = div({ className: 'no-app-mask-r' });
     const partialAppMask = div({ className: 'partial-app-mask' });
+    const warnMask = div({ className: 'warn-mask' });
 
     // Note: noAppMaskL and R are appended in main.js to appContainer for z-index
     maskBg.appendChild(partialAppMask);
+    maskBg.appendChild(warnMask);
 
     const updateVisibility = () => {
-        const appInDash = get('appInDash'); 
+        const appInDash = get('appInDash');
         const cardId = get('cardId');
-        const rightVisible = (cardId !== 0);
+        const warningActive = get('warningActive');
+        const rightVisible = (cardId !== 0 && !warningActive);
 
         let showL = true;
         let showR = true;
@@ -60,13 +63,16 @@ export function createMask() {
         noAppMaskL.style.opacity = showL ? '1' : '0';
         noAppMaskR.style.opacity = showR ? '1' : '0';
         noAppMaskL.style.visibility = showL ? 'visible' : 'hidden';
+        noAppMaskL.style.visibility = showL ? 'visible' : 'hidden';
         noAppMaskR.style.visibility = showR ? 'visible' : 'hidden';
 
-        partialAppMask.style.opacity = (!rightVisible) ? '1' : '0';
+        partialAppMask.style.opacity = (cardId === 0 && !warningActive) ? '1' : '0';
+        //warnMask.style.opacity = warningActive ? '1' : '0'; //TODO: enhance this mask in future
     };
 
     const unsub1 = subscribe('appInDash', updateVisibility);
     const unsub2 = subscribe('cardId', updateVisibility);
+    const unsub3 = subscribe('warningActive', updateVisibility);
     updateVisibility();
 
     // Use a combined object for cleanup
@@ -78,6 +84,7 @@ export function createMask() {
         cleanup: () => {
             unsub1();
             unsub2();
+            unsub3();
         }
     };
 

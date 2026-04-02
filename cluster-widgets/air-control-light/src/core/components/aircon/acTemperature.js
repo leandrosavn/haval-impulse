@@ -9,6 +9,10 @@ export function createTemperatureElement() {
         if (temp === null || temp === undefined || temp === '--' || temp === -1 || temp === 255 || isNaN(temp)) {
             return '--';
         }
+        const numericTemp = parseFloat(temp);
+        if (numericTemp >= 85 || numericTemp <= -40) {
+            return '--';
+        }
         if (temp == 16) return 'Low';
         if (temp == 32) return 'High';
         return temp + (unit || '°C');

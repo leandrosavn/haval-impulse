@@ -28,6 +28,49 @@ document.addEventListener('keydown', (e) => {
         return;
     }
 
+    if (e.key.toLowerCase() === 'w') {
+        const currentWarn = stateManager.get('warningActive');
+        console.log('[Warning Debug] Toggling warningActive to:', !currentWarn);
+        if (window.updateWarning) {
+            window.updateWarning('fake.warning', !currentWarn ? '1' : '0');
+        } else {
+            setState('warningActive', !currentWarn);
+        }
+        // If we are activating warning, hide cards
+        if (!currentWarn) {
+            setState('cardId', 0);
+        } else {
+            setState('cardId', 1);
+        }
+        return;
+    }
+
+    if (e.key.toLowerCase() === 'l') {
+        const current = stateManager.get('bsdLeft');
+        console.log('[BSD Debug] Toggling Left BSD to:', !current);
+        if (window.updateWarning) {
+            window.updateWarning('car.ipk_info.bsd_lca_warning_reqleft', !current ? '1' : '0');
+        } else {
+            setState('bsdLeft', !current);
+        }
+        return;
+    }
+
+    if (e.key.toLowerCase() === 'r') {
+        const current = stateManager.get('bsdRight');
+        console.log('[BSD Debug] Toggling Right BSD to:', !current);
+        if (window.updateWarning) {
+            window.updateWarning('car.ipk_info.bsd_lca_warning_reqright', !current ? '1' : '0');
+        } else {
+            setState('bsdRight', !current);
+        }
+        return;
+    }
+
+    if (e.key === 'Escape') {
+        console.log('[Warning Debug] Force clear warningActive');
+        setState('warningActive', false);
+    }
 
     if (e.key === 'ArrowRight') {
         const currentIndex = cards.indexOf(currentCardId);
@@ -100,8 +143,6 @@ document.addEventListener('keydown', (e) => {
             } else if (currentState.focusedMenuItem === 'option_7') {
                 window.showScreen('graph');
             }
-
-
         }
     }
 
@@ -122,12 +163,6 @@ document.addEventListener('keydown', (e) => {
             const newAutoModeState = (currentState.auto == 0 ? 1 : 0);
             setState('auto', newAutoModeState);
         } else if (e.key === 'a') {
-            /* TODO: for future use with impulseauto. For now it triggers maxauto mode
-                        e.preventDefault();
-                        const newModeState = (currentState.impulseauto == 0 ? 1 : 0);
-                        setState('impulseauto', newModeState);
-                        window.focus('temp');
-            */
             e.preventDefault();
             const newModeState = (currentState.maxauto == 0 ? 1 : 0);
             setState('maxauto', newModeState);
@@ -242,9 +277,8 @@ document.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'k') {
         const options = [false, true, 'left', 'right'];
         const currentAppInDash = stateManager.getState().appInDash;
-        // Use findIndex or similar if indexOf fails for mixed types (though it shouldn't for these)
         let currentIndex = options.indexOf(currentAppInDash);
-        if (currentIndex === -1) currentIndex = 0; // Fallback
+        if (currentIndex === -1) currentIndex = 0;
         
         const nextIndex = (currentIndex + 1) % options.length;
         const nextValue = options[nextIndex];
@@ -253,12 +287,19 @@ document.addEventListener('keydown', (e) => {
         setState('appInDash', nextValue);
     }
 
-
-
     if (e.key.toLowerCase() === 'o') {
         const currentOnePedal = stateManager.getState().onepedal;
         console.log(`[Mode Simulation] Toggle onepedal -> ${!currentOnePedal}`);
         setState('onepedal', !currentOnePedal);
+    }
+
+    if (e.key.toLowerCase() === 'm') {
+        const modes = ['km', 'date', 'none'];
+        if (!window.maintenanceMode) window.maintenanceMode = 'km';
+        const currentIndex = modes.indexOf(window.maintenanceMode);
+        const nextIndex = (currentIndex + 1) % modes.length;
+        window.maintenanceMode = modes[nextIndex];
+        console.log(`[Maintenance Simulation] Toggle Mode -> ${window.maintenanceMode}`);
     }
 });
 
@@ -397,6 +438,38 @@ window.simulationInterval = setInterval(() => {
     setState('batteryPercent', currentBatteryPercent);
     setState('fuelRange', Math.round((currentFuelPercent / 100) * MAX_FUEL_RANGE));
     setState('batteryRange', Math.round((currentBatteryPercent / 100) * MAX_BATTERY_RANGE));
+
+    // Odometer Simulation
+    if (!window.simulatedOdo) window.simulatedOdo = 11450.5; // Start near revision
+    if (currentSpeed > 0) {
+        // km/h to km/step: (speed * interval_ms) / (1000 * 3600)
+        const delta = (currentSpeed * SIMULATION_INTERVAL) / 3600000;
+        window.simulatedOdo += delta;
+    }
+    setState('odometer', Math.floor(window.simulatedOdo));
+
+    // Revision Simulation (Testing Warning logic)
+    if (window.simulatedOdo > 0) {
+        if (!window.maintenanceMode) window.maintenanceMode = 'km';
+        
+        if (window.maintenanceMode === 'none') {
+            setState('enableRevisionWarning', false);
+        } else {
+            setState('enableRevisionWarning', true);
+            
+            if (window.maintenanceMode === 'km') {
+                // Target: 12.000km, Current is around 11.450 -> Warning active (< 1000km)
+                setState('nextRevisionKm', 12000);
+                // Far date
+                setState('nextRevisionDate', Date.now() + 60 * 24 * 60 * 60 * 1000); 
+            } else if (window.maintenanceMode === 'date') {
+                // Far mileage (target 20k)
+                setState('nextRevisionKm', 20000);
+                // Close date (15 days)
+                setState('nextRevisionDate', Date.now() + 15 * 24 * 60 * 60 * 1000);
+            }
+        }
+    }
 
 }, SIMULATION_INTERVAL);
 

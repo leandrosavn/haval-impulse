@@ -9,6 +9,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import androidx.core.content.edit
+import androidx.core.content.FileProvider
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.graphics.Color as AndroidColor
@@ -28,6 +30,8 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
@@ -63,6 +67,8 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlinx.coroutines.*
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import org.json.JSONArray
 import kotlin.math.min
 
@@ -375,6 +381,40 @@ fun BasicSettingsTab() {
     }
     var speedAdjustmentOffset by remember {
         mutableFloatStateOf(prefs.getFloat(SharedPreferencesKeys.SPEED_ADJUSTMENT_OFFSET.key, 0f))
+    }
+
+    var enableOpenSunroofCurtainOnStart by remember {
+        mutableStateOf(
+                prefs.getBoolean(
+                        SharedPreferencesKeys.ENABLE_OPEN_SUNROOF_CURTAIN_ON_START.key,
+                        false
+                )
+        )
+    }
+    var curtainStartHour by remember {
+        mutableIntStateOf(
+                prefs.getInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_START_HOUR.key, 18)
+        )
+    }
+    var curtainStartMinute by remember {
+        mutableIntStateOf(
+                prefs.getInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_START_MINUTE.key, 0)
+        )
+    }
+    var curtainEndHour by remember {
+        mutableIntStateOf(
+                prefs.getInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_END_HOUR.key, 9)
+        )
+    }
+    var curtainEndMinute by remember {
+        mutableIntStateOf(
+                prefs.getInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_END_MINUTE.key, 0)
+        )
+    }
+    var openSunroofCurtainMaxTemp by remember {
+        mutableFloatStateOf(
+                prefs.getFloat(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_MAX_TEMP.key, -1f)
+        )
     }
 
     val settingsList = mutableListOf<SettingItem>()
@@ -695,19 +735,9 @@ fun BasicSettingsTab() {
                                             .description,
                             description =
                                     "Abre automaticamente a cortina do teto solar ao ligar o veículo",
-                            checked =
-                                    remember {
-                                                mutableStateOf(
-                                                        prefs.getBoolean(
-                                                                SharedPreferencesKeys
-                                                                        .ENABLE_OPEN_SUNROOF_CURTAIN_ON_START
-                                                                        .key,
-                                                                false
-                                                        )
-                                                )
-                                            }
-                                            .value,
+                            checked = enableOpenSunroofCurtainOnStart,
                             onCheckedChange = { checked ->
+                                enableOpenSunroofCurtainOnStart = checked
                                 prefs.edit {
                                     putBoolean(
                                             SharedPreferencesKeys
@@ -716,73 +746,10 @@ fun BasicSettingsTab() {
                                             checked
                                     )
                                 }
-                                // Trigger a recomposition/state update if needed, but since we rely
-                                // on prefs read inside remember, we might want to lift state.
-                                // For simplicity, I'll rely on the fact user probably toggles this
-                                // and we are mainly updating prefs.
-                                // Wait, the checked state above needs to be hoisted to variable
-                                // like others.
                             },
                             customContent =
-                                    if (prefs.getBoolean(
-                                                    SharedPreferencesKeys
-                                                            .ENABLE_OPEN_SUNROOF_CURTAIN_ON_START
-                                                            .key,
-                                                    false
-                                            )
-                                    ) {
+                                    if (enableOpenSunroofCurtainOnStart) {
                                         {
-                                            var curtainStartHour by remember {
-                                                mutableIntStateOf(
-                                                        prefs.getInt(
-                                                                SharedPreferencesKeys
-                                                                        .OPEN_SUNROOF_CURTAIN_START_HOUR
-                                                                        .key,
-                                                                18
-                                                        )
-                                                )
-                                            }
-                                            var curtainStartMinute by remember {
-                                                mutableIntStateOf(
-                                                        prefs.getInt(
-                                                                SharedPreferencesKeys
-                                                                        .OPEN_SUNROOF_CURTAIN_START_MINUTE
-                                                                        .key,
-                                                                0
-                                                        )
-                                                )
-                                            }
-                                            var curtainEndHour by remember {
-                                                mutableIntStateOf(
-                                                        prefs.getInt(
-                                                                SharedPreferencesKeys
-                                                                        .OPEN_SUNROOF_CURTAIN_END_HOUR
-                                                                        .key,
-                                                                9
-                                                        )
-                                                )
-                                            }
-                                            var curtainEndMinute by remember {
-                                                mutableIntStateOf(
-                                                        prefs.getInt(
-                                                                SharedPreferencesKeys
-                                                                        .OPEN_SUNROOF_CURTAIN_END_MINUTE
-                                                                        .key,
-                                                                0
-                                                        )
-                                                )
-                                            }
-                                            var maxTemp by remember {
-                                                mutableFloatStateOf(
-                                                        prefs.getFloat(
-                                                                SharedPreferencesKeys
-                                                                        .OPEN_SUNROOF_CURTAIN_MAX_TEMP
-                                                                        .key,
-                                                                -1f
-                                                        )
-                                                )
-                                            }
-
                                             var showCurtainStartPicker by remember {
                                                 mutableStateOf(false)
                                             }
@@ -970,7 +937,7 @@ fun BasicSettingsTab() {
                                                     )
                                                     Box {
                                                         Text(
-                                                                text = tempOptions[maxTemp]
+                                                                text = tempOptions[openSunroofCurtainMaxTemp]
                                                                                 ?: "Desabilitado",
                                                                 color = Color(0xFF4A9EFF),
                                                                 fontSize = 16.sp,
@@ -1014,7 +981,7 @@ fun BasicSettingsTab() {
                                                                             )
                                                                         },
                                                                         onClick = {
-                                                                            maxTemp = value
+                                                                            openSunroofCurtainMaxTemp = value
                                                                             prefs.edit {
                                                                                 putFloat(
                                                                                         SharedPreferencesKeys
@@ -2315,7 +2282,7 @@ fun TelasTab() {
 
     // Auto-calculate next revision
     val latestRevision = revisionHistory.maxByOrNull { it.km }
-    val nextKm = latestRevision?.let { it.km + 12000 } ?: 0
+    val nextKm = latestRevision?.let { it.km + 12000 } ?: 12000
     val nextDate =
             latestRevision?.let {
                 val cal = Calendar.getInstance()
@@ -2323,7 +2290,15 @@ fun TelasTab() {
                 cal.add(Calendar.YEAR, 1)
                 cal.timeInMillis
             }
-                    ?: 0L
+                    ?: (System.currentTimeMillis() + 31536000000L) // 1 year from now
+
+    // Sync calculated revision to prefs for display in projector
+    LaunchedEffect(nextKm, nextDate) {
+        prefs.edit {
+            putInt(SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key, nextKm)
+            putLong(SharedPreferencesKeys.INSTRUMENT_REVISION_NEXT_DATE.key, nextDate)
+        }
+    }
 
     // Periodic app config update
     LaunchedEffect(Unit) {
@@ -3301,12 +3276,16 @@ fun DisplayAppConfigSection() {
             configs.forEach { config ->
                 val pm = context.packageManager
                 val appName =
-                        try {
-                            pm.getApplicationInfo(config.packageName, 0).let {
-                                pm.getApplicationLabel(it).toString()
+                        if (!config.customName.isNullOrBlank()) {
+                            config.customName
+                        } else {
+                            try {
+                                pm.getApplicationInfo(config.packageName, 0).let {
+                                    pm.getApplicationLabel(it).toString()
+                                }
+                            } catch (_: Exception) {
+                                config.packageName
                             }
-                        } catch (_: Exception) {
-                            config.packageName
                         }
                 val appIcon =
                         try {
@@ -3671,7 +3650,7 @@ fun DisplayAppConfigDialog(
     var previewJob by remember { mutableStateOf<Job?>(null) }
 
     var customName by remember { mutableStateOf(existingConfig?.customName ?: "") }
-    var isRenaming by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
 
     // Helper to build config from current state
     fun currentConfig(): DisplayAppConfig? {
@@ -3765,9 +3744,9 @@ fun DisplayAppConfigDialog(
                     modifier =
                             Modifier.fillMaxWidth()
                                     .wrapContentHeight()
-                                    .padding(16.dp)
+                                    .padding(horizontal = 16.dp, vertical = 12.dp)
                                     .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -3794,53 +3773,7 @@ fun DisplayAppConfigDialog(
 
                 Spacer(Modifier.height(8.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Nome do Link (Opcional)", color = Color(0xFFB0B8C4), fontSize = 12.sp)
-                        Spacer(Modifier.height(4.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (isRenaming) {
-                                TextField(
-                                    value = customName,
-                                    onValueChange = { customName = it },
-                                    modifier = Modifier.weight(1f),
-                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, color = Color.White),
-                                    placeholder = { Text(selectedApp?.label ?: "Nome padrão", color = Color.Gray, fontSize = 14.sp) },
-                                    colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color(0xFF2A2F37),
-                                        unfocusedContainerColor = Color(0xFF2A2F37),
-                                        focusedIndicatorColor = Color(0xFF4A9EFF),
-                                        unfocusedIndicatorColor = Color(0xFF3A3F47)
-                                    ),
-                                    trailingIcon = {
-                                        IconButton(onClick = { isRenaming = false }) {
-                                            Icon(Icons.Default.Check, contentDescription = "Salvar nome", tint = Color(0xFF4A9EFF))
-                                        }
-                                    }
-                                )
-                            } else {
-                                Text(
-                                    text = if (customName.isNotBlank()) customName else selectedApp?.label ?: "Selecionar app...",
-                                    color = if (customName.isNotBlank()) Color(0xFF4A9EFF) else Color.White,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                IconButton(onClick = { isRenaming = true }) {
-                                    Icon(Icons.Default.Edit, contentDescription = "Renomear", tint = Color(0xFFB0B8C4), modifier = Modifier.size(18.dp))
-                                }
-                            }
-                        }
-                    }
-                }
 
-                Spacer(Modifier.height(8.dp))
 
                 Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -3850,36 +3783,49 @@ fun DisplayAppConfigDialog(
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Aplicativo", color = Color(0xFFB0B8C4), fontSize = 12.sp)
                         Spacer(Modifier.height(4.dp))
-                        Button(
-                                onClick = { showAppPicker = true },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors =
-                                        ButtonDefaults.buttonColors(
-                                                containerColor = Color(0xFF2A2F37)
-                                        ),
-                                shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (selectedApp != null) {
-                                    AsyncImage(
-                                            model = selectedApp?.icon,
-                                            contentDescription = null,
-                                            modifier =
-                                                    Modifier.size(24.dp)
-                                                            .clip(RoundedCornerShape(4.dp)),
-                                            contentScale = ContentScale.Fit
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                    onClick = { showAppPicker = true },
+                                    modifier = Modifier.weight(1f),
+                                    colors =
+                                            ButtonDefaults.buttonColors(
+                                                    containerColor = Color(0xFF2A2F37)
+                                            ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (selectedApp != null) {
+                                        AsyncImage(
+                                                model = selectedApp?.icon,
+                                                contentDescription = null,
+                                                modifier =
+                                                        Modifier.size(24.dp)
+                                                                .clip(RoundedCornerShape(4.dp)),
+                                                contentScale = ContentScale.Fit
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                    }
+                                    Text(
+                                            if (customName.isNotBlank()) customName else selectedApp?.label ?: "Selecionar app...",
+                                            color =
+                                                    if (selectedApp != null) (if (customName.isNotBlank()) Color(0xFF4A9EFF) else Color.White)
+                                                    else Color(0xFF808080),
+                                            fontSize = 14.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                     )
-                                    Spacer(Modifier.width(8.dp))
                                 }
-                                Text(
-                                        selectedApp?.label ?: "Selecionar app...",
-                                        color =
-                                                if (selectedApp != null) Color.White
-                                                else Color(0xFF808080),
-                                        fontSize = 14.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                            }
+                            IconButton(
+                                onClick = { showRenameDialog = true },
+                                modifier = Modifier.size(36.dp).background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
+                            ) {
+                                Icon(
+                                    Icons.Default.Edit,
+                                    contentDescription = "Renomear",
+                                    tint = if (customName.isNotBlank()) Color(0xFF4A9EFF) else Color.White,
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
@@ -3934,32 +3880,11 @@ fun DisplayAppConfigDialog(
                     }
                 }
 
-                // Icon color options
-                Text("Cor do ícone customizado", color = Color(0xFFB0B8C4), fontSize = 12.sp)
-                val colors = listOf("#FFFFFF", "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF", "#FFA500", "#800080", "#C0C0C0", "#FFC0CB")
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                ) {
-                    items(colors) { colorHex ->
-                        val color = try { Color(android.graphics.Color.parseColor(colorHex)) } catch (_: Exception) { Color.White }
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .background(color, CircleShape)
-                                .border(if (selectedIconColor == colorHex) 2.dp else 1.dp, if (selectedIconColor == colorHex) Color.White else Color.Transparent, CircleShape)
-                                .clickable { selectedIconColor = colorHex }
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(4.dp))
-
                 // Resolution info
                 Text(
-                        "Resolução: ${resolution.first} x ${resolution.second}",
+                        "Resolução: ${resolution.first} x ${resolution.second} | Pos: $posX,$posY",
                         color = Color(0xFF808080),
-                        fontSize = 12.sp
+                        fontSize = 11.sp
                 )
 
                 // Position sliders
@@ -4009,83 +3934,87 @@ fun DisplayAppConfigDialog(
                     }
                 }
 
-                // Substitute Icon Selection & Colors
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(if (selectedSubIcon != null) 0.6f else 1f)) {
-                        Text("Ícone Substituto", color = Color(0xFFB0B8C4), fontSize = 12.sp)
-                        Spacer(Modifier.height(4.dp))
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (selectedSubIcon == null) Color(0xFF4A9EFF) else Color(0xFF2A2F37))
-                                        .clickable { selectedSubIcon = null }
-                                        .padding(4.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("Padrão", color = Color.White, fontSize = 9.sp, textAlign = TextAlign.Center)
-                                }
+                // Substitute Icon Selection
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text("Ícone Substituto", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                    Spacer(Modifier.height(4.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (selectedSubIcon == null) Color(0xFF4A9EFF) else Color(0xFF2A2F37))
+                                    .clickable { selectedSubIcon = null }
+                                    .padding(4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("Padrão", color = Color.White, fontSize = 9.sp, textAlign = TextAlign.Center)
                             }
-                            items(substituteIcons) { (id, label) ->
-                                val isSelected = selectedSubIcon == id
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSelected) Color(0xFF4A9EFF) else Color(0xFF2A2F37))
-                                        .clickable { selectedSubIcon = id }
-                                        .padding(4.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                     Icon(
-                                         imageVector = when(id) {
-                                             "nav" -> Icons.Default.Place
-                                             "music" -> Icons.Default.PlayArrow
-                                             "video" -> Icons.Default.Movie
-                                             "settings" -> Icons.Default.Settings
-                                             "haval" -> Icons.Default.DirectionsCar
-                                             "game" -> Icons.Default.SportsEsports
-                                             "tv" -> Icons.Default.Tv
-                                             "phone" -> Icons.Default.Phone
-                                             "chat" -> Icons.Default.Chat
-                                             "map_alt" -> Icons.Default.Map
-                                             else -> Icons.Default.Android
-                                         },
-                                         contentDescription = null,
-                                         tint = Color.White,
-                                         modifier = Modifier.size(24.dp)
-                                     )
-                                }
+                        }
+                        items(substituteIcons) { (id, label) ->
+                            val isSelected = selectedSubIcon == id
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) Color(0xFF4A9EFF) else Color(0xFF2A2F37))
+                                    .clickable { selectedSubIcon = id }
+                                    .padding(4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                 Icon(
+                                     imageVector = when(id) {
+                                         "nav" -> Icons.Default.Place
+                                         "music" -> Icons.Default.PlayArrow
+                                         "video" -> Icons.Default.Movie
+                                         "settings" -> Icons.Default.Settings
+                                         "haval" -> Icons.Default.DirectionsCar
+                                         "game" -> Icons.Default.SportsEsports
+                                         "tv" -> Icons.Default.Tv
+                                         "phone" -> Icons.Default.Phone
+                                         "chat" -> Icons.Default.Chat
+                                         "map_alt" -> Icons.Default.Map
+                                         else -> Icons.Default.Android
+                                     },
+                                     contentDescription = null,
+                                     tint = Color.White,
+                                     modifier = Modifier.size(24.dp)
+                                 )
                             }
                         }
                     }
+                }
 
-                    if (selectedSubIcon != null) {
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(0.4f)) {
-                            Text("Cor", color = Color(0xFFB0B8C4), fontSize = 12.sp)
-                            Spacer(Modifier.height(4.dp))
-                            val iconColors = listOf(
-                                Color.White, Color.Red, Color(0xFF2196F3), Color(0xFF4CAF50), Color.Yellow
-                            )
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                iconColors.forEach { color ->
-                                    val hexString = String.format("#%06X", (0xFFFFFF and color.toArgb()))
-                                    val isSelected = selectedIconColor.uppercase() == hexString.uppercase() || (color == Color.White && selectedIconColor == "#FFFFFF")
-                                    Box(
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .clip(CircleShape)
-                                            .background(color)
-                                            .border(1.dp, if (isSelected) Color.White else Color.Transparent, CircleShape)
-                                            .clickable { selectedIconColor = hexString }
+                // Consolidated Color Selector
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text("Cor de Destaque", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                    Spacer(Modifier.height(6.dp))
+                    val colorOptions = listOf(
+                        "#FFFFFF", "#ECEFF1", "#FF0000", "#FF4B4B", "#00FF00", "#0000FF", "#4A9EFF",
+                        "#90CAF9", "#FFFF00", "#FF00FF", "#00FFFF", "#FFA500", "#800080", "#808080"
+                    )
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                    ) {
+                        items(colorOptions) { colorHex ->
+                            val color = try { Color(android.graphics.Color.parseColor(colorHex)) } catch (_: Exception) { Color.White }
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(color)
+                                    .border(
+                                        width = if (selectedIconColor.uppercase() == colorHex.uppercase()) 2.dp else 1.dp,
+                                        color = if (selectedIconColor.uppercase() == colorHex.uppercase()) Color.White else Color.White.copy(alpha = 0.2f),
+                                        shape = CircleShape
                                     )
-                                }
-                            }
+                                    .clickable { selectedIconColor = colorHex }
+                            )
                         }
                     }
                 }
@@ -4136,6 +4065,61 @@ fun DisplayAppConfigDialog(
                         )
                     }
                 }
+        )
+    }
+
+    if (showRenameDialog) {
+        var tempName by remember { mutableStateOf(customName) }
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("Nome Customizado", color = Color.White, fontWeight = FontWeight.Bold) },
+            containerColor = Color(0xFF1E2228),
+            titleContentColor = Color.White,
+            textContentColor = Color.White,
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Defina um nome customizado para este atalho:", color = Color(0xFFB0B8C4), fontSize = 14.sp)
+                    TextField(
+                        value = tempName,
+                        onValueChange = { tempName = it },
+                        placeholder = { Text(selectedApp?.label ?: "Nome original", color = Color(0xFF808080)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color(0xFF2A2F37),
+                            unfocusedContainerColor = Color(0xFF2A2F37),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedIndicatorColor = Color(0xFF4A9EFF),
+                            unfocusedIndicatorColor = Color(0xFF3A3F47)
+                        )
+                    )
+                    if (tempName.isNotBlank()) {
+                        TextButton(
+                            onClick = { tempName = "" },
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text("Resetar para o padrão", color = Color(0xFFFF4B4B), fontSize = 12.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        customName = tempName
+                        showRenameDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF))
+                ) {
+                    Text("OK", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) {
+                    Text("Cancelar", color = Color(0xFFB0B8C4))
+                }
+            }
         )
     }
 }
@@ -4201,8 +4185,7 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                 }
                 .toMutableList()
         
-        apps.filter { it.packageName != context.packageName }
-            .sortedBy { it.label.lowercase() }
+        apps.sortedBy { it.label.lowercase() }
     }
     
     var showManualInput by remember { mutableStateOf(false) }
@@ -4331,27 +4314,36 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                                 }
 
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 64.dp),
+                    columns = GridCells.Adaptive(minSize = 80.dp),
                     modifier = Modifier.heightIn(max = 350.dp),
                     contentPadding = PaddingValues(0.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(filteredApps) { app ->
-                        Box(
+                        Column(
                             modifier = Modifier
-                                .size(64.dp)
+                                .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(Color(0xFF2A2F37).copy(alpha = 0.5f))
                                 .clickable { onAppSelected(app) }
                                 .padding(8.dp),
-                            contentAlignment = Alignment.Center
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             AsyncImage(
                                 model = app.icon,
                                 contentDescription = app.label,
                                 modifier = Modifier.size(44.dp),
                                 contentScale = ContentScale.Fit
+                            )
+                            Text(
+                                text = app.label,
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
@@ -4876,7 +4868,7 @@ fun InstallAppsTab() {
                             )
                     )
 
-            gridItems(sortedApps) { app ->
+            items(sortedApps) { app ->
                 val installedVersion = getInstalledVersion(app.packageName)
                 val isInstalled = installedVersion != null
                 val needsUpdate = isInstalled && compareVersions(installedVersion, app.version) < 0

@@ -9,6 +9,10 @@ import android.view.WindowManager
 import androidx.appcompat.view.ContextThemeWrapper
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.ComposeView
+import android.view.ViewTreeObserver
+import java.lang.reflect.Proxy
+import android.graphics.Region
+import android.graphics.Rect
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
@@ -298,14 +302,14 @@ class BottomBarService : LifecycleService() {
                 val yOffsetPx = (settings.yOffset * density).toInt()
 
                 withContext(Dispatchers.Main) {
-                    lp.height = (BOTTOM_BAR_BASE_HEIGHT_DP * density).toInt()
-                    lp.y = yOffsetPx
+                    lp.height = (100 * density).toInt()
+                    lp.y = 0
                 }
                 overscanCmd = arrayOf("wm", "overscan", "0,0,0,$overscanValuePx")
             } else {
-                // Trigger zone - keep 40dp on screen when hidden
+                // Trigger zone - keep 40dp (20dp on screen) area touchable
                 withContext(Dispatchers.Main) {
-                    lp.height = (60 * density).toInt()
+                    lp.height = (100 * density).toInt()
                     lp.y = -(20 * density).toInt() 
                 }
                 overscanCmd = arrayOf("wm", "overscan", "0,0,0,0")
@@ -358,7 +362,11 @@ class BottomBarService : LifecycleService() {
 
         composeView =
                 ComposeView(themedContext)
-                        .apply { setContent { HavalShisukuTheme { BottomBarContent() } } }
+                        .apply { 
+                            setContent { HavalShisukuTheme { BottomBarContent() } }
+                            // Define touchable regions to allow click-through in transparent areas
+                            setupTouchableRegions(this)
+                        }
                         .also { it.setupForService() }
 
         menuComposeView =
@@ -368,7 +376,6 @@ class BottomBarService : LifecycleService() {
 
         val density = resources.displayMetrics.density
         val barHeight = (BOTTOM_BAR_BASE_HEIGHT_DP * density).toInt()
-        val menuHeight = (500 * density).toInt()
 
         val layoutType =
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -454,6 +461,49 @@ class BottomBarService : LifecycleService() {
             }
         } else {
             stopSelf()
+        }
+    }
+
+    private fun setupTouchableRegions(composeView: ComposeView) {
+        val observer = composeView.viewTreeObserver
+        try {
+            val listenerClass = Class.forName("android.view.ViewTreeObserver\$OnComputeInternalInsetsListener")
+            val infoClass = Class.forName("android.view.ViewTreeObserver\$InternalInsetsInfo")
+            val setTouchableInsetsMethod = infoClass.getMethod("setTouchableInsets", Int::class.javaPrimitiveType)
+            val touchableRegionField = infoClass.getField("touchableRegion")
+
+            val proxy = Proxy.newProxyInstance(
+                listenerClass.classLoader,
+                arrayOf(listenerClass)
+            ) { _, method, args ->
+                if (method.name == "onComputeInternalInsets") {
+                    val info = args[0]
+                    // 3 is TOUCHABLE_INSETS_REGION
+                    setTouchableInsetsMethod.invoke(info, 3)
+                    val region = touchableRegionField.get(info) as Region
+                    region.setEmpty()
+
+                    val density = resources.displayMetrics.density
+                    val windowWidth = resources.displayMetrics.widthPixels
+                    val windowHeight = (100 * density).toInt()
+                    val barHeight = (60 * density).toInt()
+                    val topHandleHeight = (15 * density).toInt()
+                    val hiddenTriggerHeight = (40 * density).toInt()
+
+                    if (BottomBarState.isVisible) {
+                        region.union(Rect(0, windowHeight - barHeight, windowWidth, windowHeight))
+                        region.union(Rect(0, 0, windowWidth, topHandleHeight))
+                    } else {
+                        region.union(Rect(0, windowHeight - hiddenTriggerHeight, windowWidth, windowHeight))
+                    }
+                }
+                null
+            }
+
+            val addMethod = observer.javaClass.getMethod("addOnComputeInternalInsetsListener", listenerClass)
+            addMethod.invoke(observer, proxy)
+        } catch (e: Exception) {
+            Log.e("BottomBarService", "Failed to setup touchable regions via reflection", e)
         }
     }
 

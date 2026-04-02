@@ -124,7 +124,27 @@ public class ServiceManager {
             CarConstants.CAR_EV_INFO_POWER_BATTERY_VOLTAGE,
             CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE,
             CarConstants.CAR_EV_INFO_FUEL_MODE_REMAIN_ODOMETER,
-            CarConstants.CAR_EV_INFO_ELECTRIC_MODE_REMAIN_ODOMETER
+            CarConstants.CAR_EV_INFO_ELECTRIC_MODE_REMAIN_ODOMETER,
+            CarConstants.CAR_BASIC_COOLANT_TEMP_WARNING,
+            CarConstants.CAR_BASIC_ENGINE_OIL_LOW_PRESSURE_WARNING,
+            CarConstants.CAR_BASIC_FATIGUE_WARNING,
+            CarConstants.CAR_BASIC_MAINTENANCE_WARNING,
+            CarConstants.CAR_BASIC_OIL_LOW_WARNING,
+            CarConstants.CAR_BASIC_SEAT_BELT_WARNING,
+            CarConstants.CAR_BASIC_TIREPRESS_WARNING,
+            CarConstants.CAR_BASIC_TIRETEMP_WARNING,
+            CarConstants.CAR_BASIC_TPMS_WARNING,
+            CarConstants.CAR_IPK_INFO_BSD_LCA_WARNING_REQLEFT,
+            CarConstants.CAR_IPK_INFO_BSD_LCA_WARNING_REQRIGHT,
+            CarConstants.CAR_IPK_INFO_DOW_WARNING_REQLEFT,
+            CarConstants.CAR_IPK_INFO_DOW_WARNING_REQRIGHT,
+            CarConstants.CAR_IPK_INFO_FCTA_WARNING,
+            CarConstants.CAR_IPK_INFO_FCW_WARNING,
+            CarConstants.CAR_IPK_INFO_WARNING_TTS_NOTIFY,
+            CarConstants.CAR_IPK_LIGHT_DOOR_WARNING,
+            CarConstants.CAR_IPK_LIGHT_ENGINE_OIL_LOW_PRESSURE_WARNING,
+            CarConstants.CAR_IPK_LIGHT_SEAT_BELT_WARNING_INDICATOR,
+            CarConstants.CAR_IPK_LIGHT_TPMS_WARNING
     };
 
     private static final CarConstants[] KEYS_TO_SAVE = {
@@ -313,9 +333,6 @@ public class ServiceManager {
                             int whichCard = data.getIntValue();
                             clusterCardView = whichCard;
                             dispatchServiceManagerEvent(ServiceManagerEventType.CLUSTER_CARD_CHANGED, clusterCardView);
-                            if (whichCard == 1) {
-                                MainUiManager.getInstance().updateScreen();
-                            }
                             Log.w(TAG, "Cluster card changed: " + whichCard);
                         } else if (msgId == 134) {
                             if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.getKey(), false)) {
@@ -358,18 +375,39 @@ public class ServiceManager {
                             }
                         }
                         if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_CUSTOM_MENU.getKey(), false)) {
-                            if (clusterCardView == 1 || clusterCardView == 3) {
-                                Screen.Key key = null;
-                                switch (keyEvent.getKeyCode()) {
-                                    case 1024: key = Screen.Key.UP; break;
-                                    case 1025: key = Screen.Key.DOWN; break;
-                                    case 1026: key = Screen.Key.LEFT; break;
-                                    case 1027: key = Screen.Key.RIGHT; break;
-                                    case 1028: key = Screen.Key.ENTER; break;
-                                    case 1029: key = Screen.Key.HOME; break;
-                                    case 1030: key = Screen.Key.BACK; break;
-                                }
-                                if (key != null) MainUiManager.getInstance().handleGeneralKeyEvents(key);
+                            Screen.Key key = null;
+                            switch (keyEvent.getKeyCode()) {
+                                case 1024:
+                                    key = Screen.Key.UP;
+                                    break;
+                                case 1025:
+                                    key = Screen.Key.DOWN;
+                                    break;
+                                case 1028:
+                                    key = Screen.Key.ENTER;
+                                    break;
+                                case 1029:
+                                    key = Screen.Key.HOME;
+                                    break;
+                                case 1030:
+                                    key = Screen.Key.BACK;
+                                    break;
+                                case 1033:
+                                    key = Screen.Key.UP_LONG;
+                                    break;
+                                case 1034:
+                                    key = Screen.Key.DOWN_LONG;
+                                    break;
+                                case 1037:
+                                    key = Screen.Key.ENTER_LONG;
+                                    break;
+                                case 1039:
+                                    key = Screen.Key.BACK_LONG;
+                                    break;
+                            }
+                            if (key != null) MainUiManager.getInstance().handleGeneralKeyEvents(key);
+                            if (key == Screen.Key.BACK) {
+                                dispatchServiceManagerEvent(ServiceManagerEventType.DISMISS_WARNING);
                             }
                         }
                     }
@@ -805,8 +843,6 @@ public class ServiceManager {
         }
         try {
             controlService.request("cmd.common.request.set", key, value);
-            // Notify local listeners immediately for responsive UI
-            OnDataChanged(key, value);
         } catch (RemoteException e) {
             Log.e(TAG, "Error updating data", e);
         }
@@ -1164,10 +1200,21 @@ public class ServiceManager {
     }
 
     private void enableMaxAcOn() {
+        enableMaxAcOnWithRetry(0);
+    }
+
+    private void enableMaxAcOnWithRetry(int retryCount) {
         try {
             String tempStr = getUpdatedData(CarConstants.CAR_BASIC_INSIDE_TEMP.getValue());
             if (tempStr == null) return;
             float currentTemp = Float.parseFloat(tempStr);
+            
+            if ((currentTemp >= 85.0f || currentTemp <= -40.0f) && retryCount < 5) {
+                Log.w(TAG, "Invalid temp " + currentTemp + " at startup, delaying Max AC check... retry: " + retryCount);
+                backgroundHandler.postDelayed(() -> enableMaxAcOnWithRetry(retryCount + 1), 1000);
+                return;
+            }
+
             float threshold = sharedPreferences.getFloat(SharedPreferencesKeys.MAX_AC_ON_UNLOCK_THRESHOLD.getKey(), 35.0f);
             if (currentTemp >= threshold && !isMaxAcActive) {
 
@@ -1592,7 +1639,7 @@ public class ServiceManager {
 
     public CarInfo getCarInfo() {
         if (br.com.redesurftank.havalshisuku.services.ForegroundService.isLocalTestMode()) {
-            return new CarInfo("Haval (Local)", "H6 (Local)", "Hybrid");
+            return new CarInfo("Haval", "PHEV", "GT");
         }
         try {
             if (carInfo == null) {
