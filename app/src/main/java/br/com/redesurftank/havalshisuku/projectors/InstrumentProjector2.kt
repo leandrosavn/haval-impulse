@@ -342,24 +342,24 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value -> {
                         evaluateJsIfReady(
                                 webView,
-                                "control('evMode', ${MainMenu.EvModeOptions.getLabel(value)})"
+                                "control('evMode', '${MainMenu.EvModeOptions.getLabel(value)}')"
                         )
                     }
                     CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.value -> {
                         val label = MainMenu.DrivingModeOptions.getLabel(value)
-                        evaluateJsIfReady(webView, "control('drivingMode', $label)")
-                        evaluateJsIfReady(webView, "control('evModeLabel', $label)")
+                        evaluateJsIfReady(webView, "control('drivingMode', '$label')")
+                        evaluateJsIfReady(webView, "control('evModeLabel', '$label')")
                     }
                     CarConstants.CAR_DRIVE_SETTING_STEERING_WHEEL_ASSIST_MODE.value -> {
                         evaluateJsIfReady(
                                 webView,
-                                "control('steerMode', ${MainMenu.SteerModeOptions.getLabel(value)})"
+                                "control('steerMode', '${MainMenu.SteerModeOptions.getLabel(value)}')"
                         )
                     }
                     CarConstants.CAR_DRIVE_SETTING_ESP_ENABLE.value -> {
                         evaluateJsIfReady(
                                 webView,
-                                "control('espStatus', ${MainMenu.EspOptions.getLabel(value)})"
+                                "control('espStatus', '${MainMenu.EspOptions.getLabel(value)}')"
                         )
                     }
                     CarConstants.CAR_CONFIGURE_PEDAL_CONTROL_ENABLE.value -> {
@@ -368,7 +368,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL.value -> {
                         evaluateJsIfReady(
                                 webView,
-                                "control('regenMode', ${RegenScreen.RegenOptions.getLabel(value)})"
+                                "control('regenMode', '${RegenScreen.RegenOptions.getLabel(value)}')"
                         )
                     }
                     CarConstants.CAR_EV_INFO_ENERGY_OUTPUT_PERCENTAGE.value -> {
@@ -570,29 +570,29 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
         // Modes and Settings
         val evMode = sm.getData(CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value)
-        evaluateJsIfReady(webView, "control('evMode', ${MainMenu.EvModeOptions.getLabel(evMode)})")
+        evaluateJsIfReady(webView, "control('evMode', '${MainMenu.EvModeOptions.getLabel(evMode)}')")
 
         val drivingMode = sm.getData(CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.value)
         val drivingModeLabel = MainMenu.DrivingModeOptions.getLabel(drivingMode)
-        evaluateJsIfReady(webView, "control('drivingMode', $drivingModeLabel)")
-        evaluateJsIfReady(webView, "control('evModeLabel', $drivingModeLabel)")
+        evaluateJsIfReady(webView, "control('drivingMode', '$drivingModeLabel')")
+        evaluateJsIfReady(webView, "control('evModeLabel', '$drivingModeLabel')")
 
         val steerMode = sm.getData(CarConstants.CAR_DRIVE_SETTING_STEERING_WHEEL_ASSIST_MODE.value)
         evaluateJsIfReady(
                 webView,
-                "control('steerMode', ${MainMenu.SteerModeOptions.getLabel(steerMode)})"
+                "control('steerMode', '${MainMenu.SteerModeOptions.getLabel(steerMode)}')"
         )
 
         val espStatus = sm.getData(CarConstants.CAR_DRIVE_SETTING_ESP_ENABLE.value)
         evaluateJsIfReady(
                 webView,
-                "control('espStatus', ${MainMenu.EspOptions.getLabel(espStatus)})"
+                "control('espStatus', '${MainMenu.EspOptions.getLabel(espStatus)}')"
         )
 
         val regenLevel = sm.getData(CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL.value)
         evaluateJsIfReady(
                 webView,
-                "control('regenMode', ${RegenScreen.RegenOptions.getLabel(regenLevel)})"
+                "control('regenMode', '${RegenScreen.RegenOptions.getLabel(regenLevel)}')"
         )
 
         // Power and Regen Graph
