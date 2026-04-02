@@ -406,6 +406,9 @@ public class ServiceManager {
                                     break;
                             }
                             if (key != null) MainUiManager.getInstance().handleGeneralKeyEvents(key);
+                            if (key == Screen.Key.BACK) {
+                                dispatchServiceManagerEvent(ServiceManagerEventType.DISMISS_WARNING);
+                            }
                         }
                     }
                 };

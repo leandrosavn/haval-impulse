@@ -159,12 +159,9 @@ fun BottomBarContent() {
         onDispose { serviceManager.removeDataChangedListener(listener) }
     }
 
-    val view = LocalView.current
-    val location = remember { IntArray(2) }
-
     Box(
             modifier =
-                    Modifier.fillMaxWidth().height(120.dp).pointerInput(
+                    Modifier.fillMaxWidth().height(100.dp).pointerInput(
                                     BottomBarState.isVisible,
                                     BottomBarState.autoHideEnabled
                             ) {
@@ -173,7 +170,6 @@ fun BottomBarContent() {
                         awaitPointerEventScope {
                             while (true) {
                                 val down = awaitFirstDown()
-                                val startTime = System.currentTimeMillis()
                                 val startPos = down.position
                                 var isSwipe = false
                                 var pointerOffset = Offset.Zero
@@ -195,30 +191,12 @@ fun BottomBarContent() {
                                     }
                                 } while (event.changes.any { it.pressed })
 
-                                val up = lastEvent!!.changes.first()
-                                if (!isSwipe && (System.currentTimeMillis() - startTime) < 500) {
-                                    // Click! Inject tap using absolute coordinates
-                                    view.getLocationOnScreen(location)
-                                    val screenX = location[0] + up.position.x
-                                    val screenY = location[1] + up.position.y
-                                    scope.launch(Dispatchers.IO) {
-                                        br.com.redesurftank.havalshisuku.utils.ShizukuUtils
-                                                .runCommandAndGetOutput(
-                                                        arrayOf(
-                                                                "sh",
-                                                                "-c",
-                                                                "input tap $screenX $screenY"
-                                                        )
-                                                )
-                                    }
-                                } else if (isSwipe) {
+                                if (isSwipe) {
+                                    val up = lastEvent!!.changes.first()
                                     val dragAmount = up.position.y - startPos.y
-                                    // Down swipe to hide
-                                    if (BottomBarState.isVisible && dragAmount > 15f) {
+                                    if (dragAmount > 20f && BottomBarState.isVisible) {
                                         BottomBarState.isVisible = false
-                                    }
-                                    // Up swipe to show - only if hidden
-                                    else if (!BottomBarState.isVisible && dragAmount < -10f) {
+                                    } else if (dragAmount < -20f && !BottomBarState.isVisible) {
                                         BottomBarState.isVisible = true
                                     }
                                 }
@@ -545,7 +523,7 @@ fun AppMenuContent() {
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                for (r in 0 until rows) {
+                for (r in (rows - 1) downTo 0) {
                     Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -641,7 +619,8 @@ fun SettingsMenuContent(drive: String, ev: String, regen: String, steer: String)
                             "3" to "Neve",
                             "4" to "Areia",
                             "5" to "Lama"
-                    )
+                    ),
+                    columns = 3
             ) { newVal ->
                 serviceManager.updateData(
                         CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.getValue(),
@@ -808,41 +787,93 @@ fun SettingsCategoryRow(
         label: String,
         currentValue: String,
         options: List<Pair<String, String>>,
+        columns: Int = 0,
         onSelect: (String) -> Unit
 ) {
     Column {
         Text(text = label, style = labelStyle.copy(fontWeight = FontWeight.Bold))
         Spacer(Modifier.height(8.dp))
-        Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            options.forEach { (valKey, valLabel) ->
-                val isSelected = currentValue == valKey
-                Surface(
-                        onClick = { onSelect(valKey) },
-                        modifier = Modifier.weight(1f),
-                        color =
-                                if (isSelected) Color(0xFF2196F3).copy(alpha = 0.2f)
-                                else Color.White.copy(alpha = 0.05f),
-                        shape = RoundedCornerShape(8.dp),
-                        border =
-                                BorderStroke(
-                                        width = 1.dp,
+        if (columns > 0) {
+            val rows = (options.size + columns - 1) / columns
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (r in 0 until rows) {
+                    Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        for (c in 0 until columns) {
+                            val index = r * columns + c
+                            if (index < options.size) {
+                                val (valKey, valLabel) = options[index]
+                                val isSelected = currentValue == valKey
+                                Surface(
+                                        onClick = { onSelect(valKey) },
+                                        modifier = Modifier.weight(1f),
                                         color =
-                                                if (isSelected) Color(0xFF2196F3)
-                                                else Color.Transparent
-                                )
-                ) {
-                    Text(
-                            text = valLabel,
-                            color = if (isSelected) Color(0xFF2196F3) else Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            fontFamily = Michroma,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 16.dp)
-                    )
+                                                if (isSelected) Color(0xFF2196F3).copy(alpha = 0.2f)
+                                                else Color.White.copy(alpha = 0.05f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        border =
+                                                BorderStroke(
+                                                        width = 1.dp,
+                                                        color =
+                                                                if (isSelected) Color(0xFF2196F3)
+                                                                else Color.Transparent
+                                                )
+                                ) {
+                                    Text(
+                                            text = valLabel,
+                                            color =
+                                                    if (isSelected) Color(0xFF2196F3)
+                                                    else Color.White,
+                                            fontSize = 12.sp,
+                                            fontWeight =
+                                                    if (isSelected) FontWeight.Bold
+                                                    else FontWeight.Normal,
+                                            fontFamily = Michroma,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.padding(vertical = 16.dp)
+                                    )
+                                }
+                            } else {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                options.forEach { (valKey, valLabel) ->
+                    val isSelected = currentValue == valKey
+                    Surface(
+                            onClick = { onSelect(valKey) },
+                            modifier = Modifier.weight(1f),
+                            color =
+                                    if (isSelected) Color(0xFF2196F3).copy(alpha = 0.2f)
+                                    else Color.White.copy(alpha = 0.05f),
+                            shape = RoundedCornerShape(8.dp),
+                            border =
+                                    BorderStroke(
+                                            width = 1.dp,
+                                            color =
+                                                    if (isSelected) Color(0xFF2196F3)
+                                                    else Color.Transparent
+                                    )
+                    ) {
+                        Text(
+                                text = valLabel,
+                                color = if (isSelected) Color(0xFF2196F3) else Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                fontFamily = Michroma,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(vertical = 16.dp)
+                        )
+                    }
                 }
             }
         }
@@ -1215,10 +1246,10 @@ fun OverrideMenuContent() {
                     style = labelStyle.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)
             )
 
-            OverrideControlRow("Overscan (Move o app para cima)", overscan, 0..120, steps = 23) {
+            OverrideControlRow("Overscan (Move o app para cima)", overscan, 0..150, steps = 9) {
                 overscan = it
             }
-            OverrideControlRow("Offset (Move a barra para baixo)", offset, -100..100) {
+            OverrideControlRow("Offset (Move a barra para baixo)", offset, -150..150, steps = 19) {
                 offset = it
             }
 

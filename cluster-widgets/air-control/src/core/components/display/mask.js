@@ -33,7 +33,7 @@ export function createMask() {
     maskBg.appendChild(warnMask);
 
     const updateVisibility = () => {
-        const appInDash = get('appInDash'); 
+        const appInDash = get('appInDash');
         const cardId = get('cardId');
         const warningActive = get('warningActive');
         const rightVisible = (cardId !== 0 && !warningActive);
@@ -67,7 +67,7 @@ export function createMask() {
         noAppMaskR.style.visibility = showR ? 'visible' : 'hidden';
 
         partialAppMask.style.opacity = (cardId === 0 && !warningActive) ? '1' : '0';
-        warnMask.style.opacity = warningActive ? '1' : '0';
+        //warnMask.style.opacity = warningActive ? '1' : '0'; //TODO: enhance this mask in future
     };
 
     const unsub1 = subscribe('appInDash', updateVisibility);

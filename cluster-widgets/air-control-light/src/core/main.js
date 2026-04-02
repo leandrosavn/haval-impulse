@@ -207,7 +207,7 @@ window.focus = function (item) {
 window.control = function (key, value) {
     try {
         if (key !== 'carSpeed' && key !== 'engineRPM') {
-            console.log(`[JS Bridge] control('${key}', ${value})`);
+            logger.log(`control('${key}', ${value})`);
         }
         logger.enter('window.control', { key, value });
         let val = value;

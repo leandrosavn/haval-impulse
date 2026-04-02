@@ -322,7 +322,7 @@ export function createDashboardInfo() {
             internalTempValue.textContent = formatTemp(getState('inside_temp'), unit);
         }),
         subscribe('warningActive', val => {
-            console.log('[DashboardInfo Light] warningActive changed to:', val);
+            logger.log('[DashboardInfo Light] warningActive changed to:', val);
             warningLabel.style.display = val ? 'block' : 'none';
         }),
         subscribe('bsdLeft', val => bsdLeftIndicator.style.display = val ? 'block' : 'none'),

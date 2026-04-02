@@ -1,4 +1,5 @@
 import { stateManager } from './../state.js';
+import { logger } from './../../utils/logger.js';
 
 const VISUAL_ONLY_KEYS = [
     "car.ipk_info.bsd_lca_warning_reqleft",
@@ -35,6 +36,15 @@ export function initWarningHandler() {
             if (window.Android && window.Android.setWarningActive) {
                 window.Android.setWarningActive(hasCriticalWarning);
             }
+        }
+    };
+
+    window.clearWarnings = function() {
+        logger.log('Clearing all warnings via DISMISS_WARNING');
+        stateManager.set('warnings', {});
+        stateManager.set('warningActive', false);
+        if (window.Android && window.Android.setWarningActive) {
+            window.Android.setWarningActive(false);
         }
     };
 }
