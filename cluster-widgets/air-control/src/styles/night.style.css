@@ -2286,9 +2286,9 @@ canvas.graph-chart {
 
   background:
     radial-gradient(circle at calc(var(--mask-right-x) + var(--display-right-offset)) var(--mask-center-y),
-      transparent calc(var(--mask-radius) * var(--display-scale)),
-      var(--bg-black-60) calc(var(--mask-radius) * var(--display-scale) * 0.5 + 30px),
-      var(--bg-black-100) calc(var(--mask-radius) * var(--display-scale) * 0.6 + 120px));
+      transparent calc(var(--mask-radius)),
+      var(--bg-black-60) calc(var(--mask-radius) * 0.5 + 30px),
+      var(--bg-black-100) calc(var(--mask-radius) * 0.6 + 120px));
   opacity: 0;
   transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }

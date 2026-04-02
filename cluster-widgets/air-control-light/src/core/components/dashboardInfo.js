@@ -335,8 +335,8 @@ export function createDashboardInfo() {
 
     const cleanup = () => {
         clearInterval(clockInterval);
-        odometerCleanup();
         subscriptions.forEach(unsubscribe => unsubscribe());
+        if (odometerCleanup) odometerCleanup();
     };
 
     return { element: container, menuWrapper, cleanup };

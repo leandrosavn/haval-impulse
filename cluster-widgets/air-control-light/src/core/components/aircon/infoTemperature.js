@@ -52,14 +52,9 @@ export function createTempInfoElement() {
            internalTemp.textContent = formatTemp(stateManager.get('inside_temp'), newUnit);
            externalTemp.textContent = formatTemp(stateManager.get('outside_temp'), newUnit);
        });
-       const unsubscribePower = subscribe('power', function(newPower) {
-           document.getElementById('ac-power-icon').source = (newPower == 1 ? acON : acOFF);
-       });
-
        return () => {
            internalSub();
            externalSub();
-           unsubscribePower()
        };
     };
 

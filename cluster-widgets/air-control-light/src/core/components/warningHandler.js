@@ -1,4 +1,4 @@
-import { stateManager } from './state.js';
+import { stateManager } from './../state.js';
 
 const VISUAL_ONLY_KEYS = [
     "car.ipk_info.bsd_lca_warning_reqleft",

@@ -9,7 +9,7 @@ import { createGraphScreen } from './components/graphs/graphs.js';
 import { div } from '../utils/createElement.js';
 import { logger } from '../utils/logger.js';
 import { initializeConstants } from '../utils/constants.js';
-import { initWarningHandler } from './warningHandler.js';
+import { initWarningHandler } from './components/warningHandler.js';
 
 initializeConstants();
 initWarningHandler();
@@ -145,8 +145,8 @@ function render() {
     logger.leave('render');
 }
 
-    subscribe('warningActive', () => render());
-    initializeLayout();
+subscribe('warningActive', () => render());
+initializeLayout();
 
 // Start rendering and subscribe to listen for screen changes thus triggering new render
 subscribe('screen', render);
@@ -207,7 +207,7 @@ window.focus = function (item) {
 window.control = function (key, value) {
     try {
         if (key !== 'carSpeed' && key !== 'engineRPM') {
-            console.log(`[JS Bridge Light] control('${key}', ${value})`);
+            console.log(`[JS Bridge] control('${key}', ${value})`);
         }
         logger.enter('window.control', { key, value });
         let val = value;
