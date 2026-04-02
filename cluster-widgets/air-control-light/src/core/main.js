@@ -75,7 +75,7 @@ function render() {
 
     // Update app class based on display mode
     if (appContainer) {
-        console.log('[Debug] Rendering screen:', screen);
+        logger.log('Rendering screen:', screen);
         let classes = appContainer.className.split(' ').filter(c => !c.startsWith('display-') && !c.startsWith('theme-') && c !== 'cluster-disabled' && c !== 'warn-is-active');
         classes.push('display-' + displayMode.toLowerCase());
 
@@ -88,7 +88,7 @@ function render() {
         }
 
         appContainer.className = classes.join(' ').trim();
-        console.log('[Debug] App classes:', appContainer.className);
+        logger.log('App classes:', appContainer.className);
     }
 
 
@@ -161,7 +161,6 @@ render();
 // Handle Card ID transitions
 subscribe('cardId', (cardId) => {
     logger.log('cardId change:', cardId);
-    console.log('Actual Card:', cardId);
     // 0 = hide the right menu display
     if (menuWrapper) {
         menuWrapper.style.display = (cardId == 0) ? 'none' : 'block';
