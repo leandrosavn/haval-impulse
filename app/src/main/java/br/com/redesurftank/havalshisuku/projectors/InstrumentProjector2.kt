@@ -64,6 +64,30 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private var currentCard = 0
     private var hasAutoLaunched = false
 
+    val monitoredWarningKeys =
+        setOf(
+            CarConstants.CAR_BASIC_COOLANT_TEMP_WARNING.value,
+            CarConstants.CAR_BASIC_ENGINE_OIL_LOW_PRESSURE_WARNING.value,
+            CarConstants.CAR_BASIC_FATIGUE_WARNING.value,
+            CarConstants.CAR_BASIC_MAINTENANCE_WARNING.value,
+            CarConstants.CAR_BASIC_OIL_LOW_WARNING.value,
+            CarConstants.CAR_BASIC_SEAT_BELT_WARNING.value,
+            CarConstants.CAR_BASIC_TIREPRESS_WARNING.value,
+            CarConstants.CAR_BASIC_TIRETEMP_WARNING.value,
+            CarConstants.CAR_BASIC_TPMS_WARNING.value,
+            CarConstants.CAR_IPK_INFO_BSD_LCA_WARNING_REQLEFT.value,
+            CarConstants.CAR_IPK_INFO_BSD_LCA_WARNING_REQRIGHT.value,
+            CarConstants.CAR_IPK_INFO_DOW_WARNING_REQLEFT.value,
+            CarConstants.CAR_IPK_INFO_DOW_WARNING_REQRIGHT.value,
+            CarConstants.CAR_IPK_INFO_FCTA_WARNING.value,
+            CarConstants.CAR_IPK_INFO_FCW_WARNING.value,
+            CarConstants.CAR_IPK_INFO_WARNING_TTS_NOTIFY.value,
+            CarConstants.CAR_IPK_LIGHT_DOOR_WARNING.value,
+            CarConstants.CAR_IPK_LIGHT_ENGINE_OIL_LOW_PRESSURE_WARNING.value,
+            CarConstants.CAR_IPK_LIGHT_SEAT_BELT_WARNING_INDICATOR.value,
+            CarConstants.CAR_IPK_LIGHT_TPMS_WARNING.value
+        )
+
     private val prefsListener =
             SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
                 if (key in
@@ -79,7 +103,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                 )
                 ) {
                     ensureUi {
-                        if (key == SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key || 
+                        if (key == SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key ||
                             key == SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key) {
                             Log.d(TAG, "Theme changed, reloading WebView")
                             webView?.loadDataWithBaseURL(
@@ -120,56 +144,15 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 )
     }
 
-    private var cardBeforeWarning = 1
     
-    // Efficient warning tracking
-    private val activeWarningKeys = setOf(
-        CarConstants.CAR_BASIC_COOLANT_TEMP_WARNING.value,
-        CarConstants.CAR_BASIC_ENGINE_OIL_LOW_PRESSURE_WARNING.value,
-        CarConstants.CAR_BASIC_FATIGUE_WARNING.value,
-        CarConstants.CAR_BASIC_MAINTENANCE_WARNING.value,
-        CarConstants.CAR_BASIC_OIL_LOW_WARNING.value,
-        CarConstants.CAR_BASIC_SEAT_BELT_WARNING.value,
-        CarConstants.CAR_BASIC_TIREPRESS_WARNING.value,
-        CarConstants.CAR_BASIC_TIRETEMP_WARNING.value,
-        CarConstants.CAR_BASIC_TPMS_WARNING.value,
-        CarConstants.CAR_IPK_INFO_BSD_LCA_WARNING_REQLEFT.value,
-        CarConstants.CAR_IPK_INFO_BSD_LCA_WARNING_REQRIGHT.value,
-        CarConstants.CAR_IPK_INFO_DOW_WARNING_REQLEFT.value,
-        CarConstants.CAR_IPK_INFO_DOW_WARNING_REQRIGHT.value,
-        CarConstants.CAR_IPK_INFO_FCTA_WARNING.value,
-        CarConstants.CAR_IPK_INFO_FCW_WARNING.value,
-        CarConstants.CAR_IPK_INFO_WARNING_TTS_NOTIFY.value,
-        CarConstants.CAR_IPK_LIGHT_DOOR_WARNING.value,
-        CarConstants.CAR_IPK_LIGHT_ENGINE_OIL_LOW_PRESSURE_WARNING.value,
-        CarConstants.CAR_IPK_LIGHT_SEAT_BELT_WARNING_INDICATOR.value,
-        CarConstants.CAR_IPK_LIGHT_TPMS_WARNING.value
-    )
-    private val currentlyActiveWarnings = mutableSetOf<String>()
-
     private val eventListener = br.com.redesurftank.havalshisuku.listeners.IServiceManagerEvent { event, args ->
         ensureUi {
-            // Reset warning on any interaction
-            when (event) {
-                ServiceManagerEventType.CLUSTER_CARD_CHANGED,
-                ServiceManagerEventType.STEERING_WHEEL_AC_CONTROL,
-                ServiceManagerEventType.GRAPH_SCREEN_NAVIGATION,
-                ServiceManagerEventType.UPDATE_SCREEN,
-                ServiceManagerEventType.MENU_ITEM_NAVIGATION,
-                ServiceManagerEventType.DISPLAY_SCREEN_SELECTION -> {
-                    updateWarningUI(false, true)
-                }
-                else -> {}
-            }
-
             when (event) {
                 ServiceManagerEventType.CLUSTER_CARD_CHANGED -> {
                     currentCard = args[0] as Int
                     evaluateJsIfReady(webView, "control('cardId', $currentCard)")
                     resizeActiveApp(currentCard)
-                    updateWarningUI(false, false)
                     updateVirtualClusterVisibility()
-
                     if (currentCard == 1 || currentCard == 3) {
                         MainUiManager.getInstance().handleCardChange(currentCard)
                         updateValuesWebView()
@@ -257,7 +240,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         }
     }
 
-    protected override fun onCreate(savedInstanceState: Bundle?) {
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handler.post(clockRunnable)
         preferences.registerOnSharedPreferenceChangeListener(prefsListener)
@@ -415,16 +398,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 }
 
                 // --- Warning Management Logic ---
-                if (key in activeWarningKeys) {
-                    val s = value.toString()
-                    val isThisActive = s != "0" && s != "{0,0,0,0}" && s != "{0,0,0,0,0}" && s != "" && s != "false"
-                    
-                    if (isThisActive) {
-                        currentlyActiveWarnings.add(key)
-                    } else {
-                        currentlyActiveWarnings.remove(key)
-                    }
-                    updateWarningUI(isThisActive, true)
+                if (key in monitoredWarningKeys) {
+                    evaluateJsIfReady(webView, "updateWarning('$key', '$value')")
                 }
             }
         }
@@ -475,6 +450,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     }
                 }
                 loadDataWithBaseURL(getThemeBaseUrl(), readAppContent(outerContext), "text/html", "UTF-8", null)
+                addJavascriptInterface(WebAppInterface(), "Android")
             }
             parent.addView(webView)
         }
@@ -782,5 +758,17 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
         // Propagate current warning state
         evaluateJsIfReady(webView, "control('warningActive', $anyWarningActive)")
+    }
+
+    inner class WebAppInterface {
+        @JavascriptInterface
+        fun requestResize(cardId: Int) {
+            ensureUi { resizeActiveApp(cardId) }
+        }
+
+        @JavascriptInterface
+        fun setWarningActive(isActive: Boolean) {
+            ensureUi { updateWarningUI(isActive, true) }
+        }
     }
 }

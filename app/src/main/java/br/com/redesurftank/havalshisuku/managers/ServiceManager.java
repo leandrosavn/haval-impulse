@@ -375,19 +375,37 @@ public class ServiceManager {
                             }
                         }
                         if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_CUSTOM_MENU.getKey(), false)) {
-                            if (clusterCardView == 1 || clusterCardView == 3) {
-                                Screen.Key key = null;
-                                switch (keyEvent.getKeyCode()) {
-                                    case 1024: key = Screen.Key.UP; break;
-                                    case 1025: key = Screen.Key.DOWN; break;
-                                    case 1026: key = Screen.Key.LEFT; break;
-                                    case 1027: key = Screen.Key.RIGHT; break;
-                                    case 1028: key = Screen.Key.ENTER; break;
-                                    case 1029: key = Screen.Key.HOME; break;
-                                    case 1030: key = Screen.Key.BACK; break;
-                                }
-                                if (key != null) MainUiManager.getInstance().handleGeneralKeyEvents(key);
+                            Screen.Key key = null;
+                            switch (keyEvent.getKeyCode()) {
+                                case 1024:
+                                    key = Screen.Key.UP;
+                                    break;
+                                case 1025:
+                                    key = Screen.Key.DOWN;
+                                    break;
+                                case 1028:
+                                    key = Screen.Key.ENTER;
+                                    break;
+                                case 1029:
+                                    key = Screen.Key.HOME;
+                                    break;
+                                case 1030:
+                                    key = Screen.Key.BACK;
+                                    break;
+                                case 1033:
+                                    key = Screen.Key.UP_LONG;
+                                    break;
+                                case 1034:
+                                    key = Screen.Key.DOWN_LONG;
+                                    break;
+                                case 1037:
+                                    key = Screen.Key.ENTER_LONG;
+                                    break;
+                                case 1039:
+                                    key = Screen.Key.BACK_LONG;
+                                    break;
                             }
+                            if (key != null) MainUiManager.getInstance().handleGeneralKeyEvents(key);
                         }
                     }
                 };
@@ -1618,7 +1636,7 @@ public class ServiceManager {
 
     public CarInfo getCarInfo() {
         if (br.com.redesurftank.havalshisuku.services.ForegroundService.isLocalTestMode()) {
-            return new CarInfo("Haval (Local)", "H6 (Local)", "Hybrid");
+            return new CarInfo("Haval", "PHEV", "GT");
         }
         try {
             if (carInfo == null) {

@@ -810,136 +810,99 @@ export function createGraphScreen() {
                     secondaryTooltipLine.style.opacity = 0.5;
                 }
 
-                const rpmBarEl = document.getElementById('graph-rpm-bar-svg');
-                const powerBarEl = document.getElementById('graph-power-bar-svg');
-                const rpmLabelEl = document.getElementById('graph-rpm-label-html');
-                const powerLabelEl = document.getElementById('graph-power-label-html');
+                if (graphInfo.id === 'carSpeed') {
+                    const currentSpeed = getState('carSpeed') || 0.0;
+                    const drivingMode = getState('drivingMode');
+                    const acceleration = parseFloat(currentSpeed - lastCarSpeed) * (1000 / UI_UPDATE_INTERVAL);
+                    const isFastAcc = acceleration >= (100 / ACCELERATION_THRESHOLD);
 
-                if (rpmBarEl && rpmLabelEl) {
-                    const rpm = getState('engineRPM') || 0;
-                    const rpmNorm = Math.min(Math.max(rpm / 7000, 0), 1);
-                    const startAngle = -220;
-                    const endAngle = -140;
-                    const currentAngle = startAngle + (endAngle - startAngle) * rpmNorm;
-
-                    const radius = 224;
-                    const centerX = 250;
-                    const centerY = 250;
-                    const x1 = centerX + radius * Math.cos(startAngle * Math.PI / 180);
-                    const y1 = centerY + radius * Math.sin(startAngle * Math.PI / 180);
-                    const x2 = centerX + radius * Math.cos(currentAngle * Math.PI / 180);
-                    const y2 = centerY + radius * Math.sin(currentAngle * Math.PI / 180);
-
-                    rpmBarEl.setAttribute("d", `M ${x1} ${y1} A ${radius} ${radius} 0 0 1 ${x2} ${y2}`);
-                    rpmLabelEl.querySelector('.val').textContent = (rpm / 1000).toFixed(1);
-
-                    const ringEl = document.getElementById('graph-power-rpm-ring');
-                    if (ringEl) {
-                        const rStart = 180 + (startAngle + (endAngle - startAngle) * 0.85);
-                        const rEnd = 180 + endAngle;
-                        ringEl.style.setProperty('--r-start', `${rStart}deg`);
-                        ringEl.style.setProperty('--r-end', `${rEnd}deg`);
-                    }
-                }
-
-                if (powerBarEl && powerLabelEl) {
-                    const power = getState('evPowerFactor') || 0;
-                    const isRegen = power < 0;
-                    const powerNorm = Math.min(Math.max(Math.abs(power) / 100, 0), 1);
-                    const startAngle = 40;
-                    const endAngle = isRegen ? 100 : -40;
-                    const currentAngle = startAngle + (endAngle - startAngle) * powerNorm;
-
-                    const radius = 224;
-                    const centerX = 250;
-                    const centerY = 250;
-                    const x1 = centerX + radius * Math.cos(startAngle * Math.PI / 180);
-                    const y1 = centerY + radius * Math.sin(startAngle * Math.PI / 180);
-                    const x2 = centerX + radius * Math.cos(currentAngle * Math.PI / 180);
-                    const y2 = centerY + radius * Math.sin(currentAngle * Math.PI / 180);
-
-                    powerBarEl.setAttribute("d", `M ${x1} ${y1} A ${radius} ${radius} 0 0 ${isRegen ? 1 : 0} ${x2} ${y2}`);
-                    powerLabelEl.querySelector('.val').textContent = Math.round(Math.abs(power));
-
-                    if (isRegen) {
-                        powerBarEl.classList.add('regen-active');
-                    } else {
-                        powerBarEl.classList.remove('regen-active');
-                    }
-
-                    const ringEl = document.getElementById('graph-power-rpm-ring');
-                    if (ringEl) {
-                        const pStart = 180 + startAngle;
-                        const pEnd = 180 + endAngle;
-                        if (isRegen) {
-                            ringEl.style.setProperty('--p-start', `${pEnd}deg`);
-                            ringEl.style.setProperty('--p-end', `${pStart}deg`);
-                        } else {
-                            ringEl.style.setProperty('--p-start', `${pEnd}deg`);
-                            ringEl.style.setProperty('--p-end', `${pStart}deg`);
+                    if (isSpeedTimerRunning) {
+                        const elapsed = (Date.now() - speedTimerStartTime) / 1000;
+                        if (elapsed > 15) { triggerFlash('red'); setWarpAnimation(false); setChronometer('stop'); }
+                        else if (currentSpeed >= 100) {
+                            if (!last0To100Time) last0To100Time = elapsed.toFixed(1);
+                            timerTooltipValue.textContent = `${last0To100Time}s`;
+                            if (drivingMode === 'Sport') triggerFlash('white');
+                            setChronometer('success_hold');
+                        } else if (currentSpeed === 0) { setWarpAnimation(false); setChronometer('stop'); }
+                        else {
+                            timerTooltipValue.textContent = `${elapsed.toFixed(1)}s`;
+                            timerTooltip.classList.add('visible');
+                            if (acceleration > 0 && drivingMode === 'Sport') { setWarpAnimation(true); if (warpTunnel) warpTunnel.setSpeed(currentSpeed); }
                         }
-                    }
+                    } else if (currentSpeed === 0) { last0To100Time = null; }
+                    else if (isFastAcc && currentSpeed < 10 && currentSpeed > 1 && drivingMode === 'Sport') { setChronometer('start'); }
+
+                    if (lastCarSpeed === 0 && currentSpeed > 0 && isFastAcc && drivingMode === 'Sport') { triggerFlash('orange'); setChronometer('start'); setWarpAnimation(true); }
+                    else if (currentSpeed >= 100 && currentSpeed < lastCarSpeed) { setWarpAnimation(false); }
+                    lastCarSpeed = currentSpeed;
+                } else { setWarpAnimation(false); setChronometer('stop'); }
+
+                if (chartInstance && chartInstance.ctx && chartInstance.canvas) {
+                    chartInstance.update('quiet');
                 }
 
-                if (isSpeedTimerRunning) {
-                    const speed = parseFloat(getState('carSpeed')) || 0;
-                    const currentTime = Date.now();
-                    const elapsed = (currentTime - speedTimerStartTime) / 1000;
-
-                    if (speed >= 100) {
-                        setChronometer('success_hold');
-                        last0To100Time = elapsed;
-                        timerTooltipValue.textContent = elapsed.toFixed(1) + 's';
-                        triggerFlash('var(--color-success)');
-                    } else if (speed < 2) {
-                        // Reset if speed drops back to near 0
-                        speedTimerStartTime = currentTime;
-                        timerTooltipValue.textContent = '0.0s';
-                    } else {
-                        timerTooltipValue.textContent = elapsed.toFixed(1) + 's';
-                    }
+                // Update Rings
+                const powerV = getState('evPowerFactor');
+                const rpmV = getState('engineRPM');
+                const powerBarEl = document.getElementById('graph-power-bar-svg');
+                const rpmBarEl = document.getElementById('graph-rpm-bar-svg');
+                if (powerBarEl && rpmBarEl) {
+                    const isRegen = powerV < 0;
+                    if (isRegen) powerBarEl.classList.add('regen-active'); else powerBarEl.classList.remove('regen-active');
+                    const wrapAngle = (a) => ((a % 360) + 360) % 360;
+                    const pAngleWidth = powerV >= 0 ? (powerV / 100) * 180 : (powerV / 100) * 90;
+                    const rAngleWidth = (rpmV / 7000) * 90;
+                    const pStart = 270;
+                    const tipAngle = wrapAngle(pStart + pAngleWidth);
+                    const rStart = (powerV >= 0 ? tipAngle : 270) + 2;
+                    const rEnd = wrapAngle(rStart + rAngleWidth);
+                    const radius = 217, cx = 250, cy = 250;
+                    const getCoords = (deg) => { const rad = (deg - 90) * Math.PI / 180; return { x: cx + radius * Math.cos(rad), y: cy + radius * Math.sin(rad) }; };
+                    const pS = getCoords(pStart), pE = getCoords(tipAngle), pLarge = Math.abs(pAngleWidth) > 180 ? 1 : 0, pSweep = powerV >= 0 ? 1 : 0;
+                    if (Math.abs(pAngleWidth) > 0.1) {
+                        powerBarEl.setAttribute("d", `M ${pS.x} ${pS.y} A ${radius} ${radius} 0 ${pLarge} ${pSweep} ${pE.x} ${pE.y}`);
+                        powerBarEl.style.opacity = 1; powerBarEl.setAttribute("stroke-width", "8");
+                        const dash = isRegen ? 30.2 : 64.4; powerBarEl.setAttribute("stroke-dasharray", `${dash} 4.0`);
+                    } else powerBarEl.style.opacity = 0;
+                    const rS = getCoords(rStart), rE = getCoords(rEnd), rLarge = Math.abs(rAngleWidth) > 180 ? 1 : 0;
+                    if (rpmV > 1) {
+                        rpmBarEl.setAttribute("d", `M ${rS.x} ${rS.y} A ${radius} ${radius} 0 ${rLarge} 1 ${rE.x} ${rE.y}`);
+                        rpmBarEl.style.opacity = 1; rpmBarEl.setAttribute("stroke-width", "8");
+                        rpmBarEl.setAttribute("stroke-dasharray", "44.9 4.01");
+                    } else rpmBarEl.style.opacity = 0;
+                    if (rpmLabel) { const rpmVal = (rpmV / 1000).toFixed(1); rpmLabel.innerHTML = `<span class="val">${rpmVal}</span><span class="unit">RPM</span>`; rpmLabel.style.opacity = rpmVal > 0 ? 1 : 0; }
+                    if (powerLabel) { const pwrVal = Math.abs(Math.round(powerV)); powerLabel.innerHTML = `<span class="val">${pwrVal}</span><span class="symbol">%</span>`; powerLabel.style.opacity = pwrVal > 0 ? 1 : 0; if (isRegen) powerLabel.classList.add('regen'); else powerLabel.classList.remove('regen'); }
+                    if (labelContainer) { if (rpmV > 1) labelContainer.classList.add('has-rpm'); else labelContainer.classList.remove('has-rpm'); }
                 }
-
-                const currentSpeed = parseFloat(getState('carSpeed')) || 0;
-                if (currentSpeed > 2 && lastCarSpeed <= 2 && !isSpeedTimerRunning) {
-                    setChronometer('start');
-                }
-                lastCarSpeed = currentSpeed;
-
-            } catch (err) {
-                console.error('[UI Update Error]', err);
-            }
+            } catch (e) { console.error('Error: ', e); }
         }, UI_UPDATE_INTERVAL);
 
-        updateFocus(currentGraphId);
         switchTo(currentGraphId);
     };
 
+    const unsubCurrentGraph = subscribe('currentGraph', (id) => {
+        switchTo(id);
+        updateFocus(id);
+    });
+
     const cleanup = () => {
-        if (uiUpdateInterval) {
-            clearInterval(uiUpdateInterval);
-            uiUpdateInterval = null;
-        }
-        if (chartInstance) {
-            chartInstance.destroy();
-            chartInstance = null;
-        }
-        if (warpTunnel) {
-            warpTunnel.stop();
-            warpTunnel = null;
-        }
-        if (timerHideTimeoutId) {
-            clearTimeout(timerHideTimeoutId);
-            timerHideTimeoutId = null;
-        }
+        if (uiUpdateInterval) { clearInterval(uiUpdateInterval); uiUpdateInterval = null; }
+        if (warpTunnel) { warpTunnel.stop(); }
+        if (timerHideTimeoutId) { clearTimeout(timerHideTimeoutId); timerHideTimeoutId = null; }
+        if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+        unsubCurrentGraph();
     };
+
+    updateFocus(currentGraphId);
 
     return {
         element: container,
         onMount: () => {
-            const ctx = canvas.getContext('2d');
-            initChart(ctx);
+            initChart(canvas);
         },
         cleanup
     };
 }
+
+

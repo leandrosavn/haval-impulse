@@ -120,6 +120,8 @@ var stateManager = new StateManager({
     nextRevisionDate: 0,
     enableRevisionWarning: false,
     warningActive: false,
+    bsdLeft: false,
+    bsdRight: false,
 });
 
 var getState = function (key) { return stateManager.get(key); };

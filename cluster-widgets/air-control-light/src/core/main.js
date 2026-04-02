@@ -9,8 +9,10 @@ import { createGraphScreen } from './components/graphs/graphs.js';
 import { div } from '../utils/createElement.js';
 import { logger } from '../utils/logger.js';
 import { initializeConstants } from '../utils/constants.js';
+import { initWarningHandler } from './warningHandler.js';
 
 initializeConstants();
+initWarningHandler();
 
 if (process.env.NODE_ENV === 'development') {
     document.body.style.backgroundColor = 'red';
@@ -36,23 +38,32 @@ function initializeLayout() {
     appContainer.innerHTML = '';
 
     // Add mask background first (z-index: 50)
-    const mask = createMask();
-    maskComponent = mask;
-
-    appContainer.appendChild(mask.background);
+    try {
+        const mask = createMask();
+        maskComponent = mask;
+        appContainer.appendChild(mask.background);
+    } catch (e) {
+        logger.log('[Error] Failed to create mask: ' + e.message);
+    }
 
     // 1. Dashboard Info Layer
     if (dashboardCleanup) dashboardCleanup();
-    const dashboardInfo = createDashboardInfo;
-    const { element: dashElement, menuWrapper: newMenuWrapper, cleanup: dashCleanup } = dashboardInfo();
-    appContainer.appendChild(dashElement);
+    try {
+        const dashboardInfo = createDashboardInfo;
+        const { element: dashElement, menuWrapper: newMenuWrapper, cleanup: dashCleanup } = dashboardInfo();
+        appContainer.appendChild(dashElement);
 
-    menuWrapper = newMenuWrapper;
-    dashboardCleanup = dashCleanup;
+        menuWrapper = newMenuWrapper;
+        dashboardCleanup = dashCleanup;
+    } catch (e) {
+        logger.log('[Error] Failed to initialize dashboard info: ' + e.message);
+    }
 
     // Add no app mask on top (z-index: 200)
-    appContainer.appendChild(mask.noAppL);
-    appContainer.appendChild(mask.noAppR);
+    if (maskComponent) {
+        appContainer.appendChild(maskComponent.noAppL);
+        appContainer.appendChild(maskComponent.noAppR);
+    }
     logger.leave('initializeLayout');
 }
 
@@ -82,7 +93,11 @@ function render() {
 
 
     if (currentComponent && currentComponent.cleanup) {
-        currentComponent.cleanup();
+        try {
+            currentComponent.cleanup();
+        } catch (e) {
+            logger.log('[Error] Failed during component cleanup: ' + e.message);
+        }
     }
 
     if (menuWrapper) {
@@ -90,16 +105,20 @@ function render() {
     }
 
     let componentResult = null;
-    if (screen === 'main_menu') {
-        componentResult = createMainMenu();
-    } else if (screen === 'aircon') {
-        componentResult = createAcControlScreen();
-    } else if (screen === 'regen') {
-        componentResult = createRegenScreen();
-    } else if (screen === 'display_selection') {
-        componentResult = createDisplaySelectionScreen();
-    } else if (screen === 'graph' || screen === 'graphs') {
-        componentResult = createGraphScreen();
+    try {
+        if (screen === 'main_menu') {
+            componentResult = createMainMenu();
+        } else if (screen === 'aircon') {
+            componentResult = createAcControlScreen();
+        } else if (screen === 'regen') {
+            componentResult = createRegenScreen();
+        } else if (screen === 'display_selection') {
+            componentResult = createDisplaySelectionScreen();
+        } else if (screen === 'graph' || screen === 'graphs') {
+            componentResult = createGraphScreen();
+        }
+    } catch (e) {
+        logger.log('[Error] Failed to create screen component ' + screen + ': ' + e.message);
     }
 
 
@@ -112,7 +131,11 @@ function render() {
         }
 
         if (onMount) {
-            onMount();
+            try {
+                onMount();
+            } catch (e) {
+                logger.log('[Error] Failed during component onMount: ' + e.message);
+            }
         }
 
         currentComponent = componentResult;
@@ -155,45 +178,61 @@ subscribe('cardId', (cardId) => {
 
 // Functions used by Kotlin to trigger interactions
 window.showScreen = function (screenName) {
-    logger.enter('window.showScreen', screenName);
-    setState('screen', screenName);
-    logger.leave('window.showScreen');
+    try {
+        logger.enter('window.showScreen', screenName);
+        setState('screen', screenName);
+        logger.leave('window.showScreen');
+    } catch (e) {
+        console.error('[Error] Bridge showScreen failed:', e);
+    }
 };
 
 window.focus = function (item) {
-    logger.enter('window.focus', item);
-    const screen = get('screen');
-    if (screen === 'main_menu') {
-        setState('focusedMenuItem', item);
-    } else if (screen === 'aircon') {
-        setState('focusArea', item);
-    } else if (screen === 'display_selection') {
-        setState('displayFocus', item);
+    try {
+        logger.enter('window.focus', item);
+        const screen = get('screen');
+        if (screen === 'main_menu') {
+            setState('focusedMenuItem', item);
+        } else if (screen === 'aircon') {
+            setState('focusArea', item);
+        } else if (screen === 'display_selection') {
+            setState('displayFocus', item);
+        }
+        logger.leave('window.focus');
+    } catch (e) {
+        console.error('[Error] Bridge focus failed:', e);
     }
-    logger.leave('window.focus');
 };
 
 window.control = function (key, value) {
-    if (key !== 'carSpeed' && key !== 'engineRPM') {
-        console.log(`[JS Bridge Light] control('${key}', ${value})`);
+    try {
+        if (key !== 'carSpeed' && key !== 'engineRPM') {
+            console.log(`[JS Bridge Light] control('${key}', ${value})`);
+        }
+        logger.enter('window.control', { key, value });
+        let val = value;
+        // Automatically convert numeric strings to numbers for compatibility with components
+        if (typeof value === 'string' && value.trim() !== '' && !isNaN(value)) {
+            val = Number(value);
+        }
+        setState(key, val);
+        if (key === 'warningActive') {
+            render();
+        }
+        logger.leave('window.control');
+    } catch (e) {
+        console.error('[Error] Bridge control failed for key ' + key + ':', e);
     }
-    logger.enter('window.control', { key, value });
-    let val = value;
-    // Automatically convert numeric strings to numbers for compatibility with components
-    if (typeof value === 'string' && value.trim() !== '' && !isNaN(value)) {
-        val = Number(value);
-    }
-    setState(key, val);
-    if (key === 'warningActive') {
-        render();
-    }
-    logger.leave('window.control');
 };
 
 window.cleanup = function () {
-    logger.enter('window.cleanup');
-    if (currentComponent && currentComponent.cleanup) {
-        currentComponent.cleanup();
+    try {
+        logger.enter('window.cleanup');
+        if (currentComponent && currentComponent.cleanup) {
+            currentComponent.cleanup();
+        }
+        logger.leave('window.cleanup');
+    } catch (e) {
+        console.error('[Error] Bridge cleanup failed:', e);
     }
-    logger.leave('window.cleanup');
 };

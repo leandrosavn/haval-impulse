@@ -35,23 +35,29 @@ export function createOdometerInfo() {
         
         odometerLine.querySelector('.odometer-value').textContent = currentKm;
         
-        if (warningEnabled && showDoubleLine) {
+        if (warningEnabled) {
             const remainingKm = nextKm - currentKm;
-            let text = `Manutenção em: ${remainingKm} Km`;
-            
+            let remainingDays = 999;
             if (nextDateMillis > 0) {
                 const remainingMillis = nextDateMillis - Date.now();
-                if (remainingMillis > 0) {
-                    const remainingDays = Math.ceil(remainingMillis / (1000 * 60 * 60 * 24));
+                remainingDays = Math.ceil(remainingMillis / (1000 * 60 * 60 * 24));
+            }
+
+            const isNearMaintenance = (remainingKm < 1000 || remainingDays < 30);
+            
+            if (showDoubleLine || isNearMaintenance) {
+                let text = `Manutenção em: ${remainingKm} Km`;
+                if (nextDateMillis > 0 && remainingDays > 0) {
                     text += ` ou ${remainingDays} dias`;
                 }
+                
+                revisionLine.querySelector('.revision-text').textContent = text;
+                revisionLine.style.display = 'block';
+                textWrapper.className = 'odometer-text-wrapper double-line';
+            } else {
+                revisionLine.style.display = 'none';
+                textWrapper.className = 'odometer-text-wrapper single-line';
             }
-            
-            revisionLine.querySelector('.revision-text').textContent = text;
-            revisionLine.style.display = 'block';
-            textWrapper.className = 'odometer-text-wrapper double-line';
-            // Only add flash/blink if we want, but user said "show it for 2 mins and hide"
-            // We'll keep it static gray as per previous rule.
         } else {
             revisionLine.style.display = 'none';
             textWrapper.className = 'odometer-text-wrapper single-line';

@@ -17,17 +17,6 @@ document.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.altKey || e.metaKey) return;
 
     const currentState = stateManager.getState();
-    if (e.key.toLowerCase() === 'w') {
-        const currentWarn = stateManager.getState().warningActive;
-        console.log('[Warning Debug] Toggling warningActive to:', !currentWarn);
-        setState('warningActive', !currentWarn);
-        return;
-    }
-    
-    if (e.key === 'Escape') {
-        console.log('[Warning Debug] Force clear warningActive');
-        setState('warningActive', false);
-    }
     const currentScreen = currentState.screen;
     const currentCardId = (currentState.cardId !== undefined) ? currentState.cardId : 1;
     const cards = [0, 1, 3];
@@ -39,6 +28,49 @@ document.addEventListener('keydown', (e) => {
         return;
     }
 
+    if (e.key.toLowerCase() === 'w') {
+        const currentWarn = stateManager.get('warningActive');
+        console.log('[Warning Debug] Toggling warningActive to:', !currentWarn);
+        if (window.updateWarning) {
+            window.updateWarning('fake.warning', !currentWarn ? '1' : '0');
+        } else {
+            setState('warningActive', !currentWarn);
+        }
+        // If we are activating warning, hide cards
+        if (!currentWarn) {
+            setState('cardId', 0);
+        } else {
+            setState('cardId', 1);
+        }
+        return;
+    }
+
+    if (e.key.toLowerCase() === 'l') {
+        const current = stateManager.get('bsdLeft');
+        console.log('[BSD Debug] Toggling Left BSD to:', !current);
+        if (window.updateWarning) {
+            window.updateWarning('car.ipk_info.bsd_lca_warning_reqleft', !current ? '1' : '0');
+        } else {
+            setState('bsdLeft', !current);
+        }
+        return;
+    }
+
+    if (e.key.toLowerCase() === 'r') {
+        const current = stateManager.get('bsdRight');
+        console.log('[BSD Debug] Toggling Right BSD to:', !current);
+        if (window.updateWarning) {
+            window.updateWarning('car.ipk_info.bsd_lca_warning_reqright', !current ? '1' : '0');
+        } else {
+            setState('bsdRight', !current);
+        }
+        return;
+    }
+
+    if (e.key === 'Escape') {
+        console.log('[Warning Debug] Force clear warningActive');
+        setState('warningActive', false);
+    }
 
     if (e.key === 'ArrowRight') {
         const currentIndex = cards.indexOf(currentCardId);
@@ -111,8 +143,6 @@ document.addEventListener('keydown', (e) => {
             } else if (currentState.focusedMenuItem === 'option_7') {
                 window.showScreen('graph');
             }
-
-
         }
     }
 
@@ -133,12 +163,6 @@ document.addEventListener('keydown', (e) => {
             const newAutoModeState = (currentState.auto == 0 ? 1 : 0);
             setState('auto', newAutoModeState);
         } else if (e.key === 'a') {
-            /* TODO: for future use with impulseauto. For now it triggers maxauto mode
-                        e.preventDefault();
-                        const newModeState = (currentState.impulseauto == 0 ? 1 : 0);
-                        setState('impulseauto', newModeState);
-                        window.focus('temp');
-            */
             e.preventDefault();
             const newModeState = (currentState.maxauto == 0 ? 1 : 0);
             setState('maxauto', newModeState);
@@ -253,9 +277,8 @@ document.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'k') {
         const options = [false, true, 'left', 'right'];
         const currentAppInDash = stateManager.getState().appInDash;
-        // Use findIndex or similar if indexOf fails for mixed types (though it shouldn't for these)
         let currentIndex = options.indexOf(currentAppInDash);
-        if (currentIndex === -1) currentIndex = 0; // Fallback
+        if (currentIndex === -1) currentIndex = 0;
         
         const nextIndex = (currentIndex + 1) % options.length;
         const nextValue = options[nextIndex];
@@ -263,8 +286,6 @@ document.addEventListener('keydown', (e) => {
         console.log(`[Mask Simulation] Cycle appInDash -> ${nextValue}`);
         setState('appInDash', nextValue);
     }
-
-
 
     if (e.key.toLowerCase() === 'o') {
         const currentOnePedal = stateManager.getState().onepedal;
@@ -279,15 +300,6 @@ document.addEventListener('keydown', (e) => {
         const nextIndex = (currentIndex + 1) % modes.length;
         window.maintenanceMode = modes[nextIndex];
         console.log(`[Maintenance Simulation] Toggle Mode -> ${window.maintenanceMode}`);
-    }
-
-    if (e.key.toLowerCase() === 'w') {
-        const currentWarning = stateManager.getState().warningActive;
-        console.log(`[Warning Simulation] Toggle warningActive -> ${!currentWarning}`);
-        setState('warningActive', !currentWarning);
-        if (!currentWarning) {
-            setState('cardId', 0);
-        }
     }
 });
 

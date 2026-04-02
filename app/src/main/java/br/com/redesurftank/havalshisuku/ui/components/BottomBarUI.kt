@@ -1,10 +1,11 @@
 package br.com.redesurftank.havalshisuku.ui.components
 
 import android.content.Context
+import android.view.MotionEvent
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
@@ -20,6 +21,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.*
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.runtime.remember
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.*
 import androidx.compose.ui.text.style.*
@@ -114,7 +117,9 @@ fun BottomBarContent() {
                         ?: 1
         )
     }
-    var hvacPower by remember { mutableStateOf(serviceManager.getData(CarConstants.CAR_HVAC_POWER_MODE.getValue()) ?: "1") }
+    var hvacPower by remember {
+        mutableStateOf(serviceManager.getData(CarConstants.CAR_HVAC_POWER_MODE.getValue()) ?: "1")
+    }
     var acSync by remember {
         mutableStateOf(serviceManager.getData(CarConstants.CAR_HVAC_SYNC_ENABLE.getValue()) ?: "0")
     }
@@ -154,21 +159,69 @@ fun BottomBarContent() {
         onDispose { serviceManager.removeDataChangedListener(listener) }
     }
 
+    val view = LocalView.current
+    val location = remember { IntArray(2) }
+
     Box(
             modifier =
-                    Modifier.fillMaxSize().pointerInput(
+                    Modifier.fillMaxWidth().height(120.dp).pointerInput(
                                     BottomBarState.isVisible,
                                     BottomBarState.autoHideEnabled
                             ) {
-                        detectVerticalDragGestures { change, dragAmount ->
-                            change.consume()
-                            // Down swipe to hide
-                            if (BottomBarState.isVisible && dragAmount > 10f) {
-                                BottomBarState.isVisible = false
-                            }
-                            // Up swipe to show - only if near the bottom when hidden
-                            else if (!BottomBarState.isVisible && dragAmount < -5f) {
-                                BottomBarState.isVisible = true
+                        val touchSlop =
+                                40f // Manual slop for better sensitivity or use viewConf.touchSlop
+                        awaitPointerEventScope {
+                            while (true) {
+                                val down = awaitFirstDown()
+                                val startTime = System.currentTimeMillis()
+                                val startPos = down.position
+                                var isSwipe = false
+                                var pointerOffset = Offset.Zero
+
+                                var lastEvent: androidx.compose.ui.input.pointer.PointerEvent? =
+                                        null
+                                do {
+                                    val event = awaitPointerEvent()
+                                    lastEvent = event
+                                    val change = event.changes.first()
+                                    pointerOffset += change.position - change.previousPosition
+
+                                    if (pointerOffset.getDistance() > touchSlop) {
+                                        isSwipe = true
+                                    }
+
+                                    if (isSwipe) {
+                                        change.consume()
+                                    }
+                                } while (event.changes.any { it.pressed })
+
+                                val up = lastEvent!!.changes.first()
+                                if (!isSwipe && (System.currentTimeMillis() - startTime) < 500) {
+                                    // Click! Inject tap using absolute coordinates
+                                    view.getLocationOnScreen(location)
+                                    val screenX = location[0] + up.position.x
+                                    val screenY = location[1] + up.position.y
+                                    scope.launch(Dispatchers.IO) {
+                                        br.com.redesurftank.havalshisuku.utils.ShizukuUtils
+                                                .runCommandAndGetOutput(
+                                                        arrayOf(
+                                                                "sh",
+                                                                "-c",
+                                                                "input tap $screenX $screenY"
+                                                        )
+                                                )
+                                    }
+                                } else if (isSwipe) {
+                                    val dragAmount = up.position.y - startPos.y
+                                    // Down swipe to hide
+                                    if (BottomBarState.isVisible && dragAmount > 15f) {
+                                        BottomBarState.isVisible = false
+                                    }
+                                    // Up swipe to show - only if hidden
+                                    else if (!BottomBarState.isVisible && dragAmount < -10f) {
+                                        BottomBarState.isVisible = true
+                                    }
+                                }
                             }
                         }
                     },
@@ -307,14 +360,6 @@ fun BottomBarContent() {
                                     .height(60.dp) // Match window height for maximum trigger area
                                     .align(Alignment.BottomCenter)
                                     .background(Color.Transparent)
-                                    .clickable(
-                                            interactionSource =
-                                                    remember {
-                                                        androidx.compose.foundation.interaction
-                                                                .MutableInteractionSource()
-                                                    },
-                                            indication = null
-                                    ) { BottomBarState.isVisible = true }
             )
         }
     }
@@ -352,7 +397,7 @@ fun AppSwitcherSection() {
 
     val selectedPackage = br.com.redesurftank.havalshisuku.models.BottomBarState.selectedPackage
     val showMenu = br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded
-    
+
     val selectedConfig = configs.find { it.packageName == selectedPackage }
     val substituteIconVector = getSubstituteIconVector(selectedConfig?.substituteIcon)
 
@@ -380,20 +425,23 @@ fun AppSwitcherSection() {
                                 .background(Color.Black, RoundedCornerShape(4.dp))
                                 .pointerInput(showMenu, selectedPackage) {
                                     detectTapGestures(
-                                        onTap = {
-                                            br.com.redesurftank.havalshisuku.models.BottomBarState
-                                                    .isMenuExpanded = !showMenu
-                                        },
-                                        onDoubleTap = {
-                                            if (selectedPackage.isNotEmpty()) {
-                                                br.com.redesurftank.havalshisuku.models.BottomBarState
-                                                        .isMenuExpanded = false
-                                                scope.launch {
-                                                    br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
-                                                            .launchAnyApp(context, selectedPackage)
+                                            onTap = {
+                                                br.com.redesurftank.havalshisuku.models
+                                                        .BottomBarState.isMenuExpanded = !showMenu
+                                            },
+                                            onDoubleTap = {
+                                                if (selectedPackage.isNotEmpty()) {
+                                                    br.com.redesurftank.havalshisuku.models
+                                                            .BottomBarState.isMenuExpanded = false
+                                                    scope.launch {
+                                                        br.com.redesurftank.havalshisuku.managers
+                                                                .DisplayAppLauncher.launchAnyApp(
+                                                                context,
+                                                                selectedPackage
+                                                        )
+                                                    }
                                                 }
                                             }
-                                        }
                                     )
                                 },
                 contentAlignment = Alignment.Center
@@ -401,10 +449,10 @@ fun AppSwitcherSection() {
             if (substituteIconVector != null) {
                 val iconTint = selectedConfig?.iconColor.toComposeColor()
                 Icon(
-                    substituteIconVector,
-                    contentDescription = "App Icon",
-                    tint = iconTint,
-                    modifier = Modifier.size(32.dp)
+                        substituteIconVector,
+                        contentDescription = "App Icon",
+                        tint = iconTint,
+                        modifier = Modifier.size(32.dp)
                 )
             } else if (selectedPackage.isNotEmpty()) {
                 AsyncImage(
@@ -455,7 +503,10 @@ fun AppMenuContent() {
 
     Box(
             modifier =
-                    Modifier.background(Color(0xFF13151A).copy(alpha = 0.95f), RoundedCornerShape(12.dp))
+                    Modifier.background(
+                                    Color(0xFF13151A).copy(alpha = 0.95f),
+                                    RoundedCornerShape(12.dp)
+                            )
                             .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp))
                             .fillMaxWidth(0.3f)
                             .padding(16.dp)
@@ -468,24 +519,27 @@ fun AppMenuContent() {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             // Header with Title and Close Button
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Aplicativos",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
+                        text = "Aplicativos",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
                 )
                 IconButton(
-                    onClick = { br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded = false },
-                    modifier = Modifier.size(24.dp)
+                        onClick = {
+                            br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded =
+                                    false
+                        },
+                        modifier = Modifier.size(24.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Fechar",
-                        tint = Color.White.copy(alpha = 0.7f)
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Fechar",
+                            tint = Color.White.copy(alpha = 0.7f)
                     )
                 }
             }
@@ -500,8 +554,16 @@ fun AppMenuContent() {
                             val index = r * columns + c
                             if (index < totalApps) {
                                 val config = appList[index]
-                                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                                    AppGridItem(config.packageName, config.substituteIcon, context, scope) {
+                                Box(
+                                        modifier = Modifier.weight(1f),
+                                        contentAlignment = Alignment.Center
+                                ) {
+                                    AppGridItem(
+                                            config.packageName,
+                                            config.substituteIcon,
+                                            context,
+                                            scope
+                                    ) {
                                         br.com.redesurftank.havalshisuku.models.BottomBarState
                                                 .isMenuExpanded = false
                                     }
@@ -559,7 +621,11 @@ fun SettingsMenuContent(drive: String, ev: String, regen: String, steer: String)
     val serviceManager = br.com.redesurftank.havalshisuku.managers.ServiceManager.getInstance()
     Box(
             modifier =
-                    Modifier.background(Color.Black.copy(alpha = 0.95f), RoundedCornerShape(12.dp))
+                    Modifier.background(
+                                    Color(0xFF13151A).copy(alpha = 0.95f),
+                                    RoundedCornerShape(12.dp)
+                            )
+                            .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp))
                             .width(480.dp)
                             .padding(16.dp)
     ) {
@@ -775,7 +841,7 @@ fun SettingsCategoryRow(
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                             fontFamily = Michroma,
                             textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 8.dp)
+                            modifier = Modifier.padding(vertical = 16.dp)
                     )
                 }
             }
@@ -805,7 +871,9 @@ fun TempControlSection(
             Text(
                     text =
                             buildAnnotatedString {
-                                withStyle(style = SpanStyle(color = tempColor)) { append(displayTemp) }
+                                withStyle(style = SpanStyle(color = tempColor)) {
+                                    append(displayTemp)
+                                }
                                 if (displayTemp != "--") append("°C")
                             },
                     style = commonTextStyle.copy(fontSize = 18.sp),
@@ -889,59 +957,59 @@ fun ControlsSection(scope: CoroutineScope) {
             horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.clickable {
-                scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                    ShizukuUtils.runCommandAndGetOutput(arrayOf("input", "keyevent", "4"))
-                }
-            }
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier =
+                        Modifier.clickable {
+                            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                ShizukuUtils.runCommandAndGetOutput(
+                                        arrayOf("input", "keyevent", "4")
+                                )
+                            }
+                        }
         ) {
-            Text(
-                text = "Voltar",
-                style = labelStyle.copy(fontSize = 10.sp, color = Color.White)
-            )
+            Text(text = "Voltar", style = labelStyle.copy(fontSize = 10.sp, color = Color.White))
             Icon(
-                Icons.AutoMirrored.Filled.Undo,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = 0.8f),
-                modifier = Modifier.size(20.dp)
+                    Icons.AutoMirrored.Filled.Undo,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.8f),
+                    modifier = Modifier.size(20.dp)
             )
         }
 
         val showSettings = BottomBarState.isSettingsMenuExpanded
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.clickable {
-                BottomBarState.isSettingsMenuExpanded = !showSettings
-            }
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier =
+                        Modifier.clickable { BottomBarState.isSettingsMenuExpanded = !showSettings }
         ) {
             Text(
-                text = "Condução",
-                style = labelStyle.copy(
-                    fontSize = 10.sp,
-                    color = if (showSettings) Color(0xFF2196F3) else Color.White
-                )
+                    text = "Condução",
+                    style =
+                            labelStyle.copy(
+                                    fontSize = 10.sp,
+                                    color = if (showSettings) Color(0xFF2196F3) else Color.White
+                            )
             )
             Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = Icons.Default.DirectionsCar,
-                    contentDescription = null,
-                    tint = if (showSettings) Color(0xFF2196F3) else Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .offset(x = 6.dp, y = 6.dp)
-                        .background(Color.Black, RoundedCornerShape(2.dp))
-                        .padding(0.5.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Tune,
+                        imageVector = Icons.Default.DirectionsCar,
                         contentDescription = null,
                         tint = if (showSettings) Color(0xFF2196F3) else Color.White,
-                        modifier = Modifier.size(8.dp)
+                        modifier = Modifier.size(20.dp)
+                )
+                Box(
+                        modifier =
+                                Modifier.size(10.dp)
+                                        .offset(x = 6.dp, y = 6.dp)
+                                        .background(Color.Black, RoundedCornerShape(2.dp))
+                                        .padding(0.5.dp),
+                        contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = null,
+                            tint = if (showSettings) Color(0xFF2196F3) else Color.White,
+                            modifier = Modifier.size(8.dp)
                     )
                 }
             }
@@ -1039,15 +1107,16 @@ fun AppGridItem(
 
     val substituteIconVector = getSubstituteIconVector(substituteIcon)
 
-    val appConfig = remember(pkg) {
-        br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAppConfig(pkg)
-    }
+    val appConfig =
+            remember(pkg) {
+                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAppConfig(pkg)
+            }
     val iconTint = appConfig?.iconColor.toComposeColor()
     val displayName = appConfig?.customName ?: appLabel
 
     Column(
             modifier =
-                    Modifier.width(80.dp)
+                    Modifier.fillMaxWidth()
                             .clickable {
                                 onClick()
                                 // Update shared selection state
@@ -1132,8 +1201,12 @@ fun OverrideMenuContent() {
 
     Box(
             modifier =
-                    Modifier.background(Color.Black.copy(alpha = 0.95f), RoundedCornerShape(12.dp))
-                            .width(280.dp)
+                    Modifier.background(
+                                    Color(0xFF13151A).copy(alpha = 0.95f),
+                                    RoundedCornerShape(12.dp)
+                            )
+                            .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp))
+                            .width(360.dp)
                             .padding(16.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -1142,7 +1215,7 @@ fun OverrideMenuContent() {
                     style = labelStyle.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)
             )
 
-            OverrideControlRow("Overscan (Move o app para cima)", overscan, 0..120) {
+            OverrideControlRow("Overscan (Move o app para cima)", overscan, 0..120, steps = 23) {
                 overscan = it
             }
             OverrideControlRow("Offset (Move a barra para baixo)", offset, -100..100) {
@@ -1208,7 +1281,13 @@ fun OverrideMenuContent() {
 }
 
 @Composable
-fun OverrideControlRow(label: String, value: Int, range: IntRange, onValueChange: (Int) -> Unit) {
+fun OverrideControlRow(
+        label: String,
+        value: Int,
+        range: IntRange,
+        steps: Int = 0,
+        onValueChange: (Int) -> Unit
+) {
     Column {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(text = label, style = labelStyle)
@@ -1218,6 +1297,7 @@ fun OverrideControlRow(label: String, value: Int, range: IntRange, onValueChange
                 value = value.toFloat(),
                 onValueChange = { onValueChange(it.toInt()) },
                 valueRange = range.first.toFloat()..range.last.toFloat(),
+                steps = steps,
                 colors =
                         SliderDefaults.colors(
                                 thumbColor = Color.White,

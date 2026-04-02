@@ -218,6 +218,17 @@ export function createDashboardInfo() {
         warningLabel.style.display = 'none';
     }
 
+    // Alert Indicators Wrapper
+    const alertIndicatorsContainer = div({ className: 'alert-indicators-container' });
+    const bsdLeftIndicator = div({ className: 'bsd-indicator left blinking' });
+    const bsdRightIndicator = div({ className: 'bsd-indicator right blinking' });
+
+    alertIndicatorsContainer.appendChild(bsdLeftIndicator);
+    alertIndicatorsContainer.appendChild(bsdRightIndicator);
+
+    bsdLeftIndicator.style.display = getState('bsdLeft') ? 'block' : 'none';
+    bsdRightIndicator.style.display = getState('bsdRight') ? 'block' : 'none';
+
     batteryContainer.appendChild(batteryBar);
     batteryContainer.appendChild(batteryLabels);
     container.appendChild(warningLabel);
@@ -235,8 +246,7 @@ export function createDashboardInfo() {
     container.appendChild(internalTempContainer);
     container.appendChild(bottomEvMode);
     container.appendChild(menuWrapper);
-
-
+    container.appendChild(alertIndicatorsContainer);
 
     // Subscriptions
     const updateBarSegments = (tracks, percent) => {
@@ -314,7 +324,9 @@ export function createDashboardInfo() {
         subscribe('warningActive', val => {
             console.log('[DashboardInfo Light] warningActive changed to:', val);
             warningLabel.style.display = val ? 'block' : 'none';
-        })
+        }),
+        subscribe('bsdLeft', val => bsdLeftIndicator.style.display = val ? 'block' : 'none'),
+        subscribe('bsdRight', val => bsdRightIndicator.style.display = val ? 'block' : 'none')
     ];
 
     updateBarSegments(fuelSegments, getState('fuelPercent'));

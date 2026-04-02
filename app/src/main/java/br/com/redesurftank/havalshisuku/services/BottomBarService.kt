@@ -298,14 +298,14 @@ class BottomBarService : LifecycleService() {
                 val yOffsetPx = (settings.yOffset * density).toInt()
 
                 withContext(Dispatchers.Main) {
-                    lp.height = (BOTTOM_BAR_BASE_HEIGHT_DP * density).toInt()
-                    lp.y = yOffsetPx
+                    lp.height = (120 * density).toInt()
+                    lp.y = 0
                 }
                 overscanCmd = arrayOf("wm", "overscan", "0,0,0,$overscanValuePx")
             } else {
                 // Trigger zone - keep 40dp on screen when hidden
                 withContext(Dispatchers.Main) {
-                    lp.height = (60 * density).toInt()
+                    lp.height = (120 * density).toInt()
                     lp.y = -(20 * density).toInt() 
                 }
                 overscanCmd = arrayOf("wm", "overscan", "0,0,0,0")

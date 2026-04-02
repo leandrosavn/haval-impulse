@@ -383,6 +383,40 @@ fun BasicSettingsTab() {
         mutableFloatStateOf(prefs.getFloat(SharedPreferencesKeys.SPEED_ADJUSTMENT_OFFSET.key, 0f))
     }
 
+    var enableOpenSunroofCurtainOnStart by remember {
+        mutableStateOf(
+                prefs.getBoolean(
+                        SharedPreferencesKeys.ENABLE_OPEN_SUNROOF_CURTAIN_ON_START.key,
+                        false
+                )
+        )
+    }
+    var curtainStartHour by remember {
+        mutableIntStateOf(
+                prefs.getInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_START_HOUR.key, 18)
+        )
+    }
+    var curtainStartMinute by remember {
+        mutableIntStateOf(
+                prefs.getInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_START_MINUTE.key, 0)
+        )
+    }
+    var curtainEndHour by remember {
+        mutableIntStateOf(
+                prefs.getInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_END_HOUR.key, 9)
+        )
+    }
+    var curtainEndMinute by remember {
+        mutableIntStateOf(
+                prefs.getInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_END_MINUTE.key, 0)
+        )
+    }
+    var openSunroofCurtainMaxTemp by remember {
+        mutableFloatStateOf(
+                prefs.getFloat(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_MAX_TEMP.key, -1f)
+        )
+    }
+
     val settingsList = mutableListOf<SettingItem>()
 
     if (isAdvancedUse && !selfInstallationCheck) {
@@ -701,19 +735,9 @@ fun BasicSettingsTab() {
                                             .description,
                             description =
                                     "Abre automaticamente a cortina do teto solar ao ligar o veículo",
-                            checked =
-                                    remember {
-                                                mutableStateOf(
-                                                        prefs.getBoolean(
-                                                                SharedPreferencesKeys
-                                                                        .ENABLE_OPEN_SUNROOF_CURTAIN_ON_START
-                                                                        .key,
-                                                                false
-                                                        )
-                                                )
-                                            }
-                                            .value,
+                            checked = enableOpenSunroofCurtainOnStart,
                             onCheckedChange = { checked ->
+                                enableOpenSunroofCurtainOnStart = checked
                                 prefs.edit {
                                     putBoolean(
                                             SharedPreferencesKeys
@@ -722,73 +746,10 @@ fun BasicSettingsTab() {
                                             checked
                                     )
                                 }
-                                // Trigger a recomposition/state update if needed, but since we rely
-                                // on prefs read inside remember, we might want to lift state.
-                                // For simplicity, I'll rely on the fact user probably toggles this
-                                // and we are mainly updating prefs.
-                                // Wait, the checked state above needs to be hoisted to variable
-                                // like others.
                             },
                             customContent =
-                                    if (prefs.getBoolean(
-                                                    SharedPreferencesKeys
-                                                            .ENABLE_OPEN_SUNROOF_CURTAIN_ON_START
-                                                            .key,
-                                                    false
-                                            )
-                                    ) {
+                                    if (enableOpenSunroofCurtainOnStart) {
                                         {
-                                            var curtainStartHour by remember {
-                                                mutableIntStateOf(
-                                                        prefs.getInt(
-                                                                SharedPreferencesKeys
-                                                                        .OPEN_SUNROOF_CURTAIN_START_HOUR
-                                                                        .key,
-                                                                18
-                                                        )
-                                                )
-                                            }
-                                            var curtainStartMinute by remember {
-                                                mutableIntStateOf(
-                                                        prefs.getInt(
-                                                                SharedPreferencesKeys
-                                                                        .OPEN_SUNROOF_CURTAIN_START_MINUTE
-                                                                        .key,
-                                                                0
-                                                        )
-                                                )
-                                            }
-                                            var curtainEndHour by remember {
-                                                mutableIntStateOf(
-                                                        prefs.getInt(
-                                                                SharedPreferencesKeys
-                                                                        .OPEN_SUNROOF_CURTAIN_END_HOUR
-                                                                        .key,
-                                                                9
-                                                        )
-                                                )
-                                            }
-                                            var curtainEndMinute by remember {
-                                                mutableIntStateOf(
-                                                        prefs.getInt(
-                                                                SharedPreferencesKeys
-                                                                        .OPEN_SUNROOF_CURTAIN_END_MINUTE
-                                                                        .key,
-                                                                0
-                                                        )
-                                                )
-                                            }
-                                            var maxTemp by remember {
-                                                mutableFloatStateOf(
-                                                        prefs.getFloat(
-                                                                SharedPreferencesKeys
-                                                                        .OPEN_SUNROOF_CURTAIN_MAX_TEMP
-                                                                        .key,
-                                                                -1f
-                                                        )
-                                                )
-                                            }
-
                                             var showCurtainStartPicker by remember {
                                                 mutableStateOf(false)
                                             }
@@ -976,7 +937,7 @@ fun BasicSettingsTab() {
                                                     )
                                                     Box {
                                                         Text(
-                                                                text = tempOptions[maxTemp]
+                                                                text = tempOptions[openSunroofCurtainMaxTemp]
                                                                                 ?: "Desabilitado",
                                                                 color = Color(0xFF4A9EFF),
                                                                 fontSize = 16.sp,
@@ -1020,7 +981,7 @@ fun BasicSettingsTab() {
                                                                             )
                                                                         },
                                                                         onClick = {
-                                                                            maxTemp = value
+                                                                            openSunroofCurtainMaxTemp = value
                                                                             prefs.edit {
                                                                                 putFloat(
                                                                                         SharedPreferencesKeys
@@ -2321,7 +2282,7 @@ fun TelasTab() {
 
     // Auto-calculate next revision
     val latestRevision = revisionHistory.maxByOrNull { it.km }
-    val nextKm = latestRevision?.let { it.km + 12000 } ?: 0
+    val nextKm = latestRevision?.let { it.km + 12000 } ?: 12000
     val nextDate =
             latestRevision?.let {
                 val cal = Calendar.getInstance()
@@ -2329,7 +2290,15 @@ fun TelasTab() {
                 cal.add(Calendar.YEAR, 1)
                 cal.timeInMillis
             }
-                    ?: 0L
+                    ?: (System.currentTimeMillis() + 31536000000L) // 1 year from now
+
+    // Sync calculated revision to prefs for display in projector
+    LaunchedEffect(nextKm, nextDate) {
+        prefs.edit {
+            putInt(SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key, nextKm)
+            putLong(SharedPreferencesKeys.INSTRUMENT_REVISION_NEXT_DATE.key, nextDate)
+        }
+    }
 
     // Periodic app config update
     LaunchedEffect(Unit) {
