@@ -22,8 +22,10 @@ enum class SharedPreferencesKeys(val key: String, val description: String) {
     AUTO_BRIGHTNESS_LEVEL_DAY("autoBrightnessLevelDay", "Nível de brilho automático durante o dia"),
     ENABLE_FRIDA_HOOKS("enableFridaHooks", "Habilitar hooks do Frida"),
     ENABLE_FRIDA_HOOK_SYSTEM_SERVER("enableFridaHookSystemServer", "Habilitar hooks do Frida no System Server"),
-    ENABLE_INSTRUMENT_PROJECTOR("enableInstrumentProjector", "Habilitar dados no painel de instrumentos"),
+    ENABLE_INSTRUMENT_PROJECTOR("enableInstrumentProjector", "Habilitar projeção de dados no painel de instrumentos"),
+    ENABLE_INSTRUMENT_ODOMETER("enableInstrumentOdometer", "Exibir odômetro no painel de instrumentos"),
     ENABLE_INSTRUMENT_REVISION_WARNING("enableInstrumentRevisionWarning", "Habilitar aviso de revisão no painel de instrumentos"),
+    ENABLE_INSTRUMENT_ODOMETER_AND_REVISION("enableOdometerAndRevision", "Exibir Odômetro e Aviso de Revisão no painel de instrumentos"),
     ENABLE_INSTRUMENT_EV_BATTERY_PERCENTAGE("enableInstrumentEvBatteryPercentage", "Habilitar porcentagem da bateria EV no painel de instrumentos"),
     ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION("enableInstrumentCustomMediaIntegration", "Habilitar integração personalizada de mídia no painel de instrumentos"),
     ENABLE_CUSTOM_MENU("enableCustomMenu", "Exibe um menu customizado no cluster controlado pelas teclas do volante"),
@@ -81,5 +83,6 @@ enum class SharedPreferencesKeys(val key: String, val description: String) {
     BOTTOM_BAR_AUTO_HIDE("bottomBarAutoHide", "Esconder barra automaticamente após 30s"),
     BOTTOM_BAR_OVERRIDES("bottomBarOverrides", "Overrides de aplicativos salvos (JSON)"),
     ENABLE_SPEED_ADJUSTMENT("enableSpeedAdjustment", "Habilitar ajuste de velocidade no painel"),
-    SPEED_ADJUSTMENT_OFFSET("speedAdjustmentOffset", "Fator de ajuste de velocidade (%)")
+    SPEED_ADJUSTMENT_OFFSET("speedAdjustmentOffset", "Fator de ajuste de velocidade (%)"),
+    ALWAYS_USE_THEME_DIMENSIONS("alwaysUseThemeDimensions", "Sempre usar dimensões do tema para apps")
 }

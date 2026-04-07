@@ -94,16 +94,34 @@ class ThemeManager private constructor(val context: Context) {
             var version = ""
             var thumbnail = ""
             var mainFile = "index.html"
+            var x: Int? = null
+            var y: Int? = null
+            var width: Int? = null
+            var height: Int? = null
+            
+            var inAppDefaultPosition = false
             
             while (parser.next() != XmlPullParser.END_DOCUMENT) {
-                if (parser.eventType != XmlPullParser.START_TAG) continue
+                val eventType = parser.eventType
+                val tagName = parser.name
                 
-                when (parser.name) {
-                    "name" -> name = parser.nextText()
-                    "description" -> description = parser.nextText()
-                    "version" -> version = parser.nextText()
-                    "thumbnail" -> thumbnail = parser.nextText()
-                    "mainFile" -> mainFile = parser.nextText()
+                if (eventType == XmlPullParser.START_TAG) {
+                    when (tagName) {
+                        "name" -> name = parser.nextText()
+                        "description" -> description = parser.nextText()
+                        "version" -> version = parser.nextText()
+                        "thumbnail" -> thumbnail = parser.nextText()
+                        "mainFile" -> mainFile = parser.nextText()
+                        "AppDefaultPosition" -> inAppDefaultPosition = true
+                        "x" -> if (inAppDefaultPosition) x = parser.nextText().toIntOrNull()
+                        "y" -> if (inAppDefaultPosition) y = parser.nextText().toIntOrNull()
+                        "width" -> if (inAppDefaultPosition) width = parser.nextText().toIntOrNull()
+                        "height" -> if (inAppDefaultPosition) height = parser.nextText().toIntOrNull()
+                    }
+                } else if (eventType == XmlPullParser.END_TAG) {
+                    if (tagName == "AppDefaultPosition") {
+                        inAppDefaultPosition = false
+                    }
                 }
             }
             
@@ -122,7 +140,12 @@ class ThemeManager private constructor(val context: Context) {
                 version = version,
                 thumbnailUrl = resolvedThumbnail,
                 mainFile = mainFile,
-                folderName = folderName
+                folderName = folderName,
+                isLocal = isLocal,
+                x = x,
+                y = y,
+                width = width,
+                height = height
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing theme.xml in $folderName", e)

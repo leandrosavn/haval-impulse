@@ -2165,12 +2165,12 @@ canvas.graph-chart {
 /* Cluster Disabled Mode */
 .cluster-disabled .dashboard-speed-container,
 .cluster-disabled .dashboard-top-center,
-.cluster-disabled .dashboard-bottom-gauges,
+.cluster-disabled .dashboard-fuel-container,
+.cluster-disabled .dashboard-battery-container,
 .cluster-disabled .dashboard-bottom-ev-mode,
-.cluster-disabled .mask-circle,
-.cluster-disabled .mask-circle-border,
-.cluster-disabled .mask-top-bar,
-.cluster-disabled .mask-bottom-bar,
+.cluster-disabled .mask-circle.left,
+.cluster-disabled .mask-circle-border.left,
+.cluster-disabled .no-app-mask-l,
 .cluster-disabled .no-app-mask-v,
 .cluster-disabled .no-app-mask-h,
 .cluster-disabled .partial-app-mask {

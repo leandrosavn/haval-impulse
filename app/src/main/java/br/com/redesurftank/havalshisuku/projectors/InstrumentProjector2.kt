@@ -70,7 +70,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     CarConstants.CAR_BASIC_FATIGUE_WARNING.value,
                     // CarConstants.CAR_BASIC_MAINTENANCE_WARNING.value,
                     CarConstants.CAR_BASIC_OIL_LOW_WARNING.value,
-                    CarConstants.CAR_BASIC_SEAT_BELT_WARNING.value,
+                    // CarConstants.CAR_BASIC_SEAT_BELT_WARNING.value,
                     CarConstants.CAR_BASIC_TIREPRESS_WARNING.value,
                     CarConstants.CAR_BASIC_TIRETEMP_WARNING.value,
                     CarConstants.CAR_BASIC_TPMS_WARNING.value,
@@ -84,7 +84,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     CarConstants.CAR_IPK_LIGHT_DOOR_WARNING.value,
                     CarConstants.CAR_IPK_LIGHT_ENGINE_OIL_LOW_PRESSURE_WARNING.value,
                     CarConstants.CAR_IPK_LIGHT_SEAT_BELT_WARNING_INDICATOR.value,
-                    CarConstants.CAR_IPK_LIGHT_TPMS_WARNING.value
+                    CarConstants.CAR_IPK_LIGHT_TPMS_WARNING.value,
+                    CarConstants.CAR_IPK_LIGHT_FUEL_LOW
             )
 
     private val prefsListener =
@@ -98,10 +99,19 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                         SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key,
                                         SharedPreferencesKeys.VIRTUAL_CLUSTER_DISPLAY_ID.key,
                                         SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key,
-                                        SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key
+                                        SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key,
+                                        SharedPreferencesKeys
+                                                .ENABLE_INSTRUMENT_ODOMETER_AND_REVISION
+                                                .key
                                 )
                 ) {
                     ensureUi {
+                        if (key == SharedPreferencesKeys.ENABLE_INSTRUMENT_ODOMETER_AND_REVISION.key
+                        ) {
+                            val enabled = preferences.getBoolean(key, true)
+                            evaluateJsIfReady(webView, "control('enableOdometer', $enabled)")
+                            evaluateJsIfReady(webView, "control('enableRevisionWarning', $enabled)")
+                        }
                         if (key == SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key ||
                                         key == SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key
                         ) {
@@ -127,14 +137,6 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     val nextRevisionDate = preferences.getLong(key, 0L)
                     ensureUi {
                         evaluateJsIfReady(webView, "control('nextRevisionDate', $nextRevisionDate)")
-                    }
-                } else if (key == SharedPreferencesKeys.ENABLE_INSTRUMENT_REVISION_WARNING.key) {
-                    val enableWarning = preferences.getBoolean(key, false)
-                    ensureUi {
-                        evaluateJsIfReady(
-                                webView,
-                                "control('enableRevisionWarning', $enableWarning)"
-                        )
                     }
                 }
             }
@@ -290,39 +292,39 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 when (key) {
                     CarConstants.CAR_BASIC_VEHICLE_SPEED.value -> {
                         val speedStr = getAdjustedSpeed(value)
-                        evaluateJsIfReady(webView, "control('carSpeed', $speedStr)")
+                        evaluateJsIfReady(webView, "control('carSpeed', '$speedStr')")
                     }
                     CarConstants.CAR_BASIC_TOTAL_ODOMETER.value -> {
-                        evaluateJsIfReady(webView, "control('odometer', $value)")
+                        evaluateJsIfReady(webView, "control('odometer', '$value')")
                     }
                     CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE.value -> {
-                        evaluateJsIfReady(webView, "control('fuelPercent', $value)")
+                        evaluateJsIfReady(webView, "control('fuelPercent', '$value')")
                     }
                     CarConstants.CAR_EV_INFO_CUR_BATTERY_POWER_PERCENTAGE.value -> {
-                        evaluateJsIfReady(webView, "control('batteryPercent', $value)")
+                        evaluateJsIfReady(webView, "control('batteryPercent', '$value')")
                     }
                     CarConstants.CAR_EV_INFO_FUEL_MODE_REMAIN_ODOMETER.value -> {
-                        evaluateJsIfReady(webView, "control('fuelRange', $value)")
+                        evaluateJsIfReady(webView, "control('fuelRange', '$value')")
                     }
                     CarConstants.CAR_EV_INFO_ELECTRIC_MODE_REMAIN_ODOMETER.value -> {
-                        evaluateJsIfReady(webView, "control('batteryRange', $value)")
+                        evaluateJsIfReady(webView, "control('batteryRange', '$value')")
                     }
                     CarConstants.CAR_BASIC_GEAR_STATUS.value -> {
                         val gear = getGearLabel(value.toString())
                         evaluateJsIfReady(webView, "control('gearState', '$gear')")
                     }
                     CarConstants.CAR_HVAC_FAN_SPEED.value ->
-                            evaluateJsIfReady(webView, "control('fan', $value)")
+                            evaluateJsIfReady(webView, "control('fan', '$value')")
                     CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.value ->
-                            evaluateJsIfReady(webView, "control('temp', $value)")
+                            evaluateJsIfReady(webView, "control('temp', '$value')")
                     CarConstants.CAR_HVAC_POWER_MODE.value ->
-                            evaluateJsIfReady(webView, "control('power', $value)")
+                            evaluateJsIfReady(webView, "control('power', '$value')")
                     CarConstants.CAR_HVAC_CYCLE_MODE.value ->
-                            evaluateJsIfReady(webView, "control('recycle', $value)")
+                            evaluateJsIfReady(webView, "control('recycle', '$value')")
                     CarConstants.CAR_HVAC_AUTO_ENABLE.value ->
-                            evaluateJsIfReady(webView, "control('auto', $value)")
+                            evaluateJsIfReady(webView, "control('auto', '$value')")
                     CarConstants.CAR_HVAC_ANION_ENABLE.value ->
-                            evaluateJsIfReady(webView, "control('aion', $value)")
+                            evaluateJsIfReady(webView, "control('aion', '$value')")
                     CarConstants.CAR_CONFIGURE_DEFAULT_TEMP_UNIT.value -> {
                         val unitLabel = if (value == "1") "°F" else "°C"
                         evaluateJsIfReady(webView, "control('tempUnit', '$unitLabel')")
@@ -363,7 +365,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         )
                     }
                     CarConstants.CAR_CONFIGURE_PEDAL_CONTROL_ENABLE.value -> {
-                        evaluateJsIfReady(webView, "control('onepedal', ${value == "1"})")
+                        evaluateJsIfReady(webView, "control('onepedal', '${value == "1"}')")
                     }
                     CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL.value -> {
                         evaluateJsIfReady(
@@ -372,34 +374,42 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         )
                     }
                     CarConstants.CAR_EV_INFO_ENERGY_OUTPUT_PERCENTAGE.value -> {
-                        val regenValue = kotlin.math.max(0.0f, -1 * (value).toFloat())
+                        val floatVal = value.toString().toFloatOrNull() ?: 0.0f
+                        val regenValue = kotlin.math.max(0.0f, -1 * floatVal)
                         evaluateJsIfReady(
                                 webView,
-                                "control('${GraphicsScreen.GraphOptions.EV_POWER_FACTOR}',$value)"
+                                "control('${GraphicsScreen.GraphOptions.EV_POWER_FACTOR}','$floatVal')"
                         )
                         evaluateJsIfReady(
                                 webView,
-                                "control('${RegenScreen.RegenOptions.REGEN_GRAPH_STATE_NAME}', $regenValue)"
+                                "control('${RegenScreen.RegenOptions.REGEN_GRAPH_STATE_NAME}', '$regenValue')"
                         )
                     }
                     CarConstants.CAR_EV_INFO_POWER_BATTERY_VOLTAGE.value -> {
-                        batteryVoltage = value.toFloatOrNull() ?: 0f
+                        batteryVoltage = value.toString().toFloatOrNull() ?: 0f
                         val kw = batteryVoltage * batteryCurrent / 1000f
                         evaluateJsIfReady(
                                 webView,
-                                "control('${GraphicsScreen.GraphOptions.EV_POWER_KW}', $kw)"
+                                "control('${GraphicsScreen.GraphOptions.EV_POWER_KW}', '$kw')"
                         )
                     }
                     CarConstants.CAR_EV_INFO_CUR_CHARGE_CURRENT.value -> {
-                        batteryCurrent = value.toFloatOrNull() ?: 0f
+                        batteryCurrent = value.toString().toFloatOrNull() ?: 0f
                         val kw = batteryVoltage * batteryCurrent / 1000f
                         evaluateJsIfReady(
                                 webView,
-                                "control('${GraphicsScreen.GraphOptions.EV_POWER_KW}', $kw)"
+                                "control('${GraphicsScreen.GraphOptions.EV_POWER_KW}', '$kw')"
                         )
                     }
                     CarConstants.CAR_BASIC_ENGINE_SPEED.value -> {
-                        evaluateJsIfReady(webView, "control('engineRPM',$value)")
+                        evaluateJsIfReady(webView, "control('engineRPM', '$value')")
+                    }
+                    CarConstants.CAR_BASIC_INSTANT_FUEL_CONSUMPTION.value,
+                    CarConstants.CAR_EV_INFO_FUEL_CONSUME_INFO.value -> {
+                        updateGasConsumption(value)
+                    }
+                    CarConstants.CAR_EV_INFO_INSTANT_ENERGY_CONSUMPTION.value -> {
+                        evaluateJsIfReady(webView, "control('instantEVConsumption', '$value')")
                     }
                 }
 
@@ -477,144 +487,115 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     }
 
     private fun updateValuesWebView() {
-        // Send initial state to JS
         val sm = ServiceManager.getInstance()
-        evaluateJsIfReady(
-                webView,
-                "control('temp', ${sm.getData(CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.value)})"
-        )
-        evaluateJsIfReady(
-                webView,
-                "control('fan', ${sm.getData(CarConstants.CAR_HVAC_FAN_SPEED.value)})"
-        )
-        evaluateJsIfReady(
-                webView,
-                "control('power', ${sm.getData(CarConstants.CAR_HVAC_POWER_MODE.value)})"
-        )
-        evaluateJsIfReady(
-                webView,
-                "control('recycle', ${sm.getData(CarConstants.CAR_HVAC_CYCLE_MODE.value)})"
-        )
-        evaluateJsIfReady(
-                webView,
-                "control('auto', ${sm.getData(CarConstants.CAR_HVAC_AUTO_ENABLE.value)})"
-        )
-        evaluateJsIfReady(
-                webView,
-                "control('aion', ${sm.getData(CarConstants.CAR_HVAC_ANION_ENABLE.value)})"
-        )
-        evaluateJsIfReady(
-                webView,
-                "control('inside_temp', ${formatTemp(sm.getData(CarConstants.CAR_BASIC_INSIDE_TEMP.value))})"
-        )
-        evaluateJsIfReady(
-                webView,
-                "control('outside_temp', ${formatTemp(sm.getData(CarConstants.CAR_BASIC_OUTSIDE_TEMP.value))})"
-        )
-        evaluateJsIfReady(
-                webView,
-                "control('tempUnit', '${if (sm.getData(CarConstants.CAR_CONFIGURE_DEFAULT_TEMP_UNIT.value) == "1") "°F" else "°C"}')"
-        )
+        val webView = this.webView
+        if (webView == null) return
 
-        evaluateJsIfReady(
-                webView,
-                "control('onepedal', ${sm.getData(CarConstants.CAR_CONFIGURE_PEDAL_CONTROL_ENABLE.value) == "1"})"
-        )
+        val updates = mutableMapOf<String, String>()
 
-        evaluateJsIfReady(
-                webView,
-                "control('fuelPercent', ${sm.getData(CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE.value)})"
-        )
-        evaluateJsIfReady(
-                webView,
-                "control('batteryPercent', ${sm.getData(CarConstants.CAR_EV_INFO_CUR_BATTERY_POWER_PERCENTAGE.value)})"
-        )
-        evaluateJsIfReady(
-                webView,
-                "control('fuelRange', ${sm.getData(CarConstants.CAR_EV_INFO_FUEL_MODE_REMAIN_ODOMETER.value)})"
-        )
-        evaluateJsIfReady(
-                webView,
-                "control('batteryRange', ${sm.getData(CarConstants.CAR_EV_INFO_ELECTRIC_MODE_REMAIN_ODOMETER.value)})"
-        )
-        evaluateJsIfReady(
-                webView,
-                "control('gearState', '${getGearLabel(sm.getData(CarConstants.CAR_BASIC_GEAR_STATUS.value))}')"
-        )
+        // Gears
+        updates["gearState"] = getGearLabel(sm.getData(CarConstants.CAR_BASIC_GEAR_STATUS.value))
+
+        // AC and Core info
+        updates["fan"] = sm.getData(CarConstants.CAR_HVAC_FAN_SPEED.value) ?: "0"
+        updates["temp"] = sm.getData(CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.value) ?: "22"
+        updates["power"] = sm.getData(CarConstants.CAR_HVAC_POWER_MODE.value) ?: "0"
+        updates["recycle"] = sm.getData(CarConstants.CAR_HVAC_CYCLE_MODE.value) ?: "0"
+        updates["auto"] = sm.getData(CarConstants.CAR_HVAC_AUTO_ENABLE.value) ?: "0"
+        updates["aion"] = sm.getData(CarConstants.CAR_HVAC_ANION_ENABLE.value) ?: "0"
+
+        val tempUnit = sm.getData(CarConstants.CAR_CONFIGURE_DEFAULT_TEMP_UNIT.value)
+        updates["tempUnit"] = if (tempUnit == "1") "°F" else "°C"
+
+        updates["outside_temp"] = formatTemp(sm.getData(CarConstants.CAR_BASIC_OUTSIDE_TEMP.value))
+        updates["inside_temp"] = formatTemp(sm.getData(CarConstants.CAR_BASIC_INSIDE_TEMP.value))
 
         // Revision info
-        val nextRevisionKm =
-                preferences.getInt(SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key, 12000)
-        val nextRevisionDate =
-                preferences.getLong(SharedPreferencesKeys.INSTRUMENT_REVISION_NEXT_DATE.key, 0L)
-        val enableRevisionWarning =
+        updates["nextRevisionKm"] =
+                preferences
+                        .getInt(SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key, 12000)
+                        .toString()
+        updates["nextRevisionDate"] =
+                preferences
+                        .getLong(SharedPreferencesKeys.INSTRUMENT_REVISION_NEXT_DATE.key, 0L)
+                        .toString()
+        val enableOdometerAndRevision =
                 preferences.getBoolean(
-                        SharedPreferencesKeys.ENABLE_INSTRUMENT_REVISION_WARNING.key,
-                        false
+                        SharedPreferencesKeys.ENABLE_INSTRUMENT_ODOMETER_AND_REVISION.key,
+                        true
                 )
-        evaluateJsIfReady(webView, "control('nextRevisionKm', $nextRevisionKm)")
-        evaluateJsIfReady(webView, "control('nextRevisionDate', $nextRevisionDate)")
-        evaluateJsIfReady(webView, "control('enableRevisionWarning', $enableRevisionWarning)")
-        evaluateJsIfReady(
-                webView,
-                "control('odometer', ${sm.getData(CarConstants.CAR_BASIC_TOTAL_ODOMETER.value) ?: 0})"
-        )
+        updates["enableOdometer"] = enableOdometerAndRevision.toString()
+        updates["enableRevisionWarning"] = enableOdometerAndRevision.toString()
+        updates["odometer"] = sm.getData(CarConstants.CAR_BASIC_TOTAL_ODOMETER.value) ?: "0"
+
+        // Fuel and Battery Percentages/Range
+        updates["fuelPercent"] =
+                sm.getData(CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE.value) ?: "0"
+        updates["batteryPercent"] =
+                sm.getData(CarConstants.CAR_EV_INFO_CUR_BATTERY_POWER_PERCENTAGE.value) ?: "0"
+        updates["fuelRange"] =
+                sm.getData(CarConstants.CAR_EV_INFO_FUEL_MODE_REMAIN_ODOMETER.value) ?: "0"
+        updates["batteryRange"] =
+                sm.getData(CarConstants.CAR_EV_INFO_ELECTRIC_MODE_REMAIN_ODOMETER.value) ?: "0"
 
         // Speed and Engine
         val speedStr = getAdjustedSpeed(sm.getData(CarConstants.CAR_BASIC_VEHICLE_SPEED.value))
-        evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.CAR_SPEED}', $speedStr)")
-        evaluateJsIfReady(
-                webView,
-                "control('engineRPM', ${sm.getData(CarConstants.CAR_BASIC_ENGINE_SPEED.value)})"
-        )
+        updates[GraphicsScreen.GraphOptions.CAR_SPEED] = speedStr
+        updates["engineRPM"] = sm.getData(CarConstants.CAR_BASIC_ENGINE_SPEED.value) ?: "0"
 
         // Modes and Settings
         val evMode = sm.getData(CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value)
-        evaluateJsIfReady(webView, "control('evMode', '${MainMenu.EvModeOptions.getLabel(evMode)}')")
+        updates["evMode"] = MainMenu.EvModeOptions.getLabel(evMode)
 
         val drivingMode = sm.getData(CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.value)
         val drivingModeLabel = MainMenu.DrivingModeOptions.getLabel(drivingMode)
-        evaluateJsIfReady(webView, "control('drivingMode', '$drivingModeLabel')")
-        evaluateJsIfReady(webView, "control('evModeLabel', '$drivingModeLabel')")
+        updates["drivingMode"] = drivingModeLabel
+        updates["evModeLabel"] = drivingModeLabel
 
         val steerMode = sm.getData(CarConstants.CAR_DRIVE_SETTING_STEERING_WHEEL_ASSIST_MODE.value)
-        evaluateJsIfReady(
-                webView,
-                "control('steerMode', '${MainMenu.SteerModeOptions.getLabel(steerMode)}')"
-        )
+        updates["steerMode"] = MainMenu.SteerModeOptions.getLabel(steerMode)
 
         val espStatus = sm.getData(CarConstants.CAR_DRIVE_SETTING_ESP_ENABLE.value)
-        evaluateJsIfReady(
-                webView,
-                "control('espStatus', '${MainMenu.EspOptions.getLabel(espStatus)}')"
-        )
+        updates["espStatus"] = MainMenu.EspOptions.getLabel(espStatus)
 
         val regenLevel = sm.getData(CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL.value)
-        evaluateJsIfReady(
-                webView,
-                "control('regenMode', '${RegenScreen.RegenOptions.getLabel(regenLevel)}')"
-        )
+        updates["regenMode"] = RegenScreen.RegenOptions.getLabel(regenLevel)
 
         // Power and Regen Graph
-        val outputPower = sm.getData(CarConstants.CAR_EV_INFO_ENERGY_OUTPUT_PERCENTAGE.value)
-        val regenValue = kotlin.math.max(0.0f, -1 * outputPower.toFloat())
-        evaluateJsIfReady(
-                webView,
-                "control('${GraphicsScreen.GraphOptions.EV_POWER_FACTOR}', $outputPower)"
-        )
-        evaluateJsIfReady(
-                webView,
-                "control('${RegenScreen.RegenOptions.REGEN_GRAPH_STATE_NAME}', $regenValue)"
-        )
+        val outputPower =
+                sm.getData(CarConstants.CAR_EV_INFO_ENERGY_OUTPUT_PERCENTAGE.value)?.toFloatOrNull()
+                        ?: 0.0f
+        val regenValue = kotlin.math.max(0.0f, -1 * outputPower)
+        updates[GraphicsScreen.GraphOptions.EV_POWER_FACTOR] = outputPower.toString()
+        updates[RegenScreen.RegenOptions.REGEN_GRAPH_STATE_NAME] = regenValue.toString()
 
         // Battery KW Calculation
         batteryVoltage =
-                sm.getData(CarConstants.CAR_EV_INFO_POWER_BATTERY_VOLTAGE.value).toFloatOrNull()
+                sm.getData(CarConstants.CAR_EV_INFO_POWER_BATTERY_VOLTAGE.value)?.toFloatOrNull()
                         ?: 0f
         batteryCurrent =
-                sm.getData(CarConstants.CAR_EV_INFO_CUR_CHARGE_CURRENT.value).toFloatOrNull() ?: 0f
+                sm.getData(CarConstants.CAR_EV_INFO_CUR_CHARGE_CURRENT.value)?.toFloatOrNull() ?: 0f
         val kw = batteryVoltage * batteryCurrent / 1000f
-        evaluateJsIfReady(webView, "control('${GraphicsScreen.GraphOptions.EV_POWER_KW}', $kw)")
+        updates[GraphicsScreen.GraphOptions.EV_POWER_KW] = kw.toString()
+
+        // Consumption initial values
+        // Consumption initial values
+        updateGasConsumption(
+                sm.getData(CarConstants.CAR_BASIC_INSTANT_FUEL_CONSUMPTION.value),
+                updates
+        )
+        updates["instantEVConsumption"] =
+                sm.getData(CarConstants.CAR_EV_INFO_INSTANT_ENERGY_CONSUMPTION.value) ?: "0"
+
+        batchEvaluateJs(webView, updates)
+    }
+
+    private fun batchEvaluateJs(view: WebView?, updates: Map<String, String>) {
+        if (view == null || updates.isEmpty()) return
+        val jsBuilder = StringBuilder("(function(){")
+        updates.forEach { (key, value) -> jsBuilder.append("control('$key', '$value');") }
+        jsBuilder.append("})()")
+        evaluateJsIfReady(view, jsBuilder.toString())
     }
 
     private fun updateVirtualClusterVisibility() {
@@ -784,17 +765,79 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         }
     }
 
+    private fun updateGasConsumption(value: Any?, updates: MutableMap<String, String>? = null) {
+        val view = webView
+        val stringValue = value.toString()
+        var metricValue = 0.0f
+        var consumptionValue = 0.0f
+        var adjustedValue = 0.0f
+        var adjustedValueIdle = 0.0f
+
+        if (stringValue.startsWith("{") && stringValue.endsWith("}") && stringValue.contains(",")) {
+            try {
+                val cleanedString = stringValue.substring(1, stringValue.length - 1)
+                val parts = cleanedString.split(',')
+                if (parts.size >= 2) {
+                    metricValue = parts[0].trim().toFloat()
+                    consumptionValue = parts[1].trim().toFloat()
+                }
+            } catch (e: Exception) {
+                metricValue = 0.0f
+                consumptionValue = 0.0f
+            }
+        } else {
+            consumptionValue = stringValue.toFloatOrNull() ?: 0.0f
+            metricValue = 1.0f
+        }
+
+        var mode = "Running"
+        if (metricValue == 4.0f) {
+            if (consumptionValue > 0.0f) {
+                adjustedValueIdle = kotlin.math.truncate(consumptionValue * 10) / 10
+                adjustedValue = 0.0f
+                mode = "Idle"
+            }
+        } else if (metricValue == 1.0f) {
+            if (consumptionValue > 0.0f) {
+                adjustedValue = kotlin.math.truncate(10 * 100 / consumptionValue) / 10
+                adjustedValueIdle = 0.0f
+                mode = "Running"
+            }
+        }
+
+        if (updates != null) {
+            updates[GraphicsScreen.GraphOptions.GAS_CONSUMPTION_MODE] = mode
+            updates[GraphicsScreen.GraphOptions.GAS_CONSUMPTION_IDLE] = adjustedValueIdle.toString()
+            updates[GraphicsScreen.GraphOptions.GAS_CONSUMPTION] = adjustedValue.toString()
+        } else {
+            evaluateJsIfReady(
+                    view,
+                    "control('${GraphicsScreen.GraphOptions.GAS_CONSUMPTION_MODE}', '$mode')"
+            )
+            evaluateJsIfReady(
+                    view,
+                    "control('${GraphicsScreen.GraphOptions.GAS_CONSUMPTION_IDLE}', $adjustedValueIdle)"
+            )
+            evaluateJsIfReady(
+                    view,
+                    "control('${GraphicsScreen.GraphOptions.GAS_CONSUMPTION}', $adjustedValue)"
+            )
+        }
+    }
+
     private fun getAdjustedSpeed(value: Any?): String {
         val speedValue = value?.toString()?.toDoubleOrNull() ?: 0.0
         val enableAdjustment =
                 preferences.getBoolean(SharedPreferencesKeys.ENABLE_SPEED_ADJUSTMENT.key, false)
         val offset = preferences.getFloat(SharedPreferencesKeys.SPEED_ADJUSTMENT_OFFSET.key, 0f)
 
+        // Formula to match the original instrument cluster
+        val adjustedSpeed = speedValue * 1.07 - speedValue / 180 * 0.02
         val finalSpeed =
                 if (enableAdjustment) {
-                    speedValue * (1.0 + (offset / 100.0))
+                    adjustedSpeed * (1.0 + (offset / 100.0))
                 } else {
-                    speedValue
+                    adjustedSpeed
                 }
 
         return finalSpeed.toInt().toString()

@@ -24,6 +24,7 @@ let currentComponent = null;
 let maskComponent = null;
 let menuWrapper = null;
 let dashboardCleanup = null;
+const screenCache = {};
 
 // Initial state from URL parameters
 const urlParams = new URLSearchParams(window.location.search);
@@ -55,6 +56,28 @@ function initializeLayout() {
 
         menuWrapper = newMenuWrapper;
         dashboardCleanup = dashCleanup;
+
+        // Pre-load critical screens
+        if (menuWrapper) {
+            const cachedScreens = ['main_menu', 'aircon'];
+            cachedScreens.forEach(screen => {
+                try {
+                    let result = null;
+                    if (screen === 'main_menu') result = createMainMenu();
+                    else if (screen === 'aircon') result = createAcControlScreen();
+
+                    if (result) {
+                        const element = result.element || result;
+                        element.style.display = 'none';
+                        menuWrapper.appendChild(element);
+                        if (result.onMount) result.onMount();
+                        screenCache[screen] = result;
+                    }
+                } catch (e) {
+                    logger.log(`[Error] Failed to pre-load screen ${screen}: ${e.message}`);
+                }
+            });
+        }
     } catch (e) {
         logger.log('[Error] Failed to initialize dashboard info: ' + e.message);
     }
@@ -83,7 +106,7 @@ function render() {
             classes.push('cluster-disabled');
         }
 
-        if (get('cardId') === 0 || get('warningActive') === true) {
+        if (get('cardId') == 0 || get('warningActive') === true) {
             classes.push('warn-is-active');
         }
 
@@ -92,60 +115,74 @@ function render() {
     }
 
 
-    if (currentComponent && currentComponent.cleanup) {
-        try {
-            currentComponent.cleanup();
-        } catch (e) {
-            logger.log('[Error] Failed during component cleanup: ' + e.message);
-        }
-    }
+    // Hide all cached components
+    Object.values(screenCache).forEach(comp => {
+        const el = comp.element || comp;
+        el.style.display = 'none';
+    });
 
-    if (menuWrapper) {
-        menuWrapper.innerHTML = '';
-    }
-
-    let componentResult = null;
-    try {
-        if (screen === 'main_menu') {
-            componentResult = createMainMenu();
-        } else if (screen === 'aircon') {
-            componentResult = createAcControlScreen();
-        } else if (screen === 'regen') {
-            componentResult = createRegenScreen();
-        } else if (screen === 'display_selection') {
-            componentResult = createDisplaySelectionScreen();
-        } else if (screen === 'graph' || screen === 'graphs') {
-            componentResult = createGraphScreen();
-        }
-    } catch (e) {
-        logger.log('[Error] Failed to create screen component ' + screen + ': ' + e.message);
-    }
-
-
-    if (componentResult) {
-        const element = componentResult.element || componentResult;
-        const onMount = componentResult.onMount;
-
-        if (menuWrapper) {
-            menuWrapper.appendChild(element);
-        }
-
-        if (onMount) {
+    // Cleanup previous non-cached component
+    if (currentComponent && !Object.values(screenCache).includes(currentComponent)) {
+        if (currentComponent.cleanup) {
             try {
-                onMount();
+                currentComponent.cleanup();
             } catch (e) {
-                logger.log('[Error] Failed during component onMount: ' + e.message);
+                logger.log('[Error] Failed during component cleanup: ' + e.message);
             }
         }
+        const el = currentComponent.element || currentComponent;
+        if (el && el.parentNode === menuWrapper) {
+            menuWrapper.removeChild(el);
+        }
+    }
 
-        currentComponent = componentResult;
+    if (screenCache[screen]) {
+        // Show cached component
+        const comp = screenCache[screen];
+        const el = comp.element || comp;
+        el.style.display = 'block';
+        currentComponent = comp;
     } else {
-        currentComponent = null;
+        // Create non-cached component
+        let componentResult = null;
+        try {
+            if (screen === 'regen') {
+                componentResult = createRegenScreen();
+            } else if (screen === 'display_selection') {
+                componentResult = createDisplaySelectionScreen();
+            } else if (screen === 'graph' || screen === 'graphs') {
+                componentResult = createGraphScreen();
+            }
+        } catch (e) {
+            logger.log('[Error] Failed to create screen component ' + screen + ': ' + e.message);
+        }
+
+        if (componentResult) {
+            const element = componentResult.element || componentResult;
+            const onMount = componentResult.onMount;
+
+            if (menuWrapper) {
+                menuWrapper.appendChild(element);
+            }
+
+            if (onMount) {
+                try {
+                    onMount();
+                } catch (e) {
+                    logger.log('[Error] Failed during component onMount: ' + e.message);
+                }
+            }
+
+            currentComponent = componentResult;
+        } else {
+            currentComponent = null;
+        }
     }
     logger.leave('render');
 }
 
 subscribe('warningActive', () => render());
+subscribe('cardId', () => render());
 initializeLayout();
 
 // Start rendering and subscribe to listen for screen changes thus triggering new render
@@ -153,7 +190,7 @@ subscribe('screen', render);
 subscribe('display', render);
 
 subscribe('clusterEnabled', render);
-subscribe('cardId', render);
+// subscribe('cardId', render); // REMOVED: Triggers double-render as cardId listener already sets screen
 render();
 
 
@@ -215,9 +252,7 @@ window.control = function (key, value) {
             val = Number(value);
         }
         setState(key, val);
-        if (key === 'warningActive') {
-            render();
-        }
+        // warningActive has its own subscription to render() at line 184, so no need for manual trigger here
         logger.leave('window.control');
     } catch (e) {
         console.error('[Error] Bridge control failed for key ' + key + ':', e);

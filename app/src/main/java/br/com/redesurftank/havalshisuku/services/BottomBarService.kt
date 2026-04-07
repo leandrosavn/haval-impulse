@@ -65,6 +65,7 @@ class BottomBarService : LifecycleService() {
     private val BASE_OFFSET_Y = -60 // Starting point for y at 60 overscan
 
     override fun onCreate() {
+        android.util.Log.e("BottomBarService", "SERVICE ONCREATE - STARTING")
         super.onCreate()
         
         // Initialize state from SharedPreferences
@@ -73,6 +74,10 @@ class BottomBarService : LifecycleService() {
         BottomBarState.autoHideEnabled = prefs.getBoolean(SharedPreferencesKeys.BOTTOM_BAR_AUTO_HIDE.key, false)
         
         BottomBarState.isVisible = true
+        
+        // Initial check for Frida status
+        updateFridaStatus(prefs)
+
         showBottomBar()
         observeMenuState()
         observeVisibility()
@@ -161,15 +166,16 @@ class BottomBarService : LifecycleService() {
                                 }
                             }
                             
+                            val prefs =
+                                    br.com.redesurftank.App.getDeviceProtectedContext()
+                                            .getSharedPreferences(
+                                                    "haval_prefs",
+                                                    Context.MODE_PRIVATE
+                                            )
+
                             if (currentPackage != null && currentPackage != lastPackage) {
                                 lastPackage = currentPackage
 
-                                val prefs =
-                                        br.com.redesurftank.App.getDeviceProtectedContext()
-                                                .getSharedPreferences(
-                                                        "haval_prefs",
-                                                        Context.MODE_PRIVATE
-                                                )
                                 // Default overscan is now 0 as requested
                                 val storedDefault =
                                         prefs.getInt(
@@ -190,6 +196,9 @@ class BottomBarService : LifecycleService() {
                                 currentAppSettings = settings
                                 applyAppSettings(settings)
                             }
+                            // Update Frida status reactive to switches
+                            updateFridaStatus(prefs)
+
                         } catch (e: Exception) {
                             Log.e("BottomBarService", "Error in monitoring loop", e)
                         }
@@ -198,15 +207,27 @@ class BottomBarService : LifecycleService() {
                 }
     }
 
+    private fun updateFridaStatus(prefs: android.content.SharedPreferences) {
+        val hooksEnabled = prefs.getBoolean(SharedPreferencesKeys.ENABLE_FRIDA_HOOKS.key, false)
+        
+        // Only require the main Frida switch to be enabled as requested
+        val switchesOn = hooksEnabled
+        
+        lifecycleScope.launch(Dispatchers.IO) {
+            // UI shows Frida menu if main switch is ON
+            withContext(Dispatchers.Main) {
+                BottomBarState.isFridaRunning = switchesOn
+            }
+        }
+    }
+
     private fun getTopPackageName(): String? {
         val output =
                 ShizukuUtils.runCommandAndGetOutput(
-                        arrayOf("sh", "-c", "dumpsys activity activities | grep mResumedActivity")
+                        arrayOf("sh", "-c", "dumpsys activity activities | grep -E 'mResumedActivity|mCurrentFocus|mFocusedActivity'")
                 )
-        val regex =
-                Regex(
-                        """mResumedActivity: ActivityRecord\{.*\s([a-zA-Z0-9._]+)/\.?[a-zA-Z0-9._]+\s.*\}"""
-                )
+        // More robust regex to handle various dumpsys formats, including inner classes ($) and different prefixes
+        val regex = Regex("""([a-zA-Z0-9._]+)/[.${'$'}a-zA-Z0-9._]+""")
         val match = regex.find(output)
         return match?.groupValues?.get(1)
     }
@@ -364,7 +385,6 @@ class BottomBarService : LifecycleService() {
                 ComposeView(themedContext)
                         .apply { 
                             setContent { HavalShisukuTheme { BottomBarContent() } }
-                            // Define touchable regions to allow click-through in transparent areas
                             setupTouchableRegions(this)
                         }
                         .also { it.setupForService() }
@@ -384,6 +404,7 @@ class BottomBarService : LifecycleService() {
                     @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
                 }
 
+
         params =
                 WindowManager.LayoutParams(
                                 WindowManager.LayoutParams.MATCH_PARENT,
@@ -397,6 +418,14 @@ class BottomBarService : LifecycleService() {
                                 PixelFormat.TRANSLUCENT
                         )
                         .apply {
+                            // Immersive mode flags to hide system bars
+                            systemUiVisibility = (android.view.View.SYSTEM_UI_FLAG_LOW_PROFILE
+                                    or android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                                    or android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                    or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                                    or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                                    or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION)
+
                             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
                             // On show, we derive y from the currently applied overscan value if
                             // possible,
@@ -422,6 +451,14 @@ class BottomBarService : LifecycleService() {
                                 PixelFormat.TRANSLUCENT
                         )
                         .apply {
+                            // Immersive mode flags to hide system bars
+                            systemUiVisibility = (android.view.View.SYSTEM_UI_FLAG_LOW_PROFILE
+                                    or android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                                    or android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                    or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                                    or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                                    or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION)
+
                             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
                             y = 0
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

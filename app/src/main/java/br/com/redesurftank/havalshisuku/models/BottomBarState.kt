@@ -12,4 +12,5 @@ object BottomBarState {
     var selectedPackage by mutableStateOf("")
     var currentPackage by mutableStateOf("")
     var autoHideEnabled by mutableStateOf(false)
+    var isFridaRunning by mutableStateOf(false)
 }

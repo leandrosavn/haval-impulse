@@ -15,8 +15,48 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import android.content.Intent
 
 object DisplayAppLauncher {
+    
+    /**
+     * Attempts to launch Android Auto using common system package names.
+     */
+    fun launchAndroidAuto(context: Context) {
+        val packages = listOf(
+            "com.google.android.projection.gearhead",
+            "com.google.android.apps.auto"
+        )
+        for (pkg in packages) {
+            val intent = context.packageManager.getLaunchIntentForPackage(pkg)
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                return
+            }
+        }
+        Log.e("DisplayAppLauncher", "Android Auto package not found")
+    }
+
+    /**
+     * Attempts to launch CarPlay (or the car interface app) using common Haval/system package names.
+     */
+    fun launchCarPlay(context: Context) {
+        val packages = listOf(
+            "com.beantechs.carlink", // Common for Haval
+            "com.zjinnova.zlink",
+            "com.apple.ottocast"
+        )
+        for (pkg in packages) {
+            val intent = context.packageManager.getLaunchIntentForPackage(pkg)
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                return
+            }
+        }
+        Log.e("DisplayAppLauncher", "CarPlay/CarLink package not found")
+    }
 
     private const val TAG = "DisplayAppLauncher"
 
@@ -102,6 +142,35 @@ object DisplayAppLauncher {
         return out
     }
 
+    private fun getEffectiveDimensions(config: DisplayAppConfig): IntArray {
+        val prefs = getPrefs()
+        val alwaysUseTheme = prefs.getBoolean(SharedPreferencesKeys.ALWAYS_USE_THEME_DIMENSIONS.key, true)
+        
+        var x = config.x
+        var y = config.y
+        var width = config.width
+        var height = config.height
+
+        if (alwaysUseTheme && config.displayId == 3) {
+            val themeFolderName = prefs.getString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Básico") ?: "Básico"
+            if (themeFolderName == "Básico" || themeFolderName == "Light") {
+                x = 0
+                y = 62
+                width = 1920
+                height = 596
+            } else {
+                val metadata = ThemeManager.getInstance(App.getContext()).getThemeMetadata(themeFolderName)
+                if (metadata != null && metadata.x != null && metadata.y != null && metadata.width != null && metadata.height != null) {
+                    x = metadata.x!!
+                    y = metadata.y!!
+                    width = metadata.width!!
+                    height = metadata.height!!
+                }
+            }
+        }
+        return intArrayOf(x, y, x + width, y + height)
+    }
+
     /**
      * Launches an app fresh on a secondary display with custom bounds.
      * If already on target display → just resize.
@@ -109,15 +178,19 @@ object DisplayAppLauncher {
      */
     suspend fun launchApp(config: DisplayAppConfig) = withContext(Dispatchers.IO) {
         try {
-            val right = config.x + config.width
-            val bottom = config.y + config.height
+            val dims = getEffectiveDimensions(config)
+            val x = dims[0]
+            val y = dims[1]
+            val right = dims[2]
+            val bottom = dims[3]
+            
             val escapedActivity = config.activityName.replace("$", "\\$")
             val isOwnPackage = config.packageName == App.getContext().packageName
 
             // Already on target display — just resize
             val existingStack = findStackIdForPackage(config.packageName, config.displayId)
             if (existingStack != null) {
-                sh("am stack resize $existingStack ${config.x} ${config.y} $right $bottom")
+                sh("am stack resize $existingStack $x $y $right $bottom")
                 return@withContext
             }
 
@@ -128,16 +201,12 @@ object DisplayAppLauncher {
                 sh("am start -n ${config.packageName}/$escapedActivity --display ${config.displayId} --windowingMode 5")
             } else {
                 Log.w(TAG, "Skipping force-stop/start for own package ${config.packageName}")
-                // For own package, we might need a different way to move it if it's already running,
-                // but am force-stop definitely crashes the app.
-                // For now, if it's not already on the target display, we don't force it to move here
-                // to avoid the crash. User might need to launch it manually there or use move-stack.
             }
             Thread.sleep(300)
 
             val newStackId = findStackIdForPackage(config.packageName, config.displayId)
             if (newStackId != null) {
-                sh("am stack resize $newStackId ${config.x} ${config.y} $right $bottom")
+                sh("am stack resize $newStackId $x $y $right $bottom")
             } else {
                 Log.w(TAG, "Could not find stack for ${config.packageName} on display ${config.displayId}")
             }
@@ -152,11 +221,15 @@ object DisplayAppLauncher {
      */
     suspend fun resizeApp(config: DisplayAppConfig) = withContext(Dispatchers.IO) {
         try {
-            val right = config.x + config.width
-            val bottom = config.y + config.height
+            val dims = getEffectiveDimensions(config)
+            val x = dims[0]
+            val y = dims[1]
+            val right = dims[2]
+            val bottom = dims[3]
+            
             val stackId = findStackIdForPackage(config.packageName, config.displayId)
             if (stackId != null) {
-                sh("am stack resize $stackId ${config.x} ${config.y} $right $bottom")
+                sh("am stack resize $stackId $x $y $right $bottom")
                 ServiceManager.getInstance().dispatchServiceManagerEvent(
                     br.com.redesurftank.havalshisuku.models.ServiceManagerEventType.APP_GEOMETRY_CHANGED
                 )
@@ -238,13 +311,12 @@ object DisplayAppLauncher {
      */
     suspend fun sendToDisplay(config: DisplayAppConfig) = withContext(Dispatchers.IO) {
         try {
-            val right = config.x + config.width
-            val bottom = config.y + config.height
 
             // Already on target display — just resize
             val existing = findStackIdForPackage(config.packageName, config.displayId)
             if (existing != null) {
-                sh("am stack resize $existing ${config.x} ${config.y} $right $bottom")
+                val dims = getEffectiveDimensions(config)
+                sh("am stack resize $existing ${dims[0]} ${dims[1]} ${dims[2]} ${dims[3]}")
                 return@withContext
             }
 
@@ -282,7 +354,8 @@ object DisplayAppLauncher {
             Thread.sleep(200)
             val stackId = findStackIdForPackage(config.packageName, config.displayId)
             if (stackId != null) {
-                sh("am stack resize $stackId ${config.x} ${config.y} $right $bottom")
+                val dims = getEffectiveDimensions(config)
+                sh("am stack resize $stackId ${dims[0]} ${dims[1]} ${dims[2]} ${dims[3]}")
             }
 
             Log.w(TAG, "App moved to display ${config.displayId} with bounds, state preserved")
@@ -476,8 +549,13 @@ object DisplayAppLauncher {
             if (info.windowingMode == "split-screen-secondary") {
                 recentlyFixed[packageName] = System.currentTimeMillis()
                 Log.w(TAG, "Detected $packageName in ${info.windowingMode}, restarting in freeform")
-                val right = config.x + config.width
-                val bottom = config.y + config.height
+                
+                val dims = getEffectiveDimensions(config)
+                val x = dims[0]
+                val y = dims[1]
+                val right = dims[2]
+                val bottom = dims[3]
+                
                 val escapedActivity = config.activityName.replace("$", "\\$")
                 sh("am force-stop $packageName")
                 Thread.sleep(200)
@@ -485,7 +563,7 @@ object DisplayAppLauncher {
                 Thread.sleep(300)
                 val stackId = findStackIdForPackage(packageName, config.displayId)
                 if (stackId != null) {
-                    sh("am stack resize $stackId ${config.x} ${config.y} $right $bottom")
+                    sh("am stack resize $stackId $x $y $right $bottom")
                 }
             }
         }

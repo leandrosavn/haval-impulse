@@ -106,6 +106,7 @@ var stateManager = new StateManager({
     display: 'Normal', //Display mode, should be either Normal, Reduzido or Clean
     displayFocus: 'sel_template',
     appInDash: false,
+    clusterEnabled: true,
     brightness: 100,
     batteryPercent: 0,
     fuelRange: 0,
@@ -119,6 +120,7 @@ var stateManager = new StateManager({
     nextRevisionKm: 0,
     nextRevisionDate: 0,
     enableRevisionWarning: false,
+    enableOdometer: true,
     warningActive: false,
     bsdLeft: false,
     bsdRight: false,

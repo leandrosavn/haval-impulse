@@ -2216,11 +2216,11 @@ fun TelasTab() {
                 prefs.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key, false)
         )
     }
-    var enableWarning by remember {
+    var enableOdometerAndRevision by remember {
         mutableStateOf(
                 prefs.getBoolean(
-                        SharedPreferencesKeys.ENABLE_INSTRUMENT_REVISION_WARNING.key,
-                        false
+                        SharedPreferencesKeys.ENABLE_INSTRUMENT_ODOMETER_AND_REVISION.key,
+                        true
                 )
         )
     }
@@ -2255,6 +2255,11 @@ fun TelasTab() {
         mutableStateOf(
                 prefs.getString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Básico")
                         ?: "Básico"
+        )
+    }
+    var alwaysUseThemeDimensions by remember {
+        mutableStateOf(
+                prefs.getBoolean(SharedPreferencesKeys.ALWAYS_USE_THEME_DIMENSIONS.key, true)
         )
     }
     var defaultApp by remember {
@@ -2378,11 +2383,11 @@ fun TelasTab() {
                                 }
 
                                 if (!it) {
-                                    enableWarning = false
+                                    enableOdometerAndRevision = false
                                     prefs.edit {
                                         putBoolean(
                                                 SharedPreferencesKeys
-                                                        .ENABLE_INSTRUMENT_REVISION_WARNING
+                                                        .ENABLE_INSTRUMENT_ODOMETER_AND_REVISION
                                                         .key,
                                                 false
                                         )
@@ -2476,6 +2481,10 @@ fun TelasTab() {
                                 enableMask = it
                                 prefs.edit {
                                     putBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, it)
+                                    if (it) {
+                                        putBoolean(SharedPreferencesKeys.ALWAYS_USE_THEME_DIMENSIONS.key, true)
+                                        alwaysUseThemeDimensions = true
+                                    }
                                 }
                             },
                             modifier = Modifier.scale(0.9f),
@@ -2520,7 +2529,7 @@ fun TelasTab() {
 
                     Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            verticalAlignment = Alignment.CenterVertically
                     ) {
                         // Default App Selection
                         Column(modifier = Modifier.weight(1f)) {
@@ -2602,7 +2611,7 @@ fun TelasTab() {
                                                             .let {
                                                                 pm.getApplicationLabel(it)
                                                                         .toString()
-                                                                }
+                                                            }
                                                 } catch (_: Exception) {
                                                     config.packageName
                                                 }
@@ -2625,6 +2634,47 @@ fun TelasTab() {
                                     }
                                 }
                             }
+                        }
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
+                        // Theme Dimensions Override Switch
+                        Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.Start
+                        ) {
+                            Text(
+                                    "Dimensões do Tema",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                    "sempre usar dimensões do tema para apps",
+                                    color = Color(0xFFB0B8C4),
+                                    fontSize = 10.sp,
+                                    lineHeight = 12.sp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Switch(
+                                    checked = alwaysUseThemeDimensions,
+                                    enabled = enableMask && allClusterFunctionsEnabled,
+                                    onCheckedChange = {
+                                        alwaysUseThemeDimensions = it
+                                        prefs.edit {
+                                            putBoolean(SharedPreferencesKeys.ALWAYS_USE_THEME_DIMENSIONS.key, it)
+                                        }
+                                    },
+                                    modifier = Modifier.scale(0.8f),
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextPrimary,
+                                        checkedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.Primary,
+                                        uncheckedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextSecondary,
+                                        uncheckedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.ButtonSecondary,
+                                        uncheckedBorderColor = Color.Transparent,
+                                        checkedBorderColor = Color.Transparent
+                                    )
+                            )
                         }
                     }
 
@@ -2929,7 +2979,7 @@ fun TelasTab() {
                                                                     localThemes =
                                                                             ThemeManager
                                                                                     .getInstance(
-                                                                                            context
+                                                                                        context
                                                                                     )
                                                                                     .getLocalThemes()
                                                                     Toast.makeText(
@@ -2951,11 +3001,9 @@ fun TelasTab() {
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // AVISO DE REVISÃO CARD
-        val revisionAlpha = if (allClusterFunctionsEnabled) 1f else 0.4f
-        StyledCard(modifier = Modifier.padding(horizontal = 8.dp).alpha(revisionAlpha)) {
+        // ODÔMETRO E REVISÃO CARD
+        val odometerAlpha = if (allClusterFunctionsEnabled) 1f else 0.4f
+        StyledCard(modifier = Modifier.padding(horizontal = 8.dp).alpha(odometerAlpha)) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -2963,26 +3011,25 @@ fun TelasTab() {
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                                "Aviso de Revisão",
+                                "Exibir Odômetro e Aviso de Revisão",
                                 color = Color.White,
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold
                         )
                         Text(
-                                "Acompanhamento de manutenção programada",
+                                "Total do veículo e acompanhamento de manutenção no painel",
                                 color = Color(0xFFB0B8C4),
                                 fontSize = 14.sp
                         )
                     }
                     Switch(
-                            checked = enableWarning,
+                            checked = enableOdometerAndRevision,
                             enabled = allClusterFunctionsEnabled,
                             onCheckedChange = {
-                                enableWarning = it
+                                enableOdometerAndRevision = it
                                 prefs.edit {
                                     putBoolean(
-                                            SharedPreferencesKeys.ENABLE_INSTRUMENT_REVISION_WARNING
-                                                    .key,
+                                            SharedPreferencesKeys.ENABLE_INSTRUMENT_ODOMETER_AND_REVISION.key,
                                             it
                                     )
                                 }
@@ -2999,7 +3046,7 @@ fun TelasTab() {
                     )
                 }
 
-                if (enableWarning && allClusterFunctionsEnabled) {
+                if (enableOdometerAndRevision && allClusterFunctionsEnabled) {
                     Spacer(modifier = Modifier.height(16.dp))
                     HorizontalDivider(color = Color(0xFF3A3F47), thickness = 1.dp)
                     Spacer(modifier = Modifier.height(16.dp))
@@ -3037,88 +3084,88 @@ fun TelasTab() {
                                 shape = RoundedCornerShape(8.dp)
                         ) { Text("Registrar Revisão", fontWeight = FontWeight.Bold) }
                     }
+                }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                    // Collapsible History
-                    Row(
-                            modifier =
-                                    Modifier.fillMaxWidth()
-                                            .clickable { expandedHistory = !expandedHistory }
-                                            .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                // Collapsible History
+                Row(
+                        modifier =
+                                Modifier.fillMaxWidth()
+                                        .clickable { expandedHistory = !expandedHistory }
+                                        .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                            "Histórico de Manutenções (${revisionHistory.size})",
+                            color = Color(0xFF4A9EFF),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f)
+                    )
+                    Icon(
+                            imageVector =
+                                    if (expandedHistory) Icons.Default.ExpandLess
+                                    else Icons.Default.ExpandMore,
+                            contentDescription = null,
+                            tint = Color(0xFF4A9EFF)
+                    )
+                }
+
+                AnimatedVisibility(visible = expandedHistory) {
+                    Column(
+                            modifier = Modifier.padding(top = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                                "Histórico de Manutenções (${revisionHistory.size})",
-                                color = Color(0xFF4A9EFF),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.weight(1f)
-                        )
-                        Icon(
-                                imageVector =
-                                        if (expandedHistory) Icons.Default.ExpandLess
-                                        else Icons.Default.ExpandMore,
-                                contentDescription = null,
-                                tint = Color(0xFF4A9EFF)
-                        )
-                    }
-
-                    AnimatedVisibility(visible = expandedHistory) {
-                        Column(
-                                modifier = Modifier.padding(top = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            if (revisionHistory.isEmpty()) {
-                                Text(
-                                        "Nenhuma manutenção registrada",
-                                        color = Color(0xFF636D77),
-                                        fontSize = 14.sp,
-                                        modifier = Modifier.padding(vertical = 8.dp)
-                                )
-                            } else {
-                                revisionHistory.sortedByDescending { it.km }.forEach { entry ->
-                                    Row(
-                                            modifier =
-                                                    Modifier.fillMaxWidth()
-                                                            .background(
-                                                                    Color(0xFF1E2228),
-                                                                    RoundedCornerShape(8.dp)
-                                                            )
-                                                            .padding(
-                                                                    horizontal = 16.dp,
-                                                                    vertical = 10.dp
-                                                            ),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
+                        if (revisionHistory.isEmpty()) {
+                            Text(
+                                    "Nenhuma manutenção registrada",
+                                    color = Color(0xFF636D77),
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        } else {
+                            revisionHistory.sortedByDescending { it.km }.forEach { entry ->
+                                Row(
+                                        modifier =
+                                                Modifier.fillMaxWidth()
+                                                        .background(
+                                                                Color(0xFF1E2228),
+                                                                RoundedCornerShape(8.dp)
+                                                        )
+                                                        .padding(
+                                                                horizontal = 16.dp,
+                                                                vertical = 10.dp
+                                                        ),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                                "${String.format("%,d", entry.km)} km",
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                                dateFormatter.format(entry.date),
+                                                color = Color(0xFFB0B8C4),
+                                                fontSize = 12.sp
+                                        )
+                                    }
+                                    IconButton(
+                                            onClick = {
+                                                val newHistory =
+                                                        revisionHistory.filter { it != entry }
+                                                revisionHistory = newHistory
+                                                saveRevisionHistory(prefs, newHistory)
+                                            }
                                     ) {
-                                        Column {
-                                            Text(
-                                                    "${String.format("%,d", entry.km)} km",
-                                                    color = Color.White,
-                                                    fontWeight = FontWeight.Bold
-                                            )
-                                            Text(
-                                                    dateFormatter.format(entry.date),
-                                                    color = Color(0xFFB0B8C4),
-                                                    fontSize = 12.sp
-                                            )
-                                        }
-                                        IconButton(
-                                                onClick = {
-                                                    val newHistory =
-                                                            revisionHistory.filter { it != entry }
-                                                    revisionHistory = newHistory
-                                                    saveRevisionHistory(prefs, newHistory)
-                                                }
-                                        ) {
-                                            Icon(
-                                                    Icons.Default.Delete,
-                                                    contentDescription = "Excluir",
-                                                    tint = Color(0xFFFF4B4B),
-                                                    modifier = Modifier.size(20.dp)
-                                            )
-                                        }
+                                        Icon(
+                                                Icons.Default.Delete,
+                                                contentDescription = "Excluir",
+                                                tint = Color(0xFFFF4B4B),
+                                                modifier = Modifier.size(20.dp)
+                                        )
                                     }
                                 }
                             }

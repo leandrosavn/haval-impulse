@@ -9,5 +9,9 @@ data class ThemeMetadata(
     val folderName: String = "", // Used to identify the local folder or remote path
     val isLocal: Boolean = false,
     val isDownloaded: Boolean = false,
-    val size: Long = 0
+    val size: Long = 0,
+    val x: Int? = null,
+    val y: Int? = null,
+    val width: Int? = null,
+    val height: Int? = null
 )

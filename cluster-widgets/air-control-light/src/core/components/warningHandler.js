@@ -31,11 +31,16 @@ export function initWarningHandler() {
         }
         
         const currentActive = stateManager.get('warningActive');
+        const cardId = stateManager.get('cardId');
+        const shouldBeWarnActive = hasCriticalWarning || cardId == 0;
+
         if (currentActive !== hasCriticalWarning) {
             stateManager.set('warningActive', hasCriticalWarning);
-            if (window.Android && window.Android.setWarningActive) {
-                window.Android.setWarningActive(hasCriticalWarning);
-            }
+        }
+
+        // Android size handling
+        if (window.Android && window.Android.setWarningActive) {
+            window.Android.setWarningActive(shouldBeWarnActive);
         }
     };
 
@@ -43,8 +48,12 @@ export function initWarningHandler() {
         logger.log('Clearing all warnings via DISMISS_WARNING');
         stateManager.set('warnings', {});
         stateManager.set('warningActive', false);
+        
+        const cardId = stateManager.get('cardId');
+        const shouldBeWarnActive = cardId == 0; // Still active if card is 0
+
         if (window.Android && window.Android.setWarningActive) {
-            window.Android.setWarningActive(false);
+            window.Android.setWarningActive(shouldBeWarnActive);
         }
     };
 }

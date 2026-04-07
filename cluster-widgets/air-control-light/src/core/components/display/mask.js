@@ -36,7 +36,7 @@ export function createMask() {
         const appInDash = get('appInDash');
         const cardId = get('cardId');
         const warningActive = get('warningActive');
-        const rightVisible = (cardId !== 0 && !warningActive);
+        const rightVisible = (cardId != 0 && !warningActive);
 
         let showL = true;
         let showR = true;
@@ -63,10 +63,9 @@ export function createMask() {
         noAppMaskL.style.opacity = showL ? '1' : '0';
         noAppMaskR.style.opacity = showR ? '1' : '0';
         noAppMaskL.style.visibility = showL ? 'visible' : 'hidden';
-        noAppMaskL.style.visibility = showL ? 'visible' : 'hidden';
         noAppMaskR.style.visibility = showR ? 'visible' : 'hidden';
 
-        partialAppMask.style.opacity = (cardId === 0 && !warningActive) ? '1' : '0';
+        partialAppMask.style.opacity = (cardId == 0 && !warningActive) ? '1' : '0';
         //warnMask.style.opacity = warningActive ? '1' : '0'; //TODO: enhance this mask in future
     };
 
