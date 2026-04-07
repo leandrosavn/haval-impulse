@@ -229,6 +229,7 @@ class BottomBarService : LifecycleService() {
         // More robust regex to handle various dumpsys formats, including inner classes ($) and different prefixes
         val regex = Regex("""([a-zA-Z0-9._]+)/[.${'$'}a-zA-Z0-9._]+""")
         val match = regex.find(output)
+        Log.d("BottomBarService", "getTopPackageName - raw: ${output.take(200)}, match: ${match?.value}, package: ${match?.groupValues?.get(1)}")
         return match?.groupValues?.get(1)
     }
 
@@ -298,7 +299,30 @@ class BottomBarService : LifecycleService() {
         lifecycleScope.launch {
             snapshotFlow { BottomBarState.isVisible }.collectLatest { visible ->
                 updateBarVisibility(visible)
+                // Force recompute touchable regions
+                composeView?.requestLayout()
+                menuComposeView?.requestLayout()
             }
+        }
+        // Periodic invalidation to keep touchable regions in sync
+        lifecycleScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(1000)
+                composeView?.requestLayout()
+                menuComposeView?.requestLayout()
+            }
+        }
+    }
+
+    private fun observeMenuState() {
+        lifecycleScope.launch {
+            snapshotFlow { BottomBarState.isMenuExpanded || BottomBarState.isSettingsMenuExpanded || BottomBarState.isOverrideMenuExpanded }
+                    .collectLatest { expanded -> 
+                        updateMenuWindow(expanded)
+                        // Force recompute touchable regions when menu state changes 
+                        composeView?.requestLayout()
+                        menuComposeView?.requestLayout()
+                    }
         }
     }
 
@@ -348,12 +372,8 @@ class BottomBarService : LifecycleService() {
         }
     }
 
-    private fun observeMenuState() {
-        lifecycleScope.launch {
-            snapshotFlow { BottomBarState.isMenuExpanded || BottomBarState.isSettingsMenuExpanded || BottomBarState.isOverrideMenuExpanded }
-                    .collectLatest { expanded -> updateMenuWindow(expanded) }
-        }
-    }
+
+
 
     private fun updateMenuWindow(show: Boolean) {
         val wm = mWindowManager ?: return
@@ -385,13 +405,16 @@ class BottomBarService : LifecycleService() {
                 ComposeView(themedContext)
                         .apply { 
                             setContent { HavalShisukuTheme { BottomBarContent() } }
-                            setupTouchableRegions(this)
+                            setupTouchableRegions(this, isMenuWindow = false)
                         }
                         .also { it.setupForService() }
 
         menuComposeView =
                 ComposeView(themedContext)
-                        .apply { setContent { HavalShisukuTheme { BottomBarMenus() } } }
+                        .apply { 
+                            setContent { HavalShisukuTheme { BottomBarMenus() } }
+                            setupTouchableRegions(this, isMenuWindow = true)
+                        }
                         .also { it.setupForService() }
 
         val density = resources.displayMetrics.density
@@ -501,7 +524,7 @@ class BottomBarService : LifecycleService() {
         }
     }
 
-    private fun setupTouchableRegions(composeView: ComposeView) {
+    private fun setupTouchableRegions(composeView: ComposeView, isMenuWindow: Boolean = false) {
         val observer = composeView.viewTreeObserver
         try {
             val listenerClass = Class.forName("android.view.ViewTreeObserver\$OnComputeInternalInsetsListener")
@@ -522,16 +545,33 @@ class BottomBarService : LifecycleService() {
 
                     val density = resources.displayMetrics.density
                     val windowWidth = resources.displayMetrics.widthPixels
-                    val windowHeight = (100 * density).toInt()
-                    val barHeight = (60 * density).toInt()
-                    val topHandleHeight = (15 * density).toInt()
-                    val hiddenTriggerHeight = (40 * density).toInt()
 
-                    if (BottomBarState.isVisible) {
-                        region.union(Rect(0, windowHeight - barHeight, windowWidth, windowHeight))
-                        region.union(Rect(0, 0, windowWidth, topHandleHeight))
+                    if (isMenuWindow) {
+                        // Menu window is MATCH_PARENT (full screen height)
+                        val anyMenuExpanded = BottomBarState.isMenuExpanded || BottomBarState.isSettingsMenuExpanded || BottomBarState.isOverrideMenuExpanded
+                        Log.d("BottomBarService", "TouchRegion[MENU] anyMenuExpanded=$anyMenuExpanded")
+                        if (anyMenuExpanded) {
+                            val screenHeight = resources.displayMetrics.heightPixels
+                            region.union(Rect(0, 0, windowWidth, screenHeight))
+                        }
                     } else {
-                        region.union(Rect(0, windowHeight - hiddenTriggerHeight, windowWidth, windowHeight))
+                        // Bar window is 100dp tall
+                        val windowHeight = (100 * density).toInt()
+                        val topHandleHeight = (15 * density).toInt()
+                        val hiddenTriggerHeight = (40 * density).toInt()
+                        val visibleBarTouchHeight = (80 * density).toInt()
+
+                        Log.d("BottomBarService", "TouchRegion[BAR] isVisible=${BottomBarState.isVisible}, windowWidth=$windowWidth, windowHeight=$windowHeight, visibleBarTouchHeight=$visibleBarTouchHeight")
+
+                        if (BottomBarState.isVisible) {
+                            // Main Bar touchable area - full width, bottom 80dp
+                            region.union(Rect(0, windowHeight - visibleBarTouchHeight, windowWidth, windowHeight))
+                            // Top Handle for swipe gesture
+                            region.union(Rect(0, 0, windowWidth, topHandleHeight))
+                        } else {
+                            // Hidden: only a small trigger zone at the bottom for swipe-up
+                            region.union(Rect(0, windowHeight - hiddenTriggerHeight, windowWidth, windowHeight))
+                        }
                     }
                 }
                 null

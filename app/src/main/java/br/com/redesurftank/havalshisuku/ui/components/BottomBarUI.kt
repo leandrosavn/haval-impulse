@@ -2,6 +2,7 @@ package br.com.redesurftank.havalshisuku.ui.components
 
 import android.content.Context
 import android.view.MotionEvent
+import android.util.Log
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -161,75 +162,66 @@ fun BottomBarContent() {
 
     Box(
             modifier =
-                    Modifier.fillMaxWidth().height(100.dp).pointerInput(
-                                    BottomBarState.isVisible,
-                                    BottomBarState.autoHideEnabled
-                            ) {
-                        val touchSlop = 40f
-                        awaitPointerEventScope {
-                            while (true) {
-                                // 1. Initial pass: Listen for Down without consuming it
-                                val down = awaitFirstDown(requireUnconsumed = false)
-                                var isSwipe: Boolean
-                                var isHold: Boolean
-                                var pointerOffset = androidx.compose.ui.geometry.Offset.Zero
-                                var lastEventPos = down.position
-
-                                // 2. Detection loop: Look for Swipe or Timeout (Hold)
-                                val detectedSwipe = withTimeoutOrNull(400) { // 400ms Hold threshold
-                                    do {
-                                        val event = awaitPointerEvent()
-                                        val move = event.changes.first()
-                                        pointerOffset += move.position - move.previousPosition
-                                        lastEventPos = move.position
-                                        
-                                        // Trigger Swipe if moved past slop
-                                        if (pointerOffset.getDistance() > touchSlop) {
-                                            return@withTimeoutOrNull true
-                                        }
-                                    } while (event.changes.any { it.pressed })
-                                    false
-                                }
-                                
-                                isSwipe = detectedSwipe == true
-                                isHold = detectedSwipe == null
-
-                                if (isSwipe || isHold) {
-                                    // 3. Absorption loop: Hijack the stream if we detected Swipe/Hold
-                                    do {
-                                        val event = awaitPointerEvent()
-                                        event.changes.forEach { it.consume() }
-                                        lastEventPos = event.changes.first().position
-                                    } while (event.changes.any { it.pressed })
-
-                                    // 4. Action: Hide if it was a deliberate swipe down
-                                    if (isSwipe) {
-                                        val dragAmount = lastEventPos.y - down.position.y
-                                        if (dragAmount > 20f && BottomBarState.isVisible) {
-                                            BottomBarState.isVisible = false
-                                        } else if (dragAmount < -20f && !BottomBarState.isVisible) {
-                                            BottomBarState.isVisible = true
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
+                    Modifier.fillMaxWidth().height(100.dp),
             contentAlignment = Alignment.BottomCenter
     ) {
         if (BottomBarState.isVisible) {
             Surface(
-                    modifier = Modifier.fillMaxWidth().height(60.dp),
+                    modifier = Modifier.fillMaxWidth().height(60.dp)
+                        // Swipe-down gesture: if user drags down > 30dp, hide the bar.
+                        // Taps and small movements pass through to buttons untouched.
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val down = awaitFirstDown(requireUnconsumed = false)
+                                    var totalDragY = 0f
+
+                                    do {
+                                        val event = awaitPointerEvent()
+                                        val change = event.changes.first()
+                                        totalDragY += change.position.y - change.previousPosition.y
+
+                                        // Confirmed downward swipe past bottom → hide bar
+                                        if (totalDragY > 30f) {
+                                            event.changes.forEach { it.consume() }
+                                            // Consume remaining pointer events
+                                            do {
+                                                val ev2 = awaitPointerEvent()
+                                                ev2.changes.forEach { it.consume() }
+                                            } while (ev2.changes.any { it.pressed })
+                                            BottomBarState.isVisible = false
+                                            break
+                                        }
+                                    } while (event.changes.any { it.pressed })
+                                    // If finger lifted without crossing threshold → do nothing (button handles it)
+                                }
+                            }
+                        },
                     color = Color.Black,
                     shape = RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp),
                     tonalElevation = 0.dp
             ) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
-                    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-                    val currentWidthDp = configuration.screenWidthDp.dp
-                    // Target content area is 1670px (1920 - 250 padding for cluster mask)
-                    // If current window width > 1670, add padding to the start to shift content
-                    val horizontalOffsetCompensation = (currentWidthDp - 1670.dp).coerceAtLeast(0.dp)
+                // Use BoxWithConstraints to get actual measured width
+                androidx.compose.foundation.layout.BoxWithConstraints(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    val density = androidx.compose.ui.platform.LocalDensity.current.density
+                    val actualWidthPx = constraints.maxWidth
+                    
+                    // Dynamic padding: 150px when full 1920px, reduced when narrower
+                    // Threshold: 1820px (= 1920 - 100). Below this, no padding.
+                    val thresholdPx = (1820 * density).toInt()
+                    val compensationPx = (actualWidthPx - thresholdPx).coerceAtLeast(0)
+                    val horizontalOffsetCompensation = (compensationPx / density).dp
+                    
+                    // Troubleshoot logging
+                    android.util.Log.d("BottomBarUI", "Width - " +
+                        "ActualWidthPx: $actualWidthPx, " +
+                        "Density: $density, " +
+                        "ThresholdPx: $thresholdPx, " +
+                        "CompensationPx: $compensationPx, " +
+                        "PaddingDp: $horizontalOffsetCompensation")
                     
                     Row(
                             modifier =
@@ -340,19 +332,42 @@ fun BottomBarContent() {
                         // 8. Override Section (5%)
                         if (BottomBarState.isFridaRunning) {
                             Box(
-                                    modifier = Modifier.weight(0.05f),
+                                    modifier = Modifier.weight(0.05f)
+                                        // Use raw pointerInput instead of IconButton/clickable
+                                        // so it works even in YouTube immersive mode where the
+                                        // system gesture navigation consumes touch events.
+                                        .pointerInput(Unit) {
+                                            awaitPointerEventScope {
+                                                while (true) {
+                                                    val down = awaitFirstDown(requireUnconsumed = false)
+                                                    // Wait for finger lift
+                                                    var totalDrag = 0f
+                                                    do {
+                                                        val event = awaitPointerEvent()
+                                                        val change = event.changes.first()
+                                                        totalDrag += (change.position - change.previousPosition).getDistance()
+                                                    } while (event.changes.any { it.pressed })
+                                                    // Only trigger if it was a tap (not a drag)
+                                                    if (totalDrag < 30f) {
+                                                        android.util.Log.e("FRIDA_DEBUG", "Icon Clicked! Current State: ${BottomBarState.isOverrideMenuExpanded}")
+                                                        BottomBarState.isOverrideMenuExpanded =
+                                                                !BottomBarState.isOverrideMenuExpanded
+                                                        if (BottomBarState.isOverrideMenuExpanded) {
+                                                            BottomBarState.isMenuExpanded = false
+                                                            BottomBarState.isSettingsMenuExpanded = false
+                                                        }
+                                                        android.util.Log.e("FRIDA_DEBUG", "New State: ${BottomBarState.isOverrideMenuExpanded}")
+                                                    }
+                                                }
+                                            }
+                                        },
                                     contentAlignment = Alignment.Center
                             ) {
-                                NavIcon(Icons.Default.SwapVert) {
-                                    android.util.Log.e("FRIDA_DEBUG", "Icon Clicked! Current State: ${BottomBarState.isOverrideMenuExpanded}")
-                                    BottomBarState.isOverrideMenuExpanded =
-                                            !BottomBarState.isOverrideMenuExpanded
-                                    if (BottomBarState.isOverrideMenuExpanded) {
-                                        BottomBarState.isMenuExpanded = false
-                                        BottomBarState.isSettingsMenuExpanded = false
-                                    }
-                                    android.util.Log.e("FRIDA_DEBUG", "New State: ${BottomBarState.isOverrideMenuExpanded}")
-                                }
+                                Icon(
+                                    Icons.Default.SwapVert,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.8f)
+                                )
                             }
                         } else {
                             Spacer(modifier = Modifier.weight(0.05f))
@@ -367,6 +382,32 @@ fun BottomBarContent() {
                                     .height(60.dp)
                                     .align(Alignment.BottomCenter)
                                     .background(Color.Transparent)
+                                    // Swipe-up gesture: if user drags upward > 30dp, show the bar
+                                    .pointerInput(Unit) {
+                                        awaitPointerEventScope {
+                                            while (true) {
+                                                val down = awaitFirstDown(requireUnconsumed = false)
+                                                var totalDragY = 0f
+
+                                                do {
+                                                    val event = awaitPointerEvent()
+                                                    val change = event.changes.first()
+                                                    totalDragY += change.position.y - change.previousPosition.y
+
+                                                    // Confirmed upward swipe → show bar
+                                                    if (totalDragY < -30f) {
+                                                        event.changes.forEach { it.consume() }
+                                                        do {
+                                                            val ev2 = awaitPointerEvent()
+                                                            ev2.changes.forEach { it.consume() }
+                                                        } while (ev2.changes.any { it.pressed })
+                                                        BottomBarState.isVisible = true
+                                                        break
+                                                    }
+                                                } while (event.changes.any { it.pressed })
+                                            }
+                                        }
+                                    }
             )
         }
     }
@@ -515,7 +556,7 @@ fun AppMenuContent() {
                                     RoundedCornerShape(12.dp)
                             )
                             .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp))
-                            .fillMaxWidth(0.3f)
+                            .fillMaxWidth(0.25f)
                             .padding(16.dp)
     ) {
         val appList = configs.toList()
@@ -1331,32 +1372,32 @@ fun OverrideMenuContent() {
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
-                        onClick = {
-                            // Reset everything
-                            overscanIndex = 0
-                            offset = 0
-                            updateSettings(0, 0)
-                            
-                            val newOverrides = overrides.toMutableMap()
-                            newOverrides.remove(pkg)
-                            prefs.edit()
-                                    .putString(
-                                            SharedPreferencesKeys.BOTTOM_BAR_OVERRIDES.key,
-                                            gson.toJson(newOverrides)
-                                    )
-                                    .apply()
-                            
-                            BottomBarState.isOverrideMenuExpanded = false
-                        },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
-                ) { Text("Resetar", color = Color.White) }
-
-                Button(
                         onClick = { BottomBarState.isOverrideMenuExpanded = false },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
                 ) { Text("Fechar", color = Color.White) }
+
+                Button(
+                    onClick = {
+                        // Reset everything
+                        overscanIndex = 0
+                        offset = 0
+                        updateSettings(0, 0)
+
+                        val newOverrides = overrides.toMutableMap()
+                        newOverrides.remove(pkg)
+                        prefs.edit()
+                            .putString(
+                                SharedPreferencesKeys.BOTTOM_BAR_OVERRIDES.key,
+                                gson.toJson(newOverrides)
+                            )
+                            .apply()
+
+                        BottomBarState.isOverrideMenuExpanded = false
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
+                ) { Text("Resetar", color = Color.White) }
             }
         }
     }
