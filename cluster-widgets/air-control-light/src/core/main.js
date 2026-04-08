@@ -198,6 +198,12 @@ render();
 // Handle Card ID transitions
 subscribe('cardId', (cardId) => {
     logger.log('cardId change:', cardId);
+
+    // Sync with Android bridge for correct app resizing
+    if (window.Android && window.Android.setCardId) {
+        window.Android.setCardId(cardId);
+    }
+
     // 0 = hide the right menu display
     if (menuWrapper) {
         menuWrapper.style.display = (cardId == 0) ? 'none' : 'block';

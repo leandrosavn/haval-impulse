@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import android.content.Intent
+import kotlin.jvm.JvmStatic
 
 object DisplayAppLauncher {
     
@@ -142,7 +143,7 @@ object DisplayAppLauncher {
         return out
     }
 
-    private fun getEffectiveDimensions(config: DisplayAppConfig): IntArray {
+    fun getEffectiveBounds(config: DisplayAppConfig): IntArray {
         val prefs = getPrefs()
         val alwaysUseTheme = prefs.getBoolean(SharedPreferencesKeys.ALWAYS_USE_THEME_DIMENSIONS.key, true)
         
@@ -159,7 +160,8 @@ object DisplayAppLauncher {
                 width = 1920
                 height = 596
             } else {
-                val metadata = ThemeManager.getInstance(App.getContext()).getThemeMetadata(themeFolderName)
+                val themeManager = ThemeManager.getInstance(App.getContext())
+                val metadata = themeManager.getThemeMetadata(themeFolderName)
                 if (metadata != null && metadata.x != null && metadata.y != null && metadata.width != null && metadata.height != null) {
                     x = metadata.x!!
                     y = metadata.y!!
@@ -178,11 +180,10 @@ object DisplayAppLauncher {
      */
     suspend fun launchApp(config: DisplayAppConfig) = withContext(Dispatchers.IO) {
         try {
-            val dims = getEffectiveDimensions(config)
-            val x = dims[0]
-            val y = dims[1]
-            val right = dims[2]
-            val bottom = dims[3]
+            val x = config.x
+            val y = config.y
+            val right = config.x + config.width
+            val bottom = config.y + config.height
             
             val escapedActivity = config.activityName.replace("$", "\\$")
             val isOwnPackage = config.packageName == App.getContext().packageName
@@ -221,11 +222,10 @@ object DisplayAppLauncher {
      */
     suspend fun resizeApp(config: DisplayAppConfig) = withContext(Dispatchers.IO) {
         try {
-            val dims = getEffectiveDimensions(config)
-            val x = dims[0]
-            val y = dims[1]
-            val right = dims[2]
-            val bottom = dims[3]
+            val x = config.x
+            val y = config.y
+            val right = config.x + config.width
+            val bottom = config.y + config.height
             
             val stackId = findStackIdForPackage(config.packageName, config.displayId)
             if (stackId != null) {
@@ -315,8 +315,7 @@ object DisplayAppLauncher {
             // Already on target display — just resize
             val existing = findStackIdForPackage(config.packageName, config.displayId)
             if (existing != null) {
-                val dims = getEffectiveDimensions(config)
-                sh("am stack resize $existing ${dims[0]} ${dims[1]} ${dims[2]} ${dims[3]}")
+                sh("am stack resize $existing ${config.x} ${config.y} ${config.x + config.width} ${config.y + config.height}")
                 return@withContext
             }
 
@@ -354,8 +353,7 @@ object DisplayAppLauncher {
             Thread.sleep(200)
             val stackId = findStackIdForPackage(config.packageName, config.displayId)
             if (stackId != null) {
-                val dims = getEffectiveDimensions(config)
-                sh("am stack resize $stackId ${dims[0]} ${dims[1]} ${dims[2]} ${dims[3]}")
+                sh("am stack resize $stackId ${config.x} ${config.y} ${config.x + config.width} ${config.y + config.height}")
             }
 
             Log.w(TAG, "App moved to display ${config.displayId} with bounds, state preserved")
@@ -550,11 +548,11 @@ object DisplayAppLauncher {
                 recentlyFixed[packageName] = System.currentTimeMillis()
                 Log.w(TAG, "Detected $packageName in ${info.windowingMode}, restarting in freeform")
                 
-                val dims = getEffectiveDimensions(config)
-                val x = dims[0]
-                val y = dims[1]
-                val right = dims[2]
-                val bottom = dims[3]
+                val bounds = getEffectiveBounds(config)
+                val x = bounds[0]
+                val y = bounds[1]
+                val right = bounds[2]
+                val bottom = bounds[3]
                 
                 val escapedActivity = config.activityName.replace("$", "\\$")
                 sh("am force-stop $packageName")

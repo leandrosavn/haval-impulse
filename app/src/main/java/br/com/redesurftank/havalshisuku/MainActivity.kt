@@ -2177,7 +2177,7 @@ fun ThemeCard(
         ) {
             // Thumbnail
             Card(
-                    modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp)),
+                    modifier = Modifier.width(160.dp).height(80.dp).clip(RoundedCornerShape(8.dp)),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2228))
             ) {
                 if (theme.name == "Básico") {
@@ -2543,6 +2543,10 @@ fun TelasTab() {
                 // Image 4 Example
                 val image4 = remember {
                     try {
+                        // NOTE: This is a hardcoded absolute path that may not exist on your
+                        // machine.
+                        // To fix this, add your image to 'res/drawable' and use:
+                        // BitmapFactory.decodeResource(context.resources, R.drawable.your_image)
                         BitmapFactory.decodeFile(
                                         "C:\\Users\\marce\\.gemini\\antigravity\\brain\\6ffae6a8-c34c-41a2-8637-3fbac551d5a1\\media__1773951437085.png"
                                 )
@@ -2631,6 +2635,11 @@ fun TelasTab() {
                 if (enableMask || !allClusterFunctionsEnabled) {
                     val image5 = remember {
                         try {
+                            // NOTE: This is a hardcoded absolute path that may not exist on your
+                            // machine.
+                            // To fix this, add your image to 'res/drawable' and use:
+                            // BitmapFactory.decodeResource(context.resources,
+                            // R.drawable.your_image)
                             BitmapFactory.decodeFile(
                                             "C:\\Users\\marce\\.gemini\\antigravity\\brain\\6ffae6a8-c34c-41a2-8637-3fbac551d5a1\\media__1773951531439.png"
                                     )

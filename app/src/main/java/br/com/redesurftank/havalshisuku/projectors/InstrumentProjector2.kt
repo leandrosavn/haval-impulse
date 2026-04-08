@@ -61,7 +61,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private var isAnyAppOnDisplay3 = false
     private var isAnyAppOnDisplay1 = false
     private var currentCard = 0
+    private var isWarningActive = false
     private var hasAutoLaunched = false
+    private val lastAppliedConfigs =
+            mutableMapOf<String, br.com.redesurftank.havalshisuku.models.DisplayAppConfig>()
 
     val monitoredWarningKeys =
             setOf(
@@ -70,7 +73,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     CarConstants.CAR_BASIC_FATIGUE_WARNING.value,
                     // CarConstants.CAR_BASIC_MAINTENANCE_WARNING.value,
                     CarConstants.CAR_BASIC_OIL_LOW_WARNING.value,
-                    // CarConstants.CAR_BASIC_SEAT_BELT_WARNING.value,
+                    CarConstants.CAR_BASIC_SEAT_BELT_WARNING.value,
                     CarConstants.CAR_BASIC_TIREPRESS_WARNING.value,
                     CarConstants.CAR_BASIC_TIRETEMP_WARNING.value,
                     CarConstants.CAR_BASIC_TPMS_WARNING.value,
@@ -80,10 +83,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     // CarConstants.CAR_IPK_INFO_DOW_WARNING_REQRIGHT.value,
                     // CarConstants.CAR_IPK_INFO_FCTA_WARNING.value,
                     // CarConstants.CAR_IPK_INFO_FCW_WARNING.value,
-                    // CarConstants.CAR_IPK_INFO_WARNING_TTS_NOTIFY.value,
+                    CarConstants.CAR_IPK_INFO_WARNING_TTS_NOTIFY.value,
                     CarConstants.CAR_IPK_LIGHT_DOOR_WARNING.value,
                     CarConstants.CAR_IPK_LIGHT_ENGINE_OIL_LOW_PRESSURE_WARNING.value,
-                    CarConstants.CAR_IPK_LIGHT_SEAT_BELT_WARNING_INDICATOR.value,
+                    // CarConstants.CAR_IPK_LIGHT_SEAT_BELT_WARNING_INDICATOR.value,
                     CarConstants.CAR_IPK_LIGHT_TPMS_WARNING.value,
                     CarConstants.CAR_IPK_LIGHT_FUEL_LOW
             )
@@ -161,9 +164,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     when (event) {
                         ServiceManagerEventType.CLUSTER_CARD_CHANGED -> {
                             currentCard = args[0] as Int
+                            lastAppliedConfigs.clear() // Invalidate cache on card change to force re-sync
                             evaluateJsIfReady(webView, "control('cardId', $currentCard)")
-                            resizeActiveApp(currentCard)
                             updateVirtualClusterVisibility()
+                            syncSecondaryDisplayApps(3)
                             if (currentCard == 1 || currentCard == 3) {
                                 MainUiManager.getInstance().handleCardChange(currentCard)
                                 updateValuesWebView()
@@ -228,9 +232,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                     "Display 3 app state changed in cluster projector: $isAnyAppOnDisplay3"
                             )
                             updateVirtualClusterVisibility()
-                            if (isAnyAppOnDisplay3) {
-                                resizeActiveApp(currentCard)
-                            }
+                            syncSecondaryDisplayApps(3)
                         }
                         ServiceManagerEventType.DISPLAY_1_APP_STATE_CHANGED -> {
                             isAnyAppOnDisplay1 = args[0] as Boolean
@@ -242,9 +244,11 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         }
                         ServiceManagerEventType.DISMISS_WARNING -> {
                             evaluateJsIfReady(webView, "clearWarnings()")
+                            updateWarningUI(false)
                         }
                         ServiceManagerEventType.APP_GEOMETRY_CHANGED -> {
                             updateVirtualClusterVisibility()
+                            syncSecondaryDisplayApps(3)
                         }
                         else -> {}
                     }
@@ -444,7 +448,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private fun setupControlView(parent: FrameLayout) {
         if (webView == null) {
             webView =
-                    WebView(outerContext).apply {
+                    WebView(this@InstrumentProjector2.context).apply {
                         layoutParams =
                                 FrameLayout.LayoutParams(
                                         FrameLayout.LayoutParams.MATCH_PARENT,
@@ -601,7 +605,6 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private fun updateVirtualClusterVisibility() {
         val clusterEnabled =
                 preferences.getBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, true)
-
         var isLeftCovered = false
         var isRightCovered = false
 
@@ -615,8 +618,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
             if (fullWidth <= 0) continue
 
             val appsOnDisplay =
-                    configs.filter {
-                            config: br.com.redesurftank.havalshisuku.models.DisplayAppConfig ->
+                    configs.filter { config ->
                         val task =
                                 br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
                                         .findTaskForPackage(config.packageName)
@@ -624,10 +626,24 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     }
 
             for (app in appsOnDisplay) {
-                if (app.x <= (fullWidth * 0.3f).toInt()) {
+                val bounds =
+                        br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                                .getEffectiveBounds(app)
+                val baseX = bounds[0]
+                val baseWidth = bounds[2] - bounds[0]
+
+                if (baseX <= (fullWidth * 0.1f).toInt()) {
                     isLeftCovered = true
                 }
-                if (app.x + app.width >= (fullWidth * 0.7f).toInt()) {
+
+                val actualWidth =
+                        if (displayId == 3 && (currentCard == 0 || isWarningActive)) {
+                            (fullWidth * 0.7f).toInt() - baseX
+                        } else {
+                            baseWidth
+                        }
+
+                if (baseX + actualWidth >= (fullWidth * 0.7f).toInt()) {
                     isRightCovered = true
                 }
             }
@@ -643,6 +659,76 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
         evaluateJsIfReady(webView, "control('clusterEnabled', $clusterEnabled)")
         evaluateJsIfReady(webView, "control('appInDash', $appInDashValue)")
+    }
+
+    private fun syncSecondaryDisplayApps(displayId: Int) {
+        val res =
+                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getDisplayResolution(
+                        displayId
+                )
+        val fullWidth = res.first
+        if (fullWidth <= 0) return
+
+        val appsOnDisplay =
+                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()
+                        .filter { config ->
+                            val task =
+                                    br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                                            .findTaskForPackage(config.packageName)
+                            task != null &&
+                                    task.displayId == displayId &&
+                                    (config.packageName != outerContext.packageName ||
+                                            displayId != 1)
+                        }
+
+        for (app in appsOnDisplay) {
+            val bounds =
+                    br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getEffectiveBounds(
+                            app
+                    )
+            val baseX = bounds[0]
+            val baseY = bounds[1]
+            val baseWidth = bounds[2] - bounds[0]
+            val baseHeight = bounds[3] - bounds[1]
+
+            val targetWidth =
+                    if (displayId == 3 && (currentCard == 0 || isWarningActive)) {
+                        val calculated = (fullWidth * 0.7f).toInt() - baseX
+                        kotlin.math.max(100, kotlin.math.min(baseWidth, calculated))
+                    } else {
+                        baseWidth
+                    }
+
+            val targetConfig =
+                    app.copy(
+                            x = baseX,
+                            y = baseY,
+                            width = targetWidth,
+                            height = baseHeight,
+                            displayId = displayId
+                    )
+            val lastConfig = lastAppliedConfigs[app.packageName]
+
+            if (lastConfig == null ||
+                            lastConfig.x != targetConfig.x ||
+                            lastConfig.y != targetConfig.y ||
+                            lastConfig.width != targetConfig.width ||
+                            lastConfig.height != targetConfig.height ||
+                            lastConfig.displayId != targetConfig.displayId
+            ) {
+
+                lastAppliedConfigs[app.packageName] = targetConfig
+                Log.d(
+                        TAG,
+                        "Syncing app ${app.packageName} (Display $displayId): card=$currentCard warn=$isWarningActive -> width=$targetWidth"
+                )
+                scope.launch {
+                    br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.resizeApp(
+                            targetConfig
+                    )
+                }
+            }
+        }
     }
 
     private fun evaluateJsIfReady(webView: WebView?, js: String) {
@@ -705,42 +791,6 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
     override fun carMainScreenOn() {
         ensureUi { root.visibility = View.VISIBLE }
-    }
-
-    private fun resizeActiveApp(cardId: Int) {
-        val configs = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()
-
-        scope.launch {
-            val res =
-                    br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
-                            .getDisplayResolution(3)
-            val fullWidth = res.first
-
-            configs.forEach { config ->
-                val taskInfo =
-                        br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
-                                .findTaskForPackage(config.packageName)
-                if (taskInfo != null && (taskInfo.displayId == 1 || taskInfo.displayId == 3)) {
-                    val newWidth =
-                            if (cardId == 0) {
-                                kotlin.math.min(config.width, (fullWidth * 0.7f).toInt() - config.x)
-                            } else {
-                                config.width
-                            }
-
-                    val newConfig = config.copy(width = newWidth)
-                    Log.d(
-                            TAG,
-                            "Resizing running app ${config.packageName} on for cardId $cardId: width=$newWidth"
-                    )
-                    br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.resizeApp(
-                            newConfig
-                    )
-                }
-            }
-
-            updateVirtualClusterVisibility()
-        }
     }
 
     fun getGearLabel(gear: String?): String {
@@ -843,17 +893,17 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         return finalSpeed.toInt().toString()
     }
 
-    private fun updateWarningUI(anyWarningActive: Boolean, resizeApp: Boolean) {
+    private fun updateWarningUI(anyWarningActive: Boolean) {
+        isWarningActive = anyWarningActive
+        lastAppliedConfigs.clear() // Invalidate cache on warning toggle to force re-sync
         if (anyWarningActive) {
-            Log.w(
-                    TAG,
-                    "Warning detected. Storing cardId $currentCard and forcing app resize if needed"
-            )
-            if (resizeApp) resizeActiveApp(0)
+            Log.w(TAG, "Warning detected. currentCard=$currentCard. Triggering visibility update.")
         } else {
             Log.w(TAG, "Warnings cleared.")
-            if (resizeApp) resizeActiveApp(1)
         }
+
+        updateVirtualClusterVisibility()
+        syncSecondaryDisplayApps(3)
 
         // Propagate current warning state
         evaluateJsIfReady(webView, "control('warningActive', $anyWarningActive)")
@@ -862,7 +912,14 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     inner class WebAppInterface {
         @JavascriptInterface
         fun setWarningActive(isActive: Boolean) {
-            ensureUi { updateWarningUI(isActive, true) }
+            ensureUi { updateWarningUI(isActive) }
+        }
+
+        @JavascriptInterface
+        fun setCardId(cardId: Int) {
+            currentCard = cardId
+            Log.d(TAG, "Card ID updated to $cardId")
+            syncSecondaryDisplayApps(3)
         }
     }
 }
