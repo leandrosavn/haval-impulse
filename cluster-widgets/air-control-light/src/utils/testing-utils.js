@@ -287,10 +287,28 @@ document.addEventListener('keydown', (e) => {
         setState('appInDash', nextValue);
     }
 
+    if (e.key.toLowerCase() === 'c') {
+        const current = stateManager.getState().clusterEnabled;
+        console.log(`[Cluster Simulation] Toggling clusterEnabled to: ${!current}`);
+        setState('clusterEnabled', !current);
+    }
+
     if (e.key.toLowerCase() === 'o') {
         const currentOnePedal = stateManager.getState().onepedal;
         console.log(`[Mode Simulation] Toggle onepedal -> ${!currentOnePedal}`);
         setState('onepedal', !currentOnePedal);
+    }
+
+    if (e.key === '6') {
+        const current = stateManager.get('enableOdometer');
+        console.log(`[Testing] Toggling enableOdometer to: ${!current}`);
+        setState('enableOdometer', !current);
+    }
+
+    if (e.key === '7') {
+        const current = stateManager.get('enableRevisionWarning');
+        console.log(`[Testing] Toggling enableRevisionWarning to: ${!current}`);
+        setState('enableRevisionWarning', !current);
     }
 
     if (e.key.toLowerCase() === 'm') {
@@ -453,9 +471,9 @@ window.simulationInterval = setInterval(() => {
         if (!window.maintenanceMode) window.maintenanceMode = 'km';
         
         if (window.maintenanceMode === 'none') {
-            setState('enableRevisionWarning', false);
+            // setState('enableRevisionWarning', false); // REMOVED: Don't override manual toggle
         } else {
-            setState('enableRevisionWarning', true);
+            // setState('enableRevisionWarning', true); // REMOVED: Don't override manual toggle
             
             if (window.maintenanceMode === 'km') {
                 // Target: 12.000km, Current is around 11.450 -> Warning active (< 1000km)

@@ -28,12 +28,20 @@ export function createOdometerInfo() {
     textWrapper.classList.add('startup-flash');
 
     const updateDisplay = () => {
+        const odometerEnabled = getState('enableOdometer');
         const warningEnabled = getState('enableRevisionWarning');
         const currentKm = getState('odometer') || 0;
         const nextKm = getState('nextRevisionKm') || 0;
         const nextDateMillis = getState('nextRevisionDate') || 0;
+
+        if (!odometerEnabled && !warningEnabled) {
+            container.style.display = 'none';
+            return;
+        }
+        container.style.display = 'block';
         
         odometerLine.querySelector('.odometer-value').textContent = currentKm;
+        odometerLine.style.display = odometerEnabled ? 'block' : 'none';
         
         if (warningEnabled) {
             const remainingKm = nextKm - currentKm;
@@ -53,7 +61,7 @@ export function createOdometerInfo() {
                 
                 revisionLine.querySelector('.revision-text').textContent = text;
                 revisionLine.style.display = 'block';
-                textWrapper.className = 'odometer-text-wrapper double-line';
+                textWrapper.className = `odometer-text-wrapper ${odometerEnabled ? 'double-line' : 'single-line'}`;
             } else {
                 revisionLine.style.display = 'none';
                 textWrapper.className = 'odometer-text-wrapper single-line';
@@ -68,7 +76,8 @@ export function createOdometerInfo() {
         subscribe('odometer', updateDisplay),
         subscribe('nextRevisionKm', updateDisplay),
         subscribe('nextRevisionDate', updateDisplay),
-        subscribe('enableRevisionWarning', updateDisplay)
+        subscribe('enableRevisionWarning', updateDisplay),
+        subscribe('enableOdometer', updateDisplay)
     ];
 
     updateDisplay();

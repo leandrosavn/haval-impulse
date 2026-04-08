@@ -2,18 +2,14 @@
 
 package br.com.redesurftank.havalshisuku
 
-import android.app.Application
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
-import androidx.core.content.edit
-import androidx.core.content.FileProvider
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
-import android.graphics.Color as AndroidColor
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -31,7 +27,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
@@ -49,28 +44,31 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.*
 import androidx.compose.ui.text.style.*
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.*
 import androidx.compose.ui.window.*
+import androidx.core.content.FileProvider
+import androidx.core.content.edit
 import br.com.redesurftank.App
-import br.com.redesurftank.havalshisuku.models.*
-import br.com.redesurftank.havalshisuku.managers.*
-import br.com.redesurftank.havalshisuku.services.*
 import br.com.redesurftank.havalshisuku.listeners.IDataChanged
+import br.com.redesurftank.havalshisuku.managers.*
+import br.com.redesurftank.havalshisuku.models.*
+import br.com.redesurftank.havalshisuku.services.*
 import br.com.redesurftank.havalshisuku.ui.components.*
 import br.com.redesurftank.havalshisuku.ui.theme.*
 import br.com.redesurftank.havalshisuku.utils.*
 import coil.compose.AsyncImage
 import coil.request.*
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import java.io.*
 import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlinx.coroutines.*
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
-import org.json.JSONArray
 import kotlin.math.min
+import kotlinx.coroutines.*
+import org.json.JSONArray
 
 const val TAG = "HavalShisuku"
 
@@ -231,7 +229,10 @@ fun MainScreen(modifier: Modifier = Modifier) {
     }
 }
 
-data class DrawerMenuItem(val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
+data class DrawerMenuItem(
+        val title: String,
+        val icon: androidx.compose.ui.graphics.vector.ImageVector
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -402,9 +403,7 @@ fun BasicSettingsTab() {
         )
     }
     var curtainEndHour by remember {
-        mutableIntStateOf(
-                prefs.getInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_END_HOUR.key, 9)
-        )
+        mutableIntStateOf(prefs.getInt(SharedPreferencesKeys.OPEN_SUNROOF_CURTAIN_END_HOUR.key, 9))
     }
     var curtainEndMinute by remember {
         mutableIntStateOf(
@@ -937,7 +936,9 @@ fun BasicSettingsTab() {
                                                     )
                                                     Box {
                                                         Text(
-                                                                text = tempOptions[openSunroofCurtainMaxTemp]
+                                                                text =
+                                                                        tempOptions[
+                                                                                openSunroofCurtainMaxTemp]
                                                                                 ?: "Desabilitado",
                                                                 color = Color(0xFF4A9EFF),
                                                                 fontSize = 16.sp,
@@ -981,7 +982,8 @@ fun BasicSettingsTab() {
                                                                             )
                                                                         },
                                                                         onClick = {
-                                                                            openSunroofCurtainMaxTemp = value
+                                                                            openSunroofCurtainMaxTemp =
+                                                                                    value
                                                                             prefs.edit {
                                                                                 putFloat(
                                                                                         SharedPreferencesKeys
@@ -1085,60 +1087,124 @@ fun BasicSettingsTab() {
                                                                         "wm overscan 0,0,0,0"
                                                                 )
                                                         )
-                                            }.start()
-                                 }
-                            },
-                            customContent = if (enablePersistentBottomBar) {
-                                {
-                                    Column(modifier = Modifier.padding(top = 8.dp)) {
-                                        HorizontalDivider(color = Color(0xFF1D2430), thickness = 1.dp)
-                                        Spacer(modifier = Modifier.height(12.dp))
-
-                                        // Auto-hide row
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text("Auto-ocultar barra", color = Color.White, fontSize = 16.sp)
-                                                Text("Esconde após 30s de inatividade", color = Color.Gray, fontSize = 12.sp)
                                             }
-                                            Switch(
-                                                checked = autoHideEnabled,
-                                                onCheckedChange = {
-                                                    autoHideEnabled = it
-                                                    prefs.edit().putBoolean(SharedPreferencesKeys.BOTTOM_BAR_AUTO_HIDE.key, it).apply()
-                                                    BottomBarState.autoHideEnabled = it
-                                                },
-                                                modifier = Modifier.scale(0.9f),
-                                                colors = SwitchDefaults.colors(
-                                                    checkedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextPrimary,
-                                                    checkedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.Primary,
-                                                    uncheckedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextSecondary,
-                                                    uncheckedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.ButtonSecondary,
-                                                    uncheckedBorderColor = Color.Transparent,
-                                                    checkedBorderColor = Color.Transparent
-                                                )
-                                            )
-                                        }
-
-                                        Spacer(modifier = Modifier.height(12.dp))
-
-                                        // Manage Overrides button
-                                        Button(
-                                            onClick = { showOverridesDialog = true },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3)),
-                                            shape = RoundedCornerShape(8.dp)
-                                        ) {
-                                            Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text("Gerenciar Overrides de Apps", color = Color.White)
-                                        }
-                                    }
+                                            .start()
                                 }
-                            } else null
+                            },
+                            customContent =
+                                    if (enablePersistentBottomBar) {
+                                        {
+                                            Column(modifier = Modifier.padding(top = 8.dp)) {
+                                                HorizontalDivider(
+                                                        color = Color(0xFF1D2430),
+                                                        thickness = 1.dp
+                                                )
+                                                Spacer(modifier = Modifier.height(12.dp))
+
+                                                // Auto-hide row
+                                                Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement =
+                                                                Arrangement.SpaceBetween,
+                                                        verticalAlignment =
+                                                                Alignment.CenterVertically
+                                                ) {
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(
+                                                                "Auto-ocultar barra",
+                                                                color = Color.White,
+                                                                fontSize = 16.sp
+                                                        )
+                                                        Text(
+                                                                "Esconde após 30s de inatividade",
+                                                                color = Color.Gray,
+                                                                fontSize = 12.sp
+                                                        )
+                                                    }
+                                                    Switch(
+                                                            checked = autoHideEnabled,
+                                                            onCheckedChange = {
+                                                                autoHideEnabled = it
+                                                                prefs.edit()
+                                                                        .putBoolean(
+                                                                                SharedPreferencesKeys
+                                                                                        .BOTTOM_BAR_AUTO_HIDE
+                                                                                        .key,
+                                                                                it
+                                                                        )
+                                                                        .apply()
+                                                                BottomBarState.autoHideEnabled = it
+                                                            },
+                                                            modifier = Modifier.scale(0.9f),
+                                                            colors =
+                                                                    SwitchDefaults.colors(
+                                                                            checkedThumbColor =
+                                                                                    br.com
+                                                                                            .redesurftank
+                                                                                            .havalshisuku
+                                                                                            .ui
+                                                                                            .components
+                                                                                            .AppColors
+                                                                                            .TextPrimary,
+                                                                            checkedTrackColor =
+                                                                                    br.com
+                                                                                            .redesurftank
+                                                                                            .havalshisuku
+                                                                                            .ui
+                                                                                            .components
+                                                                                            .AppColors
+                                                                                            .Primary,
+                                                                            uncheckedThumbColor =
+                                                                                    br.com
+                                                                                            .redesurftank
+                                                                                            .havalshisuku
+                                                                                            .ui
+                                                                                            .components
+                                                                                            .AppColors
+                                                                                            .TextSecondary,
+                                                                            uncheckedTrackColor =
+                                                                                    br.com
+                                                                                            .redesurftank
+                                                                                            .havalshisuku
+                                                                                            .ui
+                                                                                            .components
+                                                                                            .AppColors
+                                                                                            .ButtonSecondary,
+                                                                            uncheckedBorderColor =
+                                                                                    Color.Transparent,
+                                                                            checkedBorderColor =
+                                                                                    Color.Transparent
+                                                                    )
+                                                    )
+                                                }
+
+                                                Spacer(modifier = Modifier.height(12.dp))
+
+                                                // Manage Overrides button
+                                                Button(
+                                                        onClick = { showOverridesDialog = true },
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        colors =
+                                                                ButtonDefaults.buttonColors(
+                                                                        containerColor =
+                                                                                Color(0xFF2196F3)
+                                                                ),
+                                                        shape = RoundedCornerShape(8.dp)
+                                                ) {
+                                                    Icon(
+                                                            Icons.Default.Settings,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(18.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text(
+                                                            "Gerenciar Overrides de Apps",
+                                                            color = Color.White
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    } else null
                     ),
                     SettingItem(
                             title = "Desativar AVAS",
@@ -1776,14 +1842,17 @@ fun BasicSettingsTab() {
                             },
                             sliderLabel = "Volume: $volume"
                     ),
-                                        SettingItem(
+                    SettingItem(
                             title = "Ajuste de velocidade",
                             description = "Ajusta a velocidade exibida no painel (Virtual Cluster)",
                             checked = enableSpeedAdjustment,
                             onCheckedChange = {
                                 enableSpeedAdjustment = it
                                 prefs.edit {
-                                    putBoolean(SharedPreferencesKeys.ENABLE_SPEED_ADJUSTMENT.key, it)
+                                    putBoolean(
+                                            SharedPreferencesKeys.ENABLE_SPEED_ADJUSTMENT.key,
+                                            it
+                                    )
                                 }
                             },
                             sliderValue = speedAdjustmentOffset.toInt(),
@@ -1798,7 +1867,8 @@ fun BasicSettingsTab() {
                                     )
                                 }
                             },
-                            sliderLabel = "Ajuste: ${if (speedAdjustmentOffset > 0) "+" else ""}${speedAdjustmentOffset.toInt()}%"
+                            sliderLabel =
+                                    "Ajuste: ${if (speedAdjustmentOffset > 0) "+" else ""}${speedAdjustmentOffset.toInt()}%"
                     )
             )
     )
@@ -1854,53 +1924,89 @@ fun BasicSettingsTab() {
         val overridesJson = prefs.getString(SharedPreferencesKeys.BOTTOM_BAR_OVERRIDES.key, null)
         val gson = Gson()
         val type = object : TypeToken<MutableMap<String, Map<String, Int>>>() {}.type
-        val overrides: MutableMap<String, Map<String, Int>> = if (overridesJson != null) {
-            try { gson.fromJson(overridesJson, type) } catch (e: Exception) { mutableMapOf() }
-        } else {
-            mutableMapOf()
-        }
+        val overrides: MutableMap<String, Map<String, Int>> =
+                if (overridesJson != null) {
+                    try {
+                        gson.fromJson(overridesJson, type)
+                    } catch (e: Exception) {
+                        mutableMapOf()
+                    }
+                } else {
+                    mutableMapOf()
+                }
 
         AlertDialog(
-            onDismissRequest = { showOverridesDialog = false },
-            title = { Text("Gerenciar Overrides de Apps", color = Color.White) },
-            containerColor = Color(0xFF13151A),
-            text = {
-                Column(modifier = Modifier.heightIn(max = 400.dp)) {
-                    if (overrides.isEmpty()) {
-                        Text("Nenhum override salvo.", color = Color.Gray)
-                    } else {
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(overrides.keys.sorted()) { pkgName ->
-                                val settings = overrides[pkgName]
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
-                                        .padding(8.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(pkgName, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text("Overscan: ${settings?.get("overscan") ?: 0}, Offset: ${settings?.get("offset") ?: 0}", color = Color.Gray, fontSize = 10.sp)
-                                    }
-                                    IconButton(onClick = {
-                                        val newOverrides = overrides.toMutableMap()
-                                        newOverrides.remove(pkgName)
-                                        prefs.edit().putString(SharedPreferencesKeys.BOTTOM_BAR_OVERRIDES.key, gson.toJson(newOverrides)).apply()
-                                        context.sendBroadcast(Intent("br.com.redesurftank.havalshisuku.UPDATE_BAR_POSITION"))
-                                    }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Remover", tint = Color.Red.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
+                onDismissRequest = { showOverridesDialog = false },
+                title = { Text("Gerenciar Overrides de Apps", color = Color.White) },
+                containerColor = Color(0xFF13151A),
+                text = {
+                    Column(modifier = Modifier.heightIn(max = 400.dp)) {
+                        if (overrides.isEmpty()) {
+                            Text("Nenhum override salvo.", color = Color.Gray)
+                        } else {
+                            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(overrides.keys.sorted()) { pkgName ->
+                                    val settings = overrides[pkgName]
+                                    Row(
+                                            modifier =
+                                                    Modifier.fillMaxWidth()
+                                                            .background(
+                                                                    Color.White.copy(alpha = 0.05f),
+                                                                    RoundedCornerShape(8.dp)
+                                                            )
+                                                            .padding(8.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                    pkgName,
+                                                    color = Color.White,
+                                                    fontSize = 12.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                    "Overscan: ${settings?.get("overscan") ?: 0}, Offset: ${settings?.get("offset") ?: 0}",
+                                                    color = Color.Gray,
+                                                    fontSize = 10.sp
+                                            )
+                                        }
+                                        IconButton(
+                                                onClick = {
+                                                    val newOverrides = overrides.toMutableMap()
+                                                    newOverrides.remove(pkgName)
+                                                    prefs.edit()
+                                                            .putString(
+                                                                    SharedPreferencesKeys
+                                                                            .BOTTOM_BAR_OVERRIDES
+                                                                            .key,
+                                                                    gson.toJson(newOverrides)
+                                                            )
+                                                            .apply()
+                                                    context.sendBroadcast(
+                                                            Intent(
+                                                                    "br.com.redesurftank.havalshisuku.UPDATE_BAR_POSITION"
+                                                            )
+                                                    )
+                                                }
+                                        ) {
+                                            Icon(
+                                                    Icons.Default.Delete,
+                                                    contentDescription = "Remover",
+                                                    tint = Color.Red.copy(alpha = 0.7f),
+                                                    modifier = Modifier.size(20.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showOverridesDialog = false }) { Text("Fechar") }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { showOverridesDialog = false }) { Text("Fechar") }
-            }
         )
     }
 }
@@ -2071,7 +2177,7 @@ fun ThemeCard(
         ) {
             // Thumbnail
             Card(
-                    modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp)),
+                    modifier = Modifier.width(160.dp).height(80.dp).clip(RoundedCornerShape(8.dp)),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2228))
             ) {
                 if (theme.name == "Básico") {
@@ -2216,11 +2322,11 @@ fun TelasTab() {
                 prefs.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key, false)
         )
     }
-    var enableWarning by remember {
+    var enableOdometerAndRevision by remember {
         mutableStateOf(
                 prefs.getBoolean(
-                        SharedPreferencesKeys.ENABLE_INSTRUMENT_REVISION_WARNING.key,
-                        false
+                        SharedPreferencesKeys.ENABLE_INSTRUMENT_ODOMETER_AND_REVISION.key,
+                        true
                 )
         )
     }
@@ -2255,6 +2361,11 @@ fun TelasTab() {
         mutableStateOf(
                 prefs.getString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Básico")
                         ?: "Básico"
+        )
+    }
+    var alwaysUseThemeDimensions by remember {
+        mutableStateOf(
+                prefs.getBoolean(SharedPreferencesKeys.ALWAYS_USE_THEME_DIMENSIONS.key, true)
         )
     }
     var defaultApp by remember {
@@ -2378,11 +2489,11 @@ fun TelasTab() {
                                 }
 
                                 if (!it) {
-                                    enableWarning = false
+                                    enableOdometerAndRevision = false
                                     prefs.edit {
                                         putBoolean(
                                                 SharedPreferencesKeys
-                                                        .ENABLE_INSTRUMENT_REVISION_WARNING
+                                                        .ENABLE_INSTRUMENT_ODOMETER_AND_REVISION
                                                         .key,
                                                 false
                                         )
@@ -2409,20 +2520,33 @@ fun TelasTab() {
                                 }
                             },
                             modifier = Modifier.scale(0.9f),
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextPrimary,
-                                checkedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.Primary,
-                                uncheckedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextSecondary,
-                                uncheckedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.ButtonSecondary,
-                                uncheckedBorderColor = Color.Transparent,
-                                checkedBorderColor = Color.Transparent
-                            )
+                            colors =
+                                    SwitchDefaults.colors(
+                                            checkedThumbColor =
+                                                    br.com.redesurftank.havalshisuku.ui.components
+                                                            .AppColors.TextPrimary,
+                                            checkedTrackColor =
+                                                    br.com.redesurftank.havalshisuku.ui.components
+                                                            .AppColors.Primary,
+                                            uncheckedThumbColor =
+                                                    br.com.redesurftank.havalshisuku.ui.components
+                                                            .AppColors.TextSecondary,
+                                            uncheckedTrackColor =
+                                                    br.com.redesurftank.havalshisuku.ui.components
+                                                            .AppColors.ButtonSecondary,
+                                            uncheckedBorderColor = Color.Transparent,
+                                            checkedBorderColor = Color.Transparent
+                                    )
                     )
                 }
 
                 // Image 4 Example
                 val image4 = remember {
                     try {
+                        // NOTE: This is a hardcoded absolute path that may not exist on your
+                        // machine.
+                        // To fix this, add your image to 'res/drawable' and use:
+                        // BitmapFactory.decodeResource(context.resources, R.drawable.your_image)
                         BitmapFactory.decodeFile(
                                         "C:\\Users\\marce\\.gemini\\antigravity\\brain\\6ffae6a8-c34c-41a2-8637-3fbac551d5a1\\media__1773951437085.png"
                                 )
@@ -2476,17 +2600,34 @@ fun TelasTab() {
                                 enableMask = it
                                 prefs.edit {
                                     putBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, it)
+                                    if (it) {
+                                        putBoolean(
+                                                SharedPreferencesKeys.ALWAYS_USE_THEME_DIMENSIONS
+                                                        .key,
+                                                true
+                                        )
+                                        alwaysUseThemeDimensions = true
+                                    }
                                 }
                             },
                             modifier = Modifier.scale(0.9f),
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextPrimary,
-                                checkedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.Primary,
-                                uncheckedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextSecondary,
-                                uncheckedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.ButtonSecondary,
-                                uncheckedBorderColor = Color.Transparent,
-                                checkedBorderColor = Color.Transparent
-                            )
+                            colors =
+                                    SwitchDefaults.colors(
+                                            checkedThumbColor =
+                                                    br.com.redesurftank.havalshisuku.ui.components
+                                                            .AppColors.TextPrimary,
+                                            checkedTrackColor =
+                                                    br.com.redesurftank.havalshisuku.ui.components
+                                                            .AppColors.Primary,
+                                            uncheckedThumbColor =
+                                                    br.com.redesurftank.havalshisuku.ui.components
+                                                            .AppColors.TextSecondary,
+                                            uncheckedTrackColor =
+                                                    br.com.redesurftank.havalshisuku.ui.components
+                                                            .AppColors.ButtonSecondary,
+                                            uncheckedBorderColor = Color.Transparent,
+                                            checkedBorderColor = Color.Transparent
+                                    )
                     )
                 }
 
@@ -2494,6 +2635,11 @@ fun TelasTab() {
                 if (enableMask || !allClusterFunctionsEnabled) {
                     val image5 = remember {
                         try {
+                            // NOTE: This is a hardcoded absolute path that may not exist on your
+                            // machine.
+                            // To fix this, add your image to 'res/drawable' and use:
+                            // BitmapFactory.decodeResource(context.resources,
+                            // R.drawable.your_image)
                             BitmapFactory.decodeFile(
                                             "C:\\Users\\marce\\.gemini\\antigravity\\brain\\6ffae6a8-c34c-41a2-8637-3fbac551d5a1\\media__1773951531439.png"
                                     )
@@ -2520,8 +2666,72 @@ fun TelasTab() {
 
                     Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            verticalAlignment = Alignment.CenterVertically
                     ) {
+
+                        // Theme Dimensions Override Switch
+                        Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(
+                                    modifier = Modifier.weight(1f),
+                                    horizontalAlignment = Alignment.Start
+                            ) {
+                                Text(
+                                        "Dimensões do Tema",
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                        "Sempre usar dimensões do tema para apps",
+                                        color = Color(0xFFB0B8C4),
+                                        fontSize = 10.sp,
+                                        lineHeight = 12.sp
+                                )
+                            }
+
+                            Switch(
+                                    checked = alwaysUseThemeDimensions,
+                                    enabled = enableMask && allClusterFunctionsEnabled,
+                                    onCheckedChange = {
+                                        alwaysUseThemeDimensions = it
+                                        prefs.edit {
+                                            putBoolean(
+                                                    SharedPreferencesKeys
+                                                            .ALWAYS_USE_THEME_DIMENSIONS
+                                                            .key,
+                                                    it
+                                            )
+                                        }
+                                    },
+                                    modifier = Modifier.scale(0.8f),
+                                    colors =
+                                            SwitchDefaults.colors(
+                                                    checkedThumbColor =
+                                                            br.com.redesurftank.havalshisuku.ui
+                                                                    .components.AppColors
+                                                                    .TextPrimary,
+                                                    checkedTrackColor =
+                                                            br.com.redesurftank.havalshisuku.ui
+                                                                    .components.AppColors.Primary,
+                                                    uncheckedThumbColor =
+                                                            br.com.redesurftank.havalshisuku.ui
+                                                                    .components.AppColors
+                                                                    .TextSecondary,
+                                                    uncheckedTrackColor =
+                                                            br.com.redesurftank.havalshisuku.ui
+                                                                    .components.AppColors
+                                                                    .ButtonSecondary,
+                                                    uncheckedBorderColor = Color.Transparent,
+                                                    checkedBorderColor = Color.Transparent
+                                            )
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
                         // Default App Selection
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
@@ -2602,7 +2812,7 @@ fun TelasTab() {
                                                             .let {
                                                                 pm.getApplicationLabel(it)
                                                                         .toString()
-                                                                }
+                                                            }
                                                 } catch (_: Exception) {
                                                     config.packageName
                                                 }
@@ -2659,7 +2869,9 @@ fun TelasTab() {
                                             isFetchingThemes = true
                                             scope.launch {
                                                 try {
-                                                    localThemes = ThemeManager.getInstance(context).getLocalThemes()
+                                                    localThemes =
+                                                            ThemeManager.getInstance(context)
+                                                                    .getLocalThemes()
                                                     githubThemes =
                                                             ThemeManager.getInstance(context)
                                                                     .fetchThemesFromGithub(
@@ -2725,7 +2937,9 @@ fun TelasTab() {
 
                                     // 2. Add GitHub themes that are NOT local
                                     githubThemes.forEach { github ->
-                                        if (github.name != "Básico" && list.none { it.name == github.name }) {
+                                        if (github.name != "Básico" &&
+                                                        list.none { it.name == github.name }
+                                        ) {
                                             list.add(github.copy(isDownloaded = false))
                                         }
                                     }
@@ -2733,8 +2947,8 @@ fun TelasTab() {
                                     // Sort: Básico first, then installed ones, then the rest
                                     list.sortedWith(
                                             compareByDescending<ThemeMetadata> {
-                                                        it.name == "Básico"
-                                                    }
+                                                it.name == "Básico"
+                                            }
                                                     .thenByDescending { it.isDownloaded }
                                                     .thenBy { it.name }
                                     )
@@ -2745,8 +2959,12 @@ fun TelasTab() {
                                     modifier = Modifier.fillMaxWidth().padding(32.dp),
                                     contentAlignment = Alignment.Center
                             ) { CircularProgressIndicator(color = AppColors.Primary) }
-                        } else if (githubThemes.isEmpty() && !isFetchingThemes && localThemes.isEmpty()) {
-                            // Only show error if we have NO themes at all (unlikely since Básico is hardcoded)
+                        } else if (githubThemes.isEmpty() &&
+                                        !isFetchingThemes &&
+                                        localThemes.isEmpty()
+                        ) {
+                            // Only show error if we have NO themes at all (unlikely since Básico is
+                            // hardcoded)
                             Text(
                                     "Nenhum tema encontrado ou erro ao carregar.",
                                     color = Color(0xFF636D77),
@@ -2765,8 +2983,7 @@ fun TelasTab() {
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 allDisplayThemes.forEach { theme ->
-                                    val isDownloaded =
-                                            theme.isDownloaded || theme.name == "Básico"
+                                    val isDownloaded = theme.isDownloaded || theme.name == "Básico"
                                     val isSelected = selectedTheme == theme.name
 
                                     val local = localThemes.find { it.name == theme.name }
@@ -2830,8 +3047,7 @@ fun TelasTab() {
                                                                             .downloadTheme(theme)
                                                             if (success) {
                                                                 localThemes =
-                                                                        ThemeManager
-                                                                                .getInstance(
+                                                                        ThemeManager.getInstance(
                                                                                         context
                                                                                 )
                                                                                 .getLocalThemes()
@@ -2860,9 +3076,7 @@ fun TelasTab() {
                                                 scope.launch {
                                                     try {
                                                         val success =
-                                                                ThemeManager.getInstance(
-                                                                                context
-                                                                        )
+                                                                ThemeManager.getInstance(context)
                                                                         .downloadTheme(theme)
                                                         if (success) {
                                                             localThemes =
@@ -2890,24 +3104,20 @@ fun TelasTab() {
                                                 }
                                             },
                                             onDelete =
-                                                    if (isDownloaded &&
-                                                                    theme.name != "Básico"
-                                                    ) {
+                                                    if (isDownloaded && theme.name != "Básico") {
                                                         {
                                                             scope.launch {
                                                                 val themeDir =
                                                                         java.io.File(
                                                                                 java.io.File(
-                                                                                        context
-                                                                                                .filesDir,
+                                                                                        context.filesDir,
                                                                                         "themes"
                                                                                 ),
                                                                                 theme.folderName
                                                                         )
                                                                 if (themeDir.exists()) {
                                                                     themeDir.deleteRecursively()
-                                                                    if (selectedTheme ==
-                                                                                    theme.name
+                                                                    if (selectedTheme == theme.name
                                                                     ) {
                                                                         selectedTheme = "Básico"
                                                                         prefs.edit {
@@ -2951,11 +3161,9 @@ fun TelasTab() {
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // AVISO DE REVISÃO CARD
-        val revisionAlpha = if (allClusterFunctionsEnabled) 1f else 0.4f
-        StyledCard(modifier = Modifier.padding(horizontal = 8.dp).alpha(revisionAlpha)) {
+        // ODÔMETRO E REVISÃO CARD
+        val odometerAlpha = if (allClusterFunctionsEnabled) 1f else 0.4f
+        StyledCard(modifier = Modifier.padding(horizontal = 8.dp).alpha(odometerAlpha)) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -2963,43 +3171,53 @@ fun TelasTab() {
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                                "Aviso de Revisão",
+                                "Exibir Odômetro e Aviso de Revisão",
                                 color = Color.White,
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold
                         )
                         Text(
-                                "Acompanhamento de manutenção programada",
+                                "Total do veículo e acompanhamento de manutenção no painel",
                                 color = Color(0xFFB0B8C4),
                                 fontSize = 14.sp
                         )
                     }
                     Switch(
-                            checked = enableWarning,
+                            checked = enableOdometerAndRevision,
                             enabled = allClusterFunctionsEnabled,
                             onCheckedChange = {
-                                enableWarning = it
+                                enableOdometerAndRevision = it
                                 prefs.edit {
                                     putBoolean(
-                                            SharedPreferencesKeys.ENABLE_INSTRUMENT_REVISION_WARNING
+                                            SharedPreferencesKeys
+                                                    .ENABLE_INSTRUMENT_ODOMETER_AND_REVISION
                                                     .key,
                                             it
                                     )
                                 }
                             },
                             modifier = Modifier.scale(0.9f),
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextPrimary,
-                                checkedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.Primary,
-                                uncheckedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextSecondary,
-                                uncheckedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.ButtonSecondary,
-                                uncheckedBorderColor = Color.Transparent,
-                                checkedBorderColor = Color.Transparent
-                            )
+                            colors =
+                                    SwitchDefaults.colors(
+                                            checkedThumbColor =
+                                                    br.com.redesurftank.havalshisuku.ui.components
+                                                            .AppColors.TextPrimary,
+                                            checkedTrackColor =
+                                                    br.com.redesurftank.havalshisuku.ui.components
+                                                            .AppColors.Primary,
+                                            uncheckedThumbColor =
+                                                    br.com.redesurftank.havalshisuku.ui.components
+                                                            .AppColors.TextSecondary,
+                                            uncheckedTrackColor =
+                                                    br.com.redesurftank.havalshisuku.ui.components
+                                                            .AppColors.ButtonSecondary,
+                                            uncheckedBorderColor = Color.Transparent,
+                                            checkedBorderColor = Color.Transparent
+                                    )
                     )
                 }
 
-                if (enableWarning && allClusterFunctionsEnabled) {
+                if (enableOdometerAndRevision && allClusterFunctionsEnabled) {
                     Spacer(modifier = Modifier.height(16.dp))
                     HorizontalDivider(color = Color(0xFF3A3F47), thickness = 1.dp)
                     Spacer(modifier = Modifier.height(16.dp))
@@ -3037,88 +3255,88 @@ fun TelasTab() {
                                 shape = RoundedCornerShape(8.dp)
                         ) { Text("Registrar Revisão", fontWeight = FontWeight.Bold) }
                     }
+                }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                    // Collapsible History
-                    Row(
-                            modifier =
-                                    Modifier.fillMaxWidth()
-                                            .clickable { expandedHistory = !expandedHistory }
-                                            .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                // Collapsible History
+                Row(
+                        modifier =
+                                Modifier.fillMaxWidth()
+                                        .clickable { expandedHistory = !expandedHistory }
+                                        .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                            "Histórico de Manutenções (${revisionHistory.size})",
+                            color = Color(0xFF4A9EFF),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f)
+                    )
+                    Icon(
+                            imageVector =
+                                    if (expandedHistory) Icons.Default.ExpandLess
+                                    else Icons.Default.ExpandMore,
+                            contentDescription = null,
+                            tint = Color(0xFF4A9EFF)
+                    )
+                }
+
+                AnimatedVisibility(visible = expandedHistory) {
+                    Column(
+                            modifier = Modifier.padding(top = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                                "Histórico de Manutenções (${revisionHistory.size})",
-                                color = Color(0xFF4A9EFF),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.weight(1f)
-                        )
-                        Icon(
-                                imageVector =
-                                        if (expandedHistory) Icons.Default.ExpandLess
-                                        else Icons.Default.ExpandMore,
-                                contentDescription = null,
-                                tint = Color(0xFF4A9EFF)
-                        )
-                    }
-
-                    AnimatedVisibility(visible = expandedHistory) {
-                        Column(
-                                modifier = Modifier.padding(top = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            if (revisionHistory.isEmpty()) {
-                                Text(
-                                        "Nenhuma manutenção registrada",
-                                        color = Color(0xFF636D77),
-                                        fontSize = 14.sp,
-                                        modifier = Modifier.padding(vertical = 8.dp)
-                                )
-                            } else {
-                                revisionHistory.sortedByDescending { it.km }.forEach { entry ->
-                                    Row(
-                                            modifier =
-                                                    Modifier.fillMaxWidth()
-                                                            .background(
-                                                                    Color(0xFF1E2228),
-                                                                    RoundedCornerShape(8.dp)
-                                                            )
-                                                            .padding(
-                                                                    horizontal = 16.dp,
-                                                                    vertical = 10.dp
-                                                            ),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
+                        if (revisionHistory.isEmpty()) {
+                            Text(
+                                    "Nenhuma manutenção registrada",
+                                    color = Color(0xFF636D77),
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        } else {
+                            revisionHistory.sortedByDescending { it.km }.forEach { entry ->
+                                Row(
+                                        modifier =
+                                                Modifier.fillMaxWidth()
+                                                        .background(
+                                                                Color(0xFF1E2228),
+                                                                RoundedCornerShape(8.dp)
+                                                        )
+                                                        .padding(
+                                                                horizontal = 16.dp,
+                                                                vertical = 10.dp
+                                                        ),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                                "${String.format("%,d", entry.km)} km",
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                                dateFormatter.format(entry.date),
+                                                color = Color(0xFFB0B8C4),
+                                                fontSize = 12.sp
+                                        )
+                                    }
+                                    IconButton(
+                                            onClick = {
+                                                val newHistory =
+                                                        revisionHistory.filter { it != entry }
+                                                revisionHistory = newHistory
+                                                saveRevisionHistory(prefs, newHistory)
+                                            }
                                     ) {
-                                        Column {
-                                            Text(
-                                                    "${String.format("%,d", entry.km)} km",
-                                                    color = Color.White,
-                                                    fontWeight = FontWeight.Bold
-                                            )
-                                            Text(
-                                                    dateFormatter.format(entry.date),
-                                                    color = Color(0xFFB0B8C4),
-                                                    fontSize = 12.sp
-                                            )
-                                        }
-                                        IconButton(
-                                                onClick = {
-                                                    val newHistory =
-                                                            revisionHistory.filter { it != entry }
-                                                    revisionHistory = newHistory
-                                                    saveRevisionHistory(prefs, newHistory)
-                                                }
-                                        ) {
-                                            Icon(
-                                                    Icons.Default.Delete,
-                                                    contentDescription = "Excluir",
-                                                    tint = Color(0xFFFF4B4B),
-                                                    modifier = Modifier.size(20.dp)
-                                            )
-                                        }
+                                        Icon(
+                                                Icons.Default.Delete,
+                                                contentDescription = "Excluir",
+                                                tint = Color(0xFFFF4B4B),
+                                                modifier = Modifier.size(20.dp)
+                                        )
                                     }
                                 }
                             }
@@ -3310,39 +3528,40 @@ fun DisplayAppConfigSection() {
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(Color(0xFF2A2F37)),
-                                contentAlignment = Alignment.Center
+                                    modifier =
+                                            Modifier.size(48.dp)
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .background(Color(0xFF2A2F37)),
+                                    contentAlignment = Alignment.Center
                             ) {
                                 if (config.substituteIcon != null) {
                                     Icon(
-                                        imageVector = when(config.substituteIcon) {
-                                            "nav" -> Icons.Default.Place
-                                            "music" -> Icons.Default.PlayArrow
-                                            "video" -> Icons.Default.Movie
-                                            "settings" -> Icons.Default.Settings
-                                            "haval" -> Icons.Default.DirectionsCar
-                                            else -> Icons.Default.Android
-                                        },
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(32.dp)
+                                            imageVector =
+                                                    when (config.substituteIcon) {
+                                                        "nav" -> Icons.Default.Place
+                                                        "music" -> Icons.Default.PlayArrow
+                                                        "video" -> Icons.Default.Movie
+                                                        "settings" -> Icons.Default.Settings
+                                                        "haval" -> Icons.Default.DirectionsCar
+                                                        else -> Icons.Default.Android
+                                                    },
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(32.dp)
                                     )
                                 } else if (appIcon != null) {
                                     AsyncImage(
-                                        model = appIcon,
-                                        contentDescription = null,
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Fit
+                                            model = appIcon,
+                                            contentDescription = null,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Fit
                                     )
                                 } else {
                                     Icon(
-                                        Icons.Default.Android,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(32.dp)
+                                            Icons.Default.Android,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(32.dp)
                                     )
                                 }
                             }
@@ -3632,18 +3851,19 @@ fun DisplayAppConfigDialog(
     var sizeH by remember { mutableIntStateOf(existingConfig?.height ?: resolution.second) }
     var selectedSubIcon by remember { mutableStateOf(existingConfig?.substituteIcon) }
 
-    val substituteIcons = listOf(
-        "nav" to "Mapa",
-        "music" to "Música",
-        "video" to "Vídeo",
-        "settings" to "Ajustes",
-        "haval" to "Carro",
-        "game" to "Jogo",
-        "tv" to "TV",
-        "phone" to "Telefone",
-        "chat" to "Conversa",
-        "map_alt" to "Explorar"
-    )
+    val substituteIcons =
+            listOf(
+                    "nav" to "Mapa",
+                    "music" to "Música",
+                    "video" to "Vídeo",
+                    "settings" to "Ajustes",
+                    "haval" to "Carro",
+                    "game" to "Jogo",
+                    "tv" to "TV",
+                    "phone" to "Telefone",
+                    "chat" to "Conversa",
+                    "map_alt" to "Explorar"
+            )
 
     // Preview tracking
     var previewActive by remember { mutableStateOf(false) }
@@ -3737,7 +3957,10 @@ fun DisplayAppConfigDialog(
                         Modifier.fillMaxWidth(0.35f)
                                 .wrapContentHeight()
                                 .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A).copy(alpha = 1.0f)),
+                colors =
+                        CardDefaults.cardColors(
+                                containerColor = Color(0xFF13151A).copy(alpha = 1.0f)
+                        ),
                 shape = RoundedCornerShape(12.dp)
         ) {
             Column(
@@ -3749,31 +3972,29 @@ fun DisplayAppConfigDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (existingConfig != null) "Editar App" else "Adicionar App",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                            text = if (existingConfig != null) "Editar App" else "Adicionar App",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                     )
                     IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
                         Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Fechar",
-                            tint = Color.White
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Fechar",
+                                tint = Color.White
                         )
                     }
                 }
 
                 Spacer(Modifier.height(8.dp))
-
-
 
                 Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -3783,7 +4004,10 @@ fun DisplayAppConfigDialog(
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Aplicativo", color = Color(0xFFB0B8C4), fontSize = 12.sp)
                         Spacer(Modifier.height(4.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             Button(
                                     onClick = { showAppPicker = true },
                                     modifier = Modifier.weight(1f),
@@ -3792,7 +4016,8 @@ fun DisplayAppConfigDialog(
                                                     containerColor = Color(0xFF2A2F37)
                                             ),
                                     shape = RoundedCornerShape(8.dp),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                    contentPadding =
+                                            PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     if (selectedApp != null) {
@@ -3807,9 +4032,13 @@ fun DisplayAppConfigDialog(
                                         Spacer(Modifier.width(8.dp))
                                     }
                                     Text(
-                                            if (customName.isNotBlank()) customName else selectedApp?.label ?: "Selecionar app...",
+                                            if (customName.isNotBlank()) customName
+                                            else selectedApp?.label ?: "Selecionar app...",
                                             color =
-                                                    if (selectedApp != null) (if (customName.isNotBlank()) Color(0xFF4A9EFF) else Color.White)
+                                                    if (selectedApp != null)
+                                                            (if (customName.isNotBlank())
+                                                                    Color(0xFF4A9EFF)
+                                                            else Color.White)
                                                     else Color(0xFF808080),
                                             fontSize = 14.sp,
                                             maxLines = 1,
@@ -3818,14 +4047,21 @@ fun DisplayAppConfigDialog(
                                 }
                             }
                             IconButton(
-                                onClick = { showRenameDialog = true },
-                                modifier = Modifier.size(36.dp).background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
+                                    onClick = { showRenameDialog = true },
+                                    modifier =
+                                            Modifier.size(36.dp)
+                                                    .background(
+                                                            Color(0xFF2A2F37),
+                                                            RoundedCornerShape(8.dp)
+                                                    )
                             ) {
                                 Icon(
-                                    Icons.Default.Edit,
-                                    contentDescription = "Renomear",
-                                    tint = if (customName.isNotBlank()) Color(0xFF4A9EFF) else Color.White,
-                                    modifier = Modifier.size(18.dp)
+                                        Icons.Default.Edit,
+                                        contentDescription = "Renomear",
+                                        tint =
+                                                if (customName.isNotBlank()) Color(0xFF4A9EFF)
+                                                else Color.White,
+                                        modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
@@ -3939,51 +4175,64 @@ fun DisplayAppConfigDialog(
                     Text("Ícone Substituto", color = Color(0xFFB0B8C4), fontSize = 12.sp)
                     Spacer(Modifier.height(4.dp))
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
                     ) {
                         item {
                             Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (selectedSubIcon == null) Color(0xFF4A9EFF) else Color(0xFF2A2F37))
-                                    .clickable { selectedSubIcon = null }
-                                    .padding(4.dp),
-                                contentAlignment = Alignment.Center
+                                    modifier =
+                                            Modifier.size(44.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(
+                                                            if (selectedSubIcon == null)
+                                                                    Color(0xFF4A9EFF)
+                                                            else Color(0xFF2A2F37)
+                                                    )
+                                                    .clickable { selectedSubIcon = null }
+                                                    .padding(4.dp),
+                                    contentAlignment = Alignment.Center
                             ) {
-                                Text("Padrão", color = Color.White, fontSize = 9.sp, textAlign = TextAlign.Center)
+                                Text(
+                                        "Padrão",
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        textAlign = TextAlign.Center
+                                )
                             }
                         }
                         items(substituteIcons) { (id, label) ->
                             val isSelected = selectedSubIcon == id
                             Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) Color(0xFF4A9EFF) else Color(0xFF2A2F37))
-                                    .clickable { selectedSubIcon = id }
-                                    .padding(4.dp),
-                                contentAlignment = Alignment.Center
+                                    modifier =
+                                            Modifier.size(44.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(
+                                                            if (isSelected) Color(0xFF4A9EFF)
+                                                            else Color(0xFF2A2F37)
+                                                    )
+                                                    .clickable { selectedSubIcon = id }
+                                                    .padding(4.dp),
+                                    contentAlignment = Alignment.Center
                             ) {
-                                 Icon(
-                                     imageVector = when(id) {
-                                         "nav" -> Icons.Default.Place
-                                         "music" -> Icons.Default.PlayArrow
-                                         "video" -> Icons.Default.Movie
-                                         "settings" -> Icons.Default.Settings
-                                         "haval" -> Icons.Default.DirectionsCar
-                                         "game" -> Icons.Default.SportsEsports
-                                         "tv" -> Icons.Default.Tv
-                                         "phone" -> Icons.Default.Phone
-                                         "chat" -> Icons.Default.Chat
-                                         "map_alt" -> Icons.Default.Map
-                                         else -> Icons.Default.Android
-                                     },
-                                     contentDescription = null,
-                                     tint = Color.White,
-                                     modifier = Modifier.size(24.dp)
-                                 )
+                                Icon(
+                                        imageVector =
+                                                when (id) {
+                                                    "nav" -> Icons.Default.Place
+                                                    "music" -> Icons.Default.PlayArrow
+                                                    "video" -> Icons.Default.Movie
+                                                    "settings" -> Icons.Default.Settings
+                                                    "haval" -> Icons.Default.DirectionsCar
+                                                    "game" -> Icons.Default.SportsEsports
+                                                    "tv" -> Icons.Default.Tv
+                                                    "phone" -> Icons.Default.Phone
+                                                    "chat" -> Icons.Default.Chat
+                                                    "map_alt" -> Icons.Default.Map
+                                                    else -> Icons.Default.Android
+                                                },
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(24.dp)
+                                )
                             }
                         }
                     }
@@ -3993,27 +4242,60 @@ fun DisplayAppConfigDialog(
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text("Cor de Destaque", color = Color(0xFFB0B8C4), fontSize = 12.sp)
                     Spacer(Modifier.height(6.dp))
-                    val colorOptions = listOf(
-                        "#FFFFFF", "#ECEFF1", "#FF0000", "#FF4B4B", "#00FF00", "#0000FF", "#4A9EFF",
-                        "#90CAF9", "#FFFF00", "#FF00FF", "#00FFFF", "#FFA500", "#800080", "#808080"
-                    )
+                    val colorOptions =
+                            listOf(
+                                    "#FFFFFF",
+                                    "#ECEFF1",
+                                    "#FF0000",
+                                    "#FF4B4B",
+                                    "#00FF00",
+                                    "#0000FF",
+                                    "#4A9EFF",
+                                    "#90CAF9",
+                                    "#FFFF00",
+                                    "#FF00FF",
+                                    "#00FFFF",
+                                    "#FFA500",
+                                    "#800080",
+                                    "#808080"
+                            )
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
                     ) {
                         items(colorOptions) { colorHex ->
-                            val color = try { Color(android.graphics.Color.parseColor(colorHex)) } catch (_: Exception) { Color.White }
+                            val color =
+                                    try {
+                                        Color(android.graphics.Color.parseColor(colorHex))
+                                    } catch (_: Exception) {
+                                        Color.White
+                                    }
                             Box(
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .clip(CircleShape)
-                                    .background(color)
-                                    .border(
-                                        width = if (selectedIconColor.uppercase() == colorHex.uppercase()) 2.dp else 1.dp,
-                                        color = if (selectedIconColor.uppercase() == colorHex.uppercase()) Color.White else Color.White.copy(alpha = 0.2f),
-                                        shape = CircleShape
-                                    )
-                                    .clickable { selectedIconColor = colorHex }
+                                    modifier =
+                                            Modifier.size(28.dp)
+                                                    .clip(CircleShape)
+                                                    .background(color)
+                                                    .border(
+                                                            width =
+                                                                    if (selectedIconColor
+                                                                                    .uppercase() ==
+                                                                                    colorHex.uppercase()
+                                                                    )
+                                                                            2.dp
+                                                                    else 1.dp,
+                                                            color =
+                                                                    if (selectedIconColor
+                                                                                    .uppercase() ==
+                                                                                    colorHex.uppercase()
+                                                                    )
+                                                                            Color.White
+                                                                    else
+                                                                            Color.White.copy(
+                                                                                    alpha = 0.2f
+                                                                            ),
+                                                            shape = CircleShape
+                                                    )
+                                                    .clickable { selectedIconColor = colorHex }
                             )
                         }
                     }
@@ -4031,14 +4313,19 @@ fun DisplayAppConfigDialog(
                 // Action buttons
                 Spacer(Modifier.height(8.dp))
                 Button(
-                        onClick = {
-                            currentConfig()?.let { onSave(it) }
-                        },
+                        onClick = { currentConfig()?.let { onSave(it) } },
                         enabled = selectedApp != null,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF)),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp)
-                ) { Text("Salvar", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                ) {
+                    Text(
+                            "Salvar",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     }
@@ -4071,55 +4358,69 @@ fun DisplayAppConfigDialog(
     if (showRenameDialog) {
         var tempName by remember { mutableStateOf(customName) }
         AlertDialog(
-            onDismissRequest = { showRenameDialog = false },
-            title = { Text("Nome Customizado", color = Color.White, fontWeight = FontWeight.Bold) },
-            containerColor = Color(0xFF1E2228),
-            titleContentColor = Color.White,
-            textContentColor = Color.White,
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Defina um nome customizado para este atalho:", color = Color(0xFFB0B8C4), fontSize = 14.sp)
-                    TextField(
-                        value = tempName,
-                        onValueChange = { tempName = it },
-                        placeholder = { Text(selectedApp?.label ?: "Nome original", color = Color(0xFF808080)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color(0xFF2A2F37),
-                            unfocusedContainerColor = Color(0xFF2A2F37),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedIndicatorColor = Color(0xFF4A9EFF),
-                            unfocusedIndicatorColor = Color(0xFF3A3F47)
+                onDismissRequest = { showRenameDialog = false },
+                title = {
+                    Text("Nome Customizado", color = Color.White, fontWeight = FontWeight.Bold)
+                },
+                containerColor = Color(0xFF1E2228),
+                titleContentColor = Color.White,
+                textContentColor = Color.White,
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                                "Defina um nome customizado para este atalho:",
+                                color = Color(0xFFB0B8C4),
+                                fontSize = 14.sp
                         )
-                    )
-                    if (tempName.isNotBlank()) {
-                        TextButton(
-                            onClick = { tempName = "" },
-                            modifier = Modifier.align(Alignment.End)
-                        ) {
-                            Text("Resetar para o padrão", color = Color(0xFFFF4B4B), fontSize = 12.sp)
+                        TextField(
+                                value = tempName,
+                                onValueChange = { tempName = it },
+                                placeholder = {
+                                    Text(
+                                            selectedApp?.label ?: "Nome original",
+                                            color = Color(0xFF808080)
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                colors =
+                                        TextFieldDefaults.colors(
+                                                focusedContainerColor = Color(0xFF2A2F37),
+                                                unfocusedContainerColor = Color(0xFF2A2F37),
+                                                focusedTextColor = Color.White,
+                                                unfocusedTextColor = Color.White,
+                                                focusedIndicatorColor = Color(0xFF4A9EFF),
+                                                unfocusedIndicatorColor = Color(0xFF3A3F47)
+                                        )
+                        )
+                        if (tempName.isNotBlank()) {
+                            TextButton(
+                                    onClick = { tempName = "" },
+                                    modifier = Modifier.align(Alignment.End)
+                            ) {
+                                Text(
+                                        "Resetar para o padrão",
+                                        color = Color(0xFFFF4B4B),
+                                        fontSize = 12.sp
+                                )
+                            }
                         }
                     }
+                },
+                confirmButton = {
+                    Button(
+                            onClick = {
+                                customName = tempName
+                                showRenameDialog = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF))
+                    ) { Text("OK", fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRenameDialog = false }) {
+                        Text("Cancelar", color = Color(0xFFB0B8C4))
+                    }
                 }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        customName = tempName
-                        showRenameDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF))
-                ) {
-                    Text("OK", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRenameDialog = false }) {
-                    Text("Cancelar", color = Color(0xFFB0B8C4))
-                }
-            }
         )
     }
 }
@@ -4169,25 +4470,26 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
     val installedApps = remember {
         val pm = context.packageManager
         val intent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
-        val apps = pm.queryIntentActivities(intent, 0)
-                .map { resolveInfo ->
-                    InstalledAppInfo(
-                            packageName = resolveInfo.activityInfo.packageName,
-                            activityName = resolveInfo.activityInfo.name,
-                            label = resolveInfo.loadLabel(pm).toString(),
-                            icon =
-                                    try {
-                                        resolveInfo.loadIcon(pm)
-                                    } catch (_: Exception) {
-                                        null
-                                    }
-                    )
-                }
-                .toMutableList()
-        
+        val apps =
+                pm.queryIntentActivities(intent, 0)
+                        .map { resolveInfo ->
+                            InstalledAppInfo(
+                                    packageName = resolveInfo.activityInfo.packageName,
+                                    activityName = resolveInfo.activityInfo.name,
+                                    label = resolveInfo.loadLabel(pm).toString(),
+                                    icon =
+                                            try {
+                                                resolveInfo.loadIcon(pm)
+                                            } catch (_: Exception) {
+                                                null
+                                            }
+                            )
+                        }
+                        .toMutableList()
+
         apps.sortedBy { it.label.lowercase() }
     }
-    
+
     var showManualInput by remember { mutableStateOf(false) }
     var manualPkg by remember { mutableStateOf("") }
     var manualActivity by remember { mutableStateOf("") }
@@ -4202,29 +4504,37 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                         Modifier.fillMaxWidth(0.30f)
                                 .wrapContentHeight()
                                 .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A).copy(alpha = 1.0f)),
+                colors =
+                        CardDefaults.cardColors(
+                                containerColor = Color(0xFF13151A).copy(alpha = 1.0f)
+                        ),
                 shape = RoundedCornerShape(12.dp)
         ) {
-            Column(modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Column(
+                    modifier =
+                            Modifier.fillMaxWidth()
+                                    .wrapContentHeight()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Selecionar Aplicativo",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                            text = "Selecionar Aplicativo",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                     )
                     IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
                         Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Fechar",
-                            tint = Color.White
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Fechar",
+                                tint = Color.White
                         )
                     }
                 }
@@ -4232,51 +4542,94 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                 if (showManualInput) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextField(
-                            value = manualLabel,
-                            onValueChange = { manualLabel = it },
-                            placeholder = { Text("Nome do App (ex: YouTube)", color = Color(0xFF808080)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(focusedContainerColor = Color(0xFF2A2F37), unfocusedContainerColor = Color(0xFF2A2F37), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                                value = manualLabel,
+                                onValueChange = { manualLabel = it },
+                                placeholder = {
+                                    Text("Nome do App (ex: YouTube)", color = Color(0xFF808080))
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                colors =
+                                        TextFieldDefaults.colors(
+                                                focusedContainerColor = Color(0xFF2A2F37),
+                                                unfocusedContainerColor = Color(0xFF2A2F37),
+                                                focusedTextColor = Color.White,
+                                                unfocusedTextColor = Color.White
+                                        )
                         )
                         TextField(
-                            value = manualPkg,
-                            onValueChange = { manualPkg = it },
-                            placeholder = { Text("Pacote (ex: com.google.android.youtube)", color = Color(0xFF808080)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(focusedContainerColor = Color(0xFF2A2F37), unfocusedContainerColor = Color(0xFF2A2F37), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                                value = manualPkg,
+                                onValueChange = { manualPkg = it },
+                                placeholder = {
+                                    Text(
+                                            "Pacote (ex: com.google.android.youtube)",
+                                            color = Color(0xFF808080)
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                colors =
+                                        TextFieldDefaults.colors(
+                                                focusedContainerColor = Color(0xFF2A2F37),
+                                                unfocusedContainerColor = Color(0xFF2A2F37),
+                                                focusedTextColor = Color.White,
+                                                unfocusedTextColor = Color.White
+                                        )
                         )
                         TextField(
-                            value = manualActivity,
-                            onValueChange = { manualActivity = it },
-                            placeholder = { Text("Atividade (opcional)", color = Color(0xFF808080)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(focusedContainerColor = Color(0xFF2A2F37), unfocusedContainerColor = Color(0xFF2A2F37), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                                value = manualActivity,
+                                onValueChange = { manualActivity = it },
+                                placeholder = {
+                                    Text("Atividade (opcional)", color = Color(0xFF808080))
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                colors =
+                                        TextFieldDefaults.colors(
+                                                focusedContainerColor = Color(0xFF2A2F37),
+                                                unfocusedContainerColor = Color(0xFF2A2F37),
+                                                focusedTextColor = Color.White,
+                                                unfocusedTextColor = Color.White
+                                        )
                         )
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             Button(
-                                onClick = { showManualInput = false },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2F37))
+                                    onClick = { showManualInput = false },
+                                    modifier = Modifier.weight(1f),
+                                    colors =
+                                            ButtonDefaults.buttonColors(
+                                                    containerColor = Color(0xFF2A2F37)
+                                            )
                             ) { Text("Cancelar", color = Color.White) }
                             Button(
-                                onClick = {
-                                    if (manualPkg.isNotBlank() && manualLabel.isNotBlank()) {
-                                        onAppSelected(InstalledAppInfo(manualPkg, manualActivity, manualLabel, null))
-                                    }
-                                },
-                                modifier = Modifier.weight(1f),
-                                enabled = manualPkg.isNotBlank() && manualLabel.isNotBlank(),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF))
+                                    onClick = {
+                                        if (manualPkg.isNotBlank() && manualLabel.isNotBlank()) {
+                                            onAppSelected(
+                                                    InstalledAppInfo(
+                                                            manualPkg,
+                                                            manualActivity,
+                                                            manualLabel,
+                                                            null
+                                                    )
+                                            )
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = manualPkg.isNotBlank() && manualLabel.isNotBlank(),
+                                    colors =
+                                            ButtonDefaults.buttonColors(
+                                                    containerColor = Color(0xFF4A9EFF)
+                                            )
                             ) { Text("Adicionar", color = Color.White) }
                         }
                     }
                 } else {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         TextField(
                                 value = searchQuery,
@@ -4295,12 +4648,20 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                                         )
                         )
                         Button(
-                            onClick = { showManualInput = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2F37)),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                onClick = { showManualInput = true },
+                                colors =
+                                        ButtonDefaults.buttonColors(
+                                                containerColor = Color(0xFF2A2F37)
+                                        ),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Text("MANUAL", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                    "MANUAL",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -4314,36 +4675,36 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                                 }
 
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 80.dp),
-                    modifier = Modifier.heightIn(max = 350.dp),
-                    contentPadding = PaddingValues(0.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        columns = GridCells.Adaptive(minSize = 80.dp),
+                        modifier = Modifier.heightIn(max = 350.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(filteredApps) { app ->
                         Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFF2A2F37).copy(alpha = 0.5f))
-                                .clickable { onAppSelected(app) }
-                                .padding(8.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                                modifier =
+                                        Modifier.fillMaxWidth()
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(Color(0xFF2A2F37).copy(alpha = 0.5f))
+                                                .clickable { onAppSelected(app) }
+                                                .padding(8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             AsyncImage(
-                                model = app.icon,
-                                contentDescription = app.label,
-                                modifier = Modifier.size(44.dp),
-                                contentScale = ContentScale.Fit
+                                    model = app.icon,
+                                    contentDescription = app.label,
+                                    modifier = Modifier.size(44.dp),
+                                    contentScale = ContentScale.Fit
                             )
                             Text(
-                                text = app.label,
-                                color = Color.White,
-                                fontSize = 10.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center
+                                    text = app.label,
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    textAlign = TextAlign.Center
                             )
                         }
                     }
@@ -5730,14 +6091,27 @@ fun InformacoesTab() {
                                                     .apply()
                                         },
                                         modifier = Modifier.scale(0.9f),
-                                        colors = SwitchDefaults.colors(
-                                            checkedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextPrimary,
-                                            checkedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.Primary,
-                                            uncheckedThumbColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.TextSecondary,
-                                            uncheckedTrackColor = br.com.redesurftank.havalshisuku.ui.components.AppColors.ButtonSecondary,
-                                            uncheckedBorderColor = Color.Transparent,
-                                            checkedBorderColor = Color.Transparent
-                                        )
+                                        colors =
+                                                SwitchDefaults.colors(
+                                                        checkedThumbColor =
+                                                                br.com.redesurftank.havalshisuku.ui
+                                                                        .components.AppColors
+                                                                        .TextPrimary,
+                                                        checkedTrackColor =
+                                                                br.com.redesurftank.havalshisuku.ui
+                                                                        .components.AppColors
+                                                                        .Primary,
+                                                        uncheckedThumbColor =
+                                                                br.com.redesurftank.havalshisuku.ui
+                                                                        .components.AppColors
+                                                                        .TextSecondary,
+                                                        uncheckedTrackColor =
+                                                                br.com.redesurftank.havalshisuku.ui
+                                                                        .components.AppColors
+                                                                        .ButtonSecondary,
+                                                        uncheckedBorderColor = Color.Transparent,
+                                                        checkedBorderColor = Color.Transparent
+                                                )
                                 )
                             }
 
