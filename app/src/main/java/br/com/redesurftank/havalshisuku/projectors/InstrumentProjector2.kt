@@ -275,6 +275,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.isAnyAppOnDisplay(3)
         isAnyAppOnDisplay1 =
                 br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.isAnyAppOnDisplay(1)
+        updateValuesWebView() // Queue initial values for state sync
         updateVirtualClusterVisibility()
         setupDataListeners()
 
@@ -369,7 +370,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         )
                     }
                     CarConstants.CAR_CONFIGURE_PEDAL_CONTROL_ENABLE.value -> {
-                        evaluateJsIfReady(webView, "control('onepedal', '${value == "1"}')")
+                        evaluateJsIfReady(webView, "control('onepedal', '${value}')")
                     }
                     CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL.value -> {
                         evaluateJsIfReady(
@@ -463,7 +464,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                     override fun onPageFinished(view: WebView?, url: String?) {
                                         super.onPageFinished(view, url)
                                         view?.let { wv: android.webkit.WebView ->
-                                            Log.d(TAG, "WebView finished loading: $url")
+                                            Log.w(TAG, "WebView finished loading (PID: ${android.os.Process.myPid()}): $url")
 
                                             // Apply pending JS or updates
                                             updateValuesWebView()
@@ -474,6 +475,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                                 }
                                                 pendingJsQueues.remove(wv)
                                             }
+                                            // Inject Heartbeat
+                                            wv.evaluateJavascript("setInterval(() => { if (window.Android && window.Android.heartbeat) window.Android.heartbeat(); }, 2000);", null)
                                         }
                                     }
                                 }

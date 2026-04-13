@@ -274,6 +274,7 @@ object DisplayAppLauncher {
             if (taskInfo != null && taskInfo.displayId != 0) {
                 Log.w(TAG, "Moving stack ${taskInfo.stackId} to display 0")
                 val result = sh("am display move-stack ${taskInfo.stackId} 0")
+                notifyDisplayStateChanged(taskInfo.displayId);
                 if (!result.contains("Exception") && !result.contains("Error")) {
                     val movedTask = findTaskForPackage(packageName)
                     if (movedTask != null && movedTask.displayId == 0) {
