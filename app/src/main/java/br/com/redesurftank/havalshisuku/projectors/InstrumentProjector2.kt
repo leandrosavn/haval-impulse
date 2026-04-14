@@ -112,8 +112,16 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         if (key == SharedPreferencesKeys.ENABLE_INSTRUMENT_ODOMETER_AND_REVISION.key
                         ) {
                             val enabled = preferences.getBoolean(key, true)
+                            val nextKm =
+                                    preferences.getInt(
+                                            SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key,
+                                            0
+                                    )
                             evaluateJsIfReady(webView, "control('enableOdometer', $enabled)")
-                            evaluateJsIfReady(webView, "control('enableRevisionWarning', $enabled)")
+                            evaluateJsIfReady(
+                                    webView,
+                                    "control('enableRevisionWarning', ${enabled && nextKm > 0})"
+                            )
                         }
                         if (key == SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key ||
                                         key == SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key
@@ -132,9 +140,19 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         updateVirtualClusterVisibility()
                     }
                 } else if (key == SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key) {
-                    val nextRevisionKm = preferences.getInt(key, 12000)
+                    val nextRevisionKm = preferences.getInt(key, 0)
+                    val enabled =
+                            preferences.getBoolean(
+                                    SharedPreferencesKeys.ENABLE_INSTRUMENT_ODOMETER_AND_REVISION
+                                            .key,
+                                    true
+                            )
                     ensureUi {
                         evaluateJsIfReady(webView, "control('nextRevisionKm', $nextRevisionKm)")
+                        evaluateJsIfReady(
+                                webView,
+                                "control('enableRevisionWarning', ${enabled && nextRevisionKm > 0})"
+                        )
                     }
                 } else if (key == SharedPreferencesKeys.INSTRUMENT_REVISION_NEXT_DATE.key) {
                     val nextRevisionDate = preferences.getLong(key, 0L)
@@ -530,19 +548,15 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         SharedPreferencesKeys.ENABLE_INSTRUMENT_ODOMETER_AND_REVISION.key,
                         true
                 )
+        val nextRevisionKm = preferences.getInt(SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key, 0)
         updates["enableOdometer"] = enableOdometerAndRevision.toString()
-        updates["enableRevisionWarning"] = enableOdometerAndRevision.toString()
+        updates["enableRevisionWarning"] =
+                (enableOdometerAndRevision && nextRevisionKm > 0).toString()
 
         val odometer = sm.getData(CarConstants.CAR_BASIC_TOTAL_ODOMETER.value) ?: "0"
         updates["odometer"] = odometer
 
-        updates["nextRevisionKm"] =
-                preferences
-                        .getInt(
-                                SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key,
-                                odometer.toInt() % 12000
-                        )
-                        .toString()
+        updates["nextRevisionKm"] = nextRevisionKm.toString()
         updates["nextRevisionDate"] =
                 preferences
                         .getLong(SharedPreferencesKeys.INSTRUMENT_REVISION_NEXT_DATE.key, 0L)

@@ -45,6 +45,8 @@ import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.*
 import androidx.compose.ui.text.style.*
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.*
 import androidx.compose.ui.window.*
 import androidx.core.content.FileProvider
@@ -2393,7 +2395,7 @@ fun TelasTab() {
 
     // Auto-calculate next revision
     val latestRevision = revisionHistory.maxByOrNull { it.km }
-    val nextKm = latestRevision?.let { it.km + 12000 } ?: 12000
+    val nextKm = latestRevision?.let { it.km + 12000 } ?: 0
     val nextDate =
             latestRevision?.let {
                 val cal = Calendar.getInstance()
@@ -2401,7 +2403,7 @@ fun TelasTab() {
                 cal.add(Calendar.YEAR, 1)
                 cal.timeInMillis
             }
-                    ?: (System.currentTimeMillis() + 31536000000L) // 1 year from now
+                    ?: 0L
 
     // Sync calculated revision to prefs for display in projector
     LaunchedEffect(nextKm, nextDate) {
@@ -3227,18 +3229,33 @@ fun TelasTab() {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text("Próxima Revisão", color = Color(0xFFB0B8C4), fontSize = 14.sp)
-                            val nextKmLabel =
-                                    if (nextKm > 0) "${String.format("%,d", nextKm)} km" else "---"
-                            val nextDateLabel =
-                                    if (nextDate > 0) dateFormatter.format(nextDate) else "---"
-                            Text(
-                                    "$nextKmLabel ou $nextDateLabel",
-                                    color = Color.White,
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.Bold
-                            )
+                            if (nextKm == 0) {
+                                Text(
+                                        "N/A - Cadastrar ultima revisão ou data de compra do veículo",
+                                        color = Color(0xFFFFB74D),
+                                        fontSize = 16.sp,
+                                        lineHeight = 20.sp,
+                                        fontWeight = FontWeight.Medium
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                        "Odômetro: ${String.format("%,d", ServiceManager.getInstance().totalOdometer)} km",
+                                        color = Color.White,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold
+                                )
+                            } else {
+                                val nextKmLabel = String.format("%,d", nextKm) + " km"
+                                val nextDateLabel = dateFormatter.format(nextDate)
+                                Text(
+                                        "$nextKmLabel ou $nextDateLabel",
+                                        color = Color.White,
+                                        fontSize = 22.sp,
+                                        fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
 
                         Button(
@@ -3375,7 +3392,8 @@ fun TelasTab() {
                                     if (it.isEmpty() || it.toIntOrNull() != null) tempKm = it
                                 },
                                 label = { Text("Kilometragem Atual") },
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                         )
 
                         Column {
