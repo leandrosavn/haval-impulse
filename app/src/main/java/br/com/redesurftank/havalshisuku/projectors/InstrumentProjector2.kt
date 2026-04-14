@@ -163,9 +163,6 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
             }
 
     private fun shouldShowProjector(): Boolean {
-        if (br.com.redesurftank.havalshisuku.services.ForegroundService.isLocalTestMode()) {
-            return true
-        }
         return preferences.getBoolean(
                 SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key,
                 false
@@ -250,6 +247,9 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                     TAG,
                                     "Display 3 app state changed in cluster projector: $isAnyAppOnDisplay3"
                             )
+                            if (!isAnyAppOnDisplay3) {
+                                lastAppliedConfigs.clear()
+                            }
                             updateVirtualClusterVisibility()
                             syncSecondaryDisplayApps(3)
                         }

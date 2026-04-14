@@ -16,7 +16,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import android.content.Intent
-import kotlin.jvm.JvmStatic
+import br.com.redesurftank.havalshisuku.managers.ThemeManager
+import br.com.redesurftank.havalshisuku.models.BottomBarState
 
 object DisplayAppLauncher {
     
@@ -63,6 +64,9 @@ object DisplayAppLauncher {
 
     private val gson = Gson()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    // Memory cache for app bounds per display: packageName -> Map<displayId, bounds>
+    private val lastKnownDisplayBounds = mutableMapOf<String, MutableMap<Int, IntArray>>()
 
     private fun getPrefs() =
         App.getDeviceProtectedContext()
@@ -146,13 +150,14 @@ object DisplayAppLauncher {
     fun getEffectiveBounds(config: DisplayAppConfig): IntArray {
         val prefs = getPrefs()
         val alwaysUseTheme = prefs.getBoolean(SharedPreferencesKeys.ALWAYS_USE_THEME_DIMENSIONS.key, true)
+        val virtualClusterEnabled = prefs.getBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, true)
         
         var x = config.x
         var y = config.y
         var width = config.width
         var height = config.height
 
-        if (alwaysUseTheme && config.displayId == 3) {
+        if (alwaysUseTheme && virtualClusterEnabled && config.displayId == 3) {
             val themeFolderName = prefs.getString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Básico") ?: "Básico"
             if (themeFolderName == "Básico" || themeFolderName == "Light") {
                 x = 0
@@ -180,10 +185,11 @@ object DisplayAppLauncher {
      */
     suspend fun launchApp(config: DisplayAppConfig) = withContext(Dispatchers.IO) {
         try {
-            val x = config.x
-            val y = config.y
-            val right = config.x + config.width
-            val bottom = config.y + config.height
+            val bounds = getEffectiveBounds(config)
+            val x = bounds[0]
+            val y = bounds[1]
+            val right = bounds[2]
+            val bottom = bounds[3]
             
             val escapedActivity = config.activityName.replace("$", "\\$")
             val isOwnPackage = config.packageName == App.getContext().packageName
@@ -258,6 +264,12 @@ object DisplayAppLauncher {
         }
     }
 
+    private fun notifyBottomBarUpdate() {
+        Log.w(TAG, "Triggering immediate BottomBar overscan refresh")
+        val intent = Intent("br.com.redesurftank.havalshisuku.UPDATE_BAR_POSITION")
+        App.getContext().sendBroadcast(intent)
+    }
+
     /**
      * Brings the app to the main display (0) for user interaction.
      * Uses am display move-stack + resize to fullscreen.
@@ -272,13 +284,42 @@ object DisplayAppLauncher {
             // First try to find if it's already on another display and move it
             val taskInfo = findTaskForPackage(packageName)
             if (taskInfo != null && taskInfo.displayId != 0) {
+                // Save current bounds before moving away
+                saveCurrentBounds(packageName, taskInfo)
+
                 Log.w(TAG, "Moving stack ${taskInfo.stackId} to display 0")
                 val result = sh("am display move-stack ${taskInfo.stackId} 0")
-                notifyDisplayStateChanged(taskInfo.displayId);
+                notifyDisplayStateChanged(taskInfo.displayId)
                 if (!result.contains("Exception") && !result.contains("Error")) {
                     val movedTask = findTaskForPackage(packageName)
                     if (movedTask != null && movedTask.displayId == 0) {
-                        sh("am stack resize ${movedTask.stackId} 0 0 1920 720")
+                        // Restore cached bounds for Display 0 if available, fallback to display resolution
+                        val cached = lastKnownDisplayBounds[packageName]?.get(0)
+                        val overscanPx = getOverscanForPackage(packageName)
+                        val density = App.getContext().resources.displayMetrics.density
+                        val overscanDp = (overscanPx / density).toInt()
+
+                        // Try to reset to Fullscreen mode for Display 0 (Standard behavior)
+                        sh("am stack set-windowing-mode ${movedTask.stackId} 1")
+
+                        if (cached != null) {
+                            var y2 = cached[3]
+                            if (y2 >= 720) {
+                                y2 = 720 - overscanPx
+                                Log.w(TAG, "[DISPLAY_MOVE] RESTORE App: $packageName | Bounds: [${cached[0]},${cached[1]},${cached[2]},$y2] (Adjusted) | Overscan: ${overscanDp}dp | Mode: 1")
+                            } else {
+                                Log.w(TAG, "[DISPLAY_MOVE] RESTORE App: $packageName | Bounds: [${cached.joinToString(",")}] | Overscan: ${overscanDp}dp | Mode: 1")
+                            }
+                            sh("am stack resize ${movedTask.stackId} ${cached[0]} ${cached[1]} ${cached[2]} $y2")
+                        } else {
+                            val res = getDisplayResolution(0)
+                            val effectiveHeight = res.second - overscanPx
+                            Log.w(TAG, "[DISPLAY_MOVE] FALLBACK App: $packageName | Bounds: [0,0,${res.first},$effectiveHeight] | Overscan: ${overscanDp}dp | Mode: 1")
+                            sh("am stack resize ${movedTask.stackId} 0 0 ${res.first} $effectiveHeight")
+                        }
+                        
+                        // Force BottomBar to re-apply overscan immediately
+                        notifyBottomBarUpdate()
                         return@withContext
                     }
                 }
@@ -312,11 +353,12 @@ object DisplayAppLauncher {
      */
     suspend fun sendToDisplay(config: DisplayAppConfig) = withContext(Dispatchers.IO) {
         try {
+            val bounds = getEffectiveBounds(config)
 
             // Already on target display — just resize
             val existing = findStackIdForPackage(config.packageName, config.displayId)
             if (existing != null) {
-                sh("am stack resize $existing ${config.x} ${config.y} ${config.x + config.width} ${config.y + config.height}")
+                sh("am stack resize $existing ${bounds[0]} ${bounds[1]} ${bounds[2]} ${bounds[3]}")
                 return@withContext
             }
 
@@ -330,6 +372,9 @@ object DisplayAppLauncher {
 
                 return@withContext
             }
+
+            // Save current bounds before moving away from current display
+            saveCurrentBounds(config.packageName, taskInfo)
 
             // Safety: check this stack only has our app's task
             val tasksInStack = countTasksInStack(taskInfo.stackId)
@@ -354,7 +399,7 @@ object DisplayAppLauncher {
             Thread.sleep(200)
             val stackId = findStackIdForPackage(config.packageName, config.displayId)
             if (stackId != null) {
-                sh("am stack resize $stackId ${config.x} ${config.y} ${config.x + config.width} ${config.y + config.height}")
+                sh("am stack resize $stackId ${bounds[0]} ${bounds[1]} ${bounds[2]} ${bounds[3]}")
             }
 
             Log.w(TAG, "App moved to display ${config.displayId} with bounds, state preserved")
@@ -378,18 +423,89 @@ object DisplayAppLauncher {
             if (task.displayId != displayId) continue
 
             Log.w(TAG, "Evicting $pkg from display $displayId → display 0")
+            // Save current bounds before eviction
+            saveCurrentBounds(pkg, task)
+
             val result = sh("am display move-stack ${task.stackId} 0")
-            if (!result.contains("Exception") && !result.contains("Error")) {
-                val movedTask = findTaskForPackage(pkg)
-                if (movedTask != null && movedTask.displayId == 0) {
-                    sh("am stack resize ${movedTask.stackId} 0 0 1920 720")
+            val movedTask = findTaskForPackage(pkg)
+            if (movedTask != null && movedTask.displayId == 0) {
+                val cached = lastKnownDisplayBounds[pkg]?.get(0)
+                val overscanPx = getOverscanForPackage(pkg)
+                val density = App.getContext().resources.displayMetrics.density
+                val overscanDp = (overscanPx / density).toInt()
+
+                sh("am stack set-windowing-mode ${movedTask.stackId} 1")
+                
+                if (cached != null) {
+                    var y2 = cached[3]
+                    if (y2 >= 720) y2 = 720 - overscanPx
+                    Log.w(TAG, "[EVICT_MOVE] RESTORE App: $pkg | Bounds: [${cached[0]},${cached[1]},${cached[2]},$y2] | Overscan: ${overscanDp}dp | Mode: 1")
+                    sh("am stack resize ${movedTask.stackId} ${cached[0]} ${cached[1]} ${cached[2]} $y2")
+                } else {
+                    val res = getDisplayResolution(0)
+                    val effectiveHeight = res.second - overscanPx
+                    Log.w(TAG, "[EVICT_MOVE] FALLBACK App: $pkg | Bounds: [0,0,${res.first},$effectiveHeight] | Overscan: ${overscanDp}dp | Mode: 1")
+                    sh("am stack resize ${movedTask.stackId} 0 0 ${res.first} $effectiveHeight")
                 }
+                notifyBottomBarUpdate()
             }
         }
         notifyDisplayStateChanged(displayId)
     }
 
     // --- Stack parsing helpers ---
+
+    private fun saveCurrentBounds(packageName: String, taskInfo: TaskInfo? = null) {
+        val info = taskInfo ?: findTaskForPackage(packageName) ?: return
+        if (info.bounds != null) {
+            val packageMap = lastKnownDisplayBounds.getOrPut(packageName) { mutableMapOf() }
+            packageMap[info.displayId] = info.bounds
+            Log.w(TAG, "SAVED bounds for $packageName on display ${info.displayId}: [${info.bounds.joinToString(",")}]")
+        } else {
+            Log.w(TAG, "NO BOUNDS captured for $packageName on display ${info.displayId} (was null)")
+        }
+    }
+
+    private data class BarSettings(val overscan: Int, val yOffset: Int)
+
+    private fun getOverscanForPackage(packageName: String): Int {
+        val prefs = getPrefs()
+        val density = App.getContext().resources.displayMetrics.density
+        
+        // Priority 1: Dynamic Overrides from SharedPreferences (User defined)
+        val overridesJson = prefs.getString(SharedPreferencesKeys.BOTTOM_BAR_OVERRIDES.key, null)
+        if (overridesJson != null) {
+            try {
+                val type = object : TypeToken<Map<String, BarSettings>>() {}.type
+                val overrides: Map<String, BarSettings> = gson.fromJson(overridesJson, type)
+                val settings = overrides[packageName]
+                if (settings != null) {
+                    val overscanValueRaw = settings.overscan
+                    val overscanValuePx = (overscanValueRaw * density).toInt()
+                    val yOffsetPx = (settings.yOffset * density).toInt()
+
+                    Log.w(
+                        "BottomBarService",
+                        "[OVERSCAN_SYNC] App: $packageName | Overscan: ${overscanValueRaw}dp(${overscanValuePx}px) | Offset: ${settings.yOffset}dp(${yOffsetPx}px) | Visible: ${BottomBarState.isVisible}"
+                    )
+                    return overscanValuePx
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error parsing BOTTOM_BAR_OVERRIDES for $packageName", e)
+            }
+        }
+        
+        // Priority 2: Hardcoded App Overrides (matching BottomBarService)
+        val hardcodedOverscan = when (packageName) {
+            "com.google.android.apps.messaging", "deezer.android.app" -> 60
+            else -> null
+        }
+        if (hardcodedOverscan != null) return (hardcodedOverscan * density).toInt()
+
+        // Priority 3: Global Default
+        val globalDefault = prefs.getInt(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR_OVERSCAN.key, 0)
+        return (globalDefault * density).toInt()
+    }
 
     fun isAnyAppOnDisplay(displayId: Int): Boolean {
         var currentDisplayId: Int? = null
@@ -434,21 +550,60 @@ object DisplayAppLauncher {
     }
 
     private data class StackInfo(val stackId: Int, val windowingMode: String, val isFreeform: Boolean)
-    data class TaskInfo(val taskId: Int, val stackId: Int, val displayId: Int)
+    data class TaskInfo(val taskId: Int, val stackId: Int, val displayId: Int, val bounds: IntArray? = null)
 
     fun findTaskForPackage(packageName: String): TaskInfo? {
         var currentStackId: Int? = null
         var currentDisplayId: Int? = null
-        for (line in getStackList().lines()) {
+        var currentBounds: IntArray? = null
+        
+        val stackList = getStackList()
+        for (line in stackList.lines()) {
             val stackMatch = Regex("""Stack id=(\d+).*displayId=(\d+)""").find(line)
             if (stackMatch != null) {
                 currentStackId = stackMatch.groupValues[1].toIntOrNull()
                 currentDisplayId = stackMatch.groupValues[2].toIntOrNull()
+
+                // Debug: Log the stack line to see bounds format
+                if (line.contains("bounds=")) {
+                    Log.d(TAG, "Found stack line with bounds: $line")
+                }
+
+                // Try to extract bounds if present in the stack line
+                // We check both "bounds=" and "mBounds=" as different Android versions use different labels
+                val bMatch = Regex("""[m]?bounds=\[(\d+),(\d+)\]\[(\d+),(\d+)\]""").find(line)
+                if (bMatch != null) {
+                    currentBounds = intArrayOf(
+                        bMatch.groupValues[1].toInt(),
+                        bMatch.groupValues[2].toInt(),
+                        bMatch.groupValues[3].toInt(),
+                        bMatch.groupValues[4].toInt()
+                    )
+                } else {
+                    // Start with display resolution as default for the stack if no bounds specified
+                    currentDisplayId?.let { id ->
+                        val res = getDisplayResolution(id)
+                        currentBounds = intArrayOf(0, 0, res.first, res.second)
+                    }
+                }
             }
+            
             val taskMatch = Regex("""taskId=(\d+):\s*\Q$packageName\E/""").find(line)
             if (taskMatch != null && currentStackId != null && currentDisplayId != null) {
                 val taskId = taskMatch.groupValues[1].toIntOrNull()
-                if (taskId != null) return TaskInfo(taskId, currentStackId, currentDisplayId)
+                
+                // Final check: the task line ITSELF might have the bounds in some scenarios
+                val tbMatch = Regex("""[m]?bounds=\[(\d+),(\d+)\]\[(\d+),(\d+)\]""").find(line)
+                if (tbMatch != null) {
+                    currentBounds = intArrayOf(
+                        tbMatch.groupValues[1].toInt(),
+                        tbMatch.groupValues[2].toInt(),
+                        tbMatch.groupValues[3].toInt(),
+                        tbMatch.groupValues[4].toInt()
+                    )
+                }
+                
+                if (taskId != null) return TaskInfo(taskId, currentStackId, currentDisplayId, currentBounds)
             }
         }
         return null

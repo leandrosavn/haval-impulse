@@ -276,9 +276,9 @@ class BottomBarService : LifecycleService() {
         val overscanValuePx = (overscanValueRaw * density).toInt()
         val yOffsetPx = (settings.yOffset * density).toInt()
 
-        Log.d(
+        Log.w(
             "BottomBarService",
-            "Applying app settings: overscan=$overscanValueRaw, yOffset=${settings.yOffset} for app: $lastPackage"
+            "[OVERSCAN_SYNC] App: $lastPackage | Overscan: ${overscanValueRaw}dp(${overscanValuePx}px) | Offset: ${settings.yOffset}dp(${yOffsetPx}px) | Visible: ${BottomBarState.isVisible}"
         )
 
         lifecycleScope.launch(Dispatchers.IO) {
