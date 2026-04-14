@@ -112,8 +112,16 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         if (key == SharedPreferencesKeys.ENABLE_INSTRUMENT_ODOMETER_AND_REVISION.key
                         ) {
                             val enabled = preferences.getBoolean(key, true)
+                            val nextKm =
+                                    preferences.getInt(
+                                            SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key,
+                                            0
+                                    )
                             evaluateJsIfReady(webView, "control('enableOdometer', $enabled)")
-                            evaluateJsIfReady(webView, "control('enableRevisionWarning', $enabled)")
+                            evaluateJsIfReady(
+                                    webView,
+                                    "control('enableRevisionWarning', ${enabled && nextKm > 0})"
+                            )
                         }
                         if (key == SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key ||
                                         key == SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key
@@ -132,9 +140,19 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         updateVirtualClusterVisibility()
                     }
                 } else if (key == SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key) {
-                    val nextRevisionKm = preferences.getInt(key, 12000)
+                    val nextRevisionKm = preferences.getInt(key, 0)
+                    val enabled =
+                            preferences.getBoolean(
+                                    SharedPreferencesKeys.ENABLE_INSTRUMENT_ODOMETER_AND_REVISION
+                                            .key,
+                                    true
+                            )
                     ensureUi {
                         evaluateJsIfReady(webView, "control('nextRevisionKm', $nextRevisionKm)")
+                        evaluateJsIfReady(
+                                webView,
+                                "control('enableRevisionWarning', ${enabled && nextRevisionKm > 0})"
+                        )
                     }
                 } else if (key == SharedPreferencesKeys.INSTRUMENT_REVISION_NEXT_DATE.key) {
                     val nextRevisionDate = preferences.getLong(key, 0L)
@@ -145,9 +163,6 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
             }
 
     private fun shouldShowProjector(): Boolean {
-        if (br.com.redesurftank.havalshisuku.services.ForegroundService.isLocalTestMode()) {
-            return true
-        }
         return preferences.getBoolean(
                 SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key,
                 false
@@ -164,7 +179,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     when (event) {
                         ServiceManagerEventType.CLUSTER_CARD_CHANGED -> {
                             currentCard = args[0] as Int
-                            lastAppliedConfigs.clear() // Invalidate cache on card change to force re-sync
+                            lastAppliedConfigs
+                                    .clear() // Invalidate cache on card change to force re-sync
                             evaluateJsIfReady(webView, "control('cardId', $currentCard)")
                             updateVirtualClusterVisibility()
                             syncSecondaryDisplayApps(3)
@@ -231,6 +247,9 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                     TAG,
                                     "Display 3 app state changed in cluster projector: $isAnyAppOnDisplay3"
                             )
+                            if (!isAnyAppOnDisplay3) {
+                                lastAppliedConfigs.clear()
+                            }
                             updateVirtualClusterVisibility()
                             syncSecondaryDisplayApps(3)
                         }
@@ -464,7 +483,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                     override fun onPageFinished(view: WebView?, url: String?) {
                                         super.onPageFinished(view, url)
                                         view?.let { wv: android.webkit.WebView ->
-                                            Log.w(TAG, "WebView finished loading (PID: ${android.os.Process.myPid()}): $url")
+                                            Log.w(
+                                                    TAG,
+                                                    "WebView finished loading (PID: ${android.os.Process.myPid()}): $url"
+                                            )
 
                                             // Apply pending JS or updates
                                             updateValuesWebView()
@@ -476,7 +498,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                                 pendingJsQueues.remove(wv)
                                             }
                                             // Inject Heartbeat
-                                            wv.evaluateJavascript("setInterval(() => { if (window.Android && window.Android.heartbeat) window.Android.heartbeat(); }, 2000);", null)
+                                            wv.evaluateJavascript(
+                                                    "setInterval(() => { if (window.Android && window.Android.heartbeat) window.Android.heartbeat(); }, 2000);",
+                                                    null
+                                            )
                                         }
                                     }
                                 }
@@ -518,22 +543,24 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         updates["inside_temp"] = formatTemp(sm.getData(CarConstants.CAR_BASIC_INSIDE_TEMP.value))
 
         // Revision info
-        updates["nextRevisionKm"] =
-                preferences
-                        .getInt(SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key, 12000)
-                        .toString()
-        updates["nextRevisionDate"] =
-                preferences
-                        .getLong(SharedPreferencesKeys.INSTRUMENT_REVISION_NEXT_DATE.key, 0L)
-                        .toString()
         val enableOdometerAndRevision =
                 preferences.getBoolean(
                         SharedPreferencesKeys.ENABLE_INSTRUMENT_ODOMETER_AND_REVISION.key,
                         true
                 )
+        val nextRevisionKm = preferences.getInt(SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key, 0)
         updates["enableOdometer"] = enableOdometerAndRevision.toString()
-        updates["enableRevisionWarning"] = enableOdometerAndRevision.toString()
-        updates["odometer"] = sm.getData(CarConstants.CAR_BASIC_TOTAL_ODOMETER.value) ?: "0"
+        updates["enableRevisionWarning"] =
+                (enableOdometerAndRevision && nextRevisionKm > 0).toString()
+
+        val odometer = sm.getData(CarConstants.CAR_BASIC_TOTAL_ODOMETER.value) ?: "0"
+        updates["odometer"] = odometer
+
+        updates["nextRevisionKm"] = nextRevisionKm.toString()
+        updates["nextRevisionDate"] =
+                preferences
+                        .getLong(SharedPreferencesKeys.INSTRUMENT_REVISION_NEXT_DATE.key, 0L)
+                        .toString()
 
         // Fuel and Battery Percentages/Range
         updates["fuelPercent"] =
@@ -586,7 +613,6 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         updates[GraphicsScreen.GraphOptions.EV_POWER_KW] = kw.toString()
 
         // Consumption initial values
-        // Consumption initial values
         updateGasConsumption(
                 sm.getData(CarConstants.CAR_BASIC_INSTANT_FUEL_CONSUMPTION.value),
                 updates
@@ -600,7 +626,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private fun batchEvaluateJs(view: WebView?, updates: Map<String, String>) {
         if (view == null || updates.isEmpty()) return
         val jsBuilder = StringBuilder("(function(){")
-        updates.forEach { (key, value) -> jsBuilder.append("control('$key', '$value');") }
+        updates.forEach { (key, value) ->
+            val formattedValue = if (value == "true" || value == "false") value else "'$value'"
+            jsBuilder.append("control('$key', $formattedValue);")
+        }
         jsBuilder.append("})()")
         evaluateJsIfReady(view, jsBuilder.toString())
     }

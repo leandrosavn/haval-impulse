@@ -300,194 +300,192 @@ public class ServiceManager {
         handlerThread.start();
         backgroundHandler = new Handler(handlerThread.getLooper());
 
-        if (!br.com.redesurftank.havalshisuku.services.ForegroundService.isLocalTestMode()) {
-            if (!Shizuku.pingBinder()) {
-                Log.e(TAG, "Shizuku not available");
+        if (!Shizuku.pingBinder()) {
+            Log.e(TAG, "Shizuku not available");
+            return false;
+        }
+
+        try {
+            IBinder controlBinder = new ShizukuBinderWrapper(getSystemService("com.beantechs.intelligentvehiclecontrol"));
+            if (!controlBinder.pingBinder()) {
+                Log.e(TAG, "IntelligentVehicleControlService binder not alive");
                 return false;
             }
+            controlService = IIntelligentVehicleControlService.Stub.asInterface(controlBinder);
 
-            try {
-                IBinder controlBinder = new ShizukuBinderWrapper(getSystemService("com.beantechs.intelligentvehiclecontrol"));
-                if (!controlBinder.pingBinder()) {
-                    Log.e(TAG, "IntelligentVehicleControlService binder not alive");
-                    return false;
-                }
-                controlService = IIntelligentVehicleControlService.Stub.asInterface(controlBinder);
-                
-                IBinder poolBinder = new ShizukuBinderWrapper(getSystemService("com.beantechs.voice.adapter.VoiceAdapterService"));
-                if (!poolBinder.pingBinder()) {
-                    Log.e(TAG, "IBinderPool binder not alive");
-                    return false;
-                }
-                IBinderPool pool = IBinderPool.Stub.asInterface(poolBinder);
-                IBinder vehicleBinder = pool.queryBinder(6);
-                vehicle = IVehicle.Stub.asInterface(new ShizukuBinderWrapper(vehicleBinder));
-                IBinder dvrBinder = pool.queryBinder(8);
-                dvr = IDvr.Stub.asInterface(new ShizukuBinderWrapper(dvrBinder));
-                IBinder vehicleModelBinder = pool.queryBinder(13);
-                vehicleModel = IVehicleModel.Stub.asInterface(new ShizukuBinderWrapper(vehicleModelBinder));
-                
-                Intent clusterIntent = new Intent();
-                clusterIntent.setComponent(new ComponentName("com.autolink.clusterservice", "com.autolink.clusterservice.ClusterService"));
-                clusterCallback = new IClusterCallback.Stub() {
-                    @Override
-                    public void callbackMsg(int msgId, ClusterMsgData data) {
-                        if (msgId == 133) {
-                            int whichCard = data.getIntValue();
-                            clusterCardView = whichCard;
-                            dispatchServiceManagerEvent(ServiceManagerEventType.CLUSTER_CARD_CHANGED, clusterCardView);
-                            Log.w(TAG, "Cluster card changed: " + whichCard);
-                        } else if (msgId == 134) {
-                            if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.getKey(), false)) {
-                                if (data.getIntValue() == 2) {
-                                    sendHeartBeatToCluster();
-                                    startClusterHeartbeat();
-                                }
-                            }
-                        } else if (msgId == 135) {
-                            if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.getKey(), false)) {
-                                int val = data.getIntValue();
-                                if (val == 1) sendClusterIntMsg(135, 1);
-                                else if (val == 2) sendClusterIntMsg(135, 2);
-                            }
-                        }
-                    }
-                };
-                clusterServiceConnection = new ServiceConnection() {
-                    @Override
-                    public void onServiceConnected(ComponentName name, IBinder service) {
-                        clusterService = IClusterService.Stub.asInterface(service);
-                        try { clusterService.registerCallback(clusterCallback); } catch (Exception e) {}
+            IBinder poolBinder = new ShizukuBinderWrapper(getSystemService("com.beantechs.voice.adapter.VoiceAdapterService"));
+            if (!poolBinder.pingBinder()) {
+                Log.e(TAG, "IBinderPool binder not alive");
+                return false;
+            }
+            IBinderPool pool = IBinderPool.Stub.asInterface(poolBinder);
+            IBinder vehicleBinder = pool.queryBinder(6);
+            vehicle = IVehicle.Stub.asInterface(new ShizukuBinderWrapper(vehicleBinder));
+            IBinder dvrBinder = pool.queryBinder(8);
+            dvr = IDvr.Stub.asInterface(new ShizukuBinderWrapper(dvrBinder));
+            IBinder vehicleModelBinder = pool.queryBinder(13);
+            vehicleModel = IVehicleModel.Stub.asInterface(new ShizukuBinderWrapper(vehicleModelBinder));
+
+            Intent clusterIntent = new Intent();
+            clusterIntent.setComponent(new ComponentName("com.autolink.clusterservice", "com.autolink.clusterservice.ClusterService"));
+            clusterCallback = new IClusterCallback.Stub() {
+                @Override
+                public void callbackMsg(int msgId, ClusterMsgData data) {
+                    if (msgId == 133) {
+                        int whichCard = data.getIntValue();
+                        clusterCardView = whichCard;
+                        dispatchServiceManagerEvent(ServiceManagerEventType.CLUSTER_CARD_CHANGED, clusterCardView);
+                        Log.w(TAG, "Cluster card changed: " + whichCard);
+                    } else if (msgId == 134) {
                         if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.getKey(), false)) {
-                            startClusterHeartbeat();
-                        }
-                    }
-                    @Override public void onServiceDisconnected(ComponentName name) { clusterService = null; }
-                };
-                context.bindService(clusterIntent, clusterServiceConnection, Context.BIND_AUTO_CREATE);
-
-                Intent inputIntent = new Intent("com.beantechs.inputservice.service_init");
-                inputIntent.setPackage("com.beantechs.inputservice");
-                inputListener = new IInputListener.Stub() {
-                    @Override
-                    public void dispatchKeyEvent(KeyEvent keyEvent) {
-                        if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_STEERING_WHEEL_CUSTOM_BUTTONS.getKey(), false)) {
-                            switch (keyEvent.getKeyCode()) {
-                                case 517: handleSteeringWheelCustomButton(sharedPreferences.getString(SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_1_ACTION.getKey(), SteeringWheelCustomActionType.DEFAULT.name()), 1); break;
-                                case 1031: handleSteeringWheelCustomButton(sharedPreferences.getString(SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_2_ACTION.getKey(), SteeringWheelCustomActionType.DEFAULT.name()), 2); break;
+                            if (data.getIntValue() == 2) {
+                                sendHeartBeatToCluster();
+                                startClusterHeartbeat();
                             }
                         }
-                        if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_CUSTOM_MENU.getKey(), false)) {
-                            Screen.Key key = null;
-                            switch (keyEvent.getKeyCode()) {
-                                case 1024:
-                                    key = Screen.Key.UP;
-                                    break;
-                                case 1025:
-                                    key = Screen.Key.DOWN;
-                                    break;
-                                case 1028:
-                                    key = Screen.Key.ENTER;
-                                    break;
-                                case 1029:
-                                    key = Screen.Key.HOME;
-                                    break;
-                                case 1030:
-                                    key = Screen.Key.BACK;
-                                    break;
-                                case 1033:
-                                    key = Screen.Key.UP_LONG;
-                                    break;
-                                case 1034:
-                                    key = Screen.Key.DOWN_LONG;
-                                    break;
-                                case 1037:
-                                    key = Screen.Key.ENTER_LONG;
-                                    break;
-                                case 1039:
-                                    key = Screen.Key.BACK_LONG;
-                                    break;
-                            }
-                            if (key != null) MainUiManager.getInstance().handleGeneralKeyEvents(key);
-                            if (key == Screen.Key.BACK) {
-                                dispatchServiceManagerEvent(ServiceManagerEventType.DISMISS_WARNING);
-                            }
+                    } else if (msgId == 135) {
+                        if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.getKey(), false)) {
+                            int val = data.getIntValue();
+                            if (val == 1) sendClusterIntMsg(135, 1);
+                            else if (val == 2) sendClusterIntMsg(135, 2);
                         }
                     }
-                };
-                inputServiceConnection = new ServiceConnection() {
-                    @Override
-                    public void onServiceConnected(ComponentName name, IBinder service) {
-                        inputService = IInputService.Stub.asInterface(service);
-                        try { inputService.registerKeyEventListener(new int[]{-1}, inputListener); } catch (Exception e) {}
-                    }
-                    @Override public void onServiceDisconnected(ComponentName name) { inputService = null; }
-                };
-                context.bindService(inputIntent, inputServiceConnection, Context.BIND_AUTO_CREATE);
-
-                listener = new IListener.Stub() {
-                    @Override public void onDataChanged(String key, String value) { OnDataChanged(key, value); }
-                };
-                ShizukuUtils.runCommandAndGetOutput(new String[]{"settings", "put", "secure", "enabled_accessibility_services", "br.com.redesurftank.havalshisuku/.services.AccessibilityService"});
-                ShizukuUtils.runCommandAndGetOutput(new String[]{"settings", "put", "secure", "accessibility_enabled", "1"});
-                ShizukuUtils.runCommandAndGetOutput(new String[]{"pm", "grant", context.getPackageName(), "android.permission.WRITE_SECURE_SETTINGS"});
-                controlService.registerDataChangedListener(context.getPackageName(), listener);
-                controlService.addListenerKey(App.getContext().getPackageName(), getCombinedKeys());
-                
-                IBinder connectivityBinder = new ShizukuBinderWrapper(getSystemService(Context.CONNECTIVITY_SERVICE));
-                connectivityManager = IConnectivityManager.Stub.asInterface(connectivityBinder);
-                
-                IntentFilter bluetoothFilter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
-                bluetoothFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
-                context.registerReceiver(new BroadcastReceiver() {
-                    @Override
-                    public void onReceive(Context context, Intent intent) {
-                        if (intent.getAction() == null) return;
-                        if (intent.getAction().equals(BluetoothAdapter.ACTION_STATE_CHANGED) || intent.getAction().equals(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED)) {
-                            int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
-                            if (state == BluetoothAdapter.STATE_ON) {
-                                String drivingReady = getUpdatedData(CarConstants.CAR_BASIC_DRIVING_READY_STATE.getValue());
-                                if ((drivingReady.equals("-1") || drivingReady.equals("0")) && sharedPreferences.getBoolean(SharedPreferencesKeys.DISABLE_BLUETOOTH_ON_POWER_OFF.getKey(), false)) {
-                                    disableBluetooth();
-                                }
-                            }
-                        }
-                    }
-                }, bluetoothFilter);
-
-                IntentFilter wifiFilter = new IntentFilter("android.net.wifi.WIFI_AP_STATE_CHANGED");
-                context.registerReceiver(new BroadcastReceiver() {
-                    @Override
-                    public void onReceive(Context context, Intent intent) {
-                        if ("android.net.wifi.WIFI_AP_STATE_CHANGED".equals(intent.getAction())) {
-                            if (intent.getIntExtra("wifi_state", 0) == 13) {
-                                String drivingReady = getUpdatedData(CarConstants.CAR_BASIC_DRIVING_READY_STATE.getValue());
-                                if ((drivingReady.equals("-1") || drivingReady.equals("0")) && sharedPreferences.getBoolean(SharedPreferencesKeys.DISABLE_HOTSPOT_ON_POWER_OFF.getKey(), false)) {
-                                    disableWifiTether();
-                                }
-                            }
-                        }
-                    }
-                }, wifiFilter);
-
-                dispatchAllData();
-                if (sharedPreferences.getBoolean(SharedPreferencesKeys.SET_STARTUP_VOLUME.getKey(), false)) {
-                    int vol = sharedPreferences.getInt(SharedPreferencesKeys.STARTUP_VOLUME.getKey(), -1);
-                    if (vol != -1) controlService.request("cmd.common.request.set", CarConstants.SYS_SETTINGS_AUDIO_MEDIA_VOLUME.getValue(), String.valueOf(vol));
                 }
-                if (sharedPreferences.getBoolean(SharedPreferencesKeys.DISABLE_MONITORING.getKey(), false)) setMonitoringEnabled(false);
-                if (sharedPreferences.getBoolean(SharedPreferencesKeys.DISABLE_AVAS.getKey(), false)) setAvasEnabled(false);
-                if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_AUTO_BRIGHTNESS.getKey(), false)) AutoBrightnessManager.Companion.getInstance().setEnabled(true);
-                if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_FRIDA_HOOKS.getKey(), false)) pendingTasks.add(this::initializeFrida);
-                if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_SEAT_VENTILATION_ON_AC_ON.getKey(), false) && "1".equals(getUpdatedData(CarConstants.CAR_HVAC_POWER_MODE.getValue()))) {
-                    updateData(CarConstants.CAR_COMFORT_SETTING_DRIVER_SEAT_VENTILATION_LEVEL.getValue(), "3");
+            };
+            clusterServiceConnection = new ServiceConnection() {
+                @Override
+                public void onServiceConnected(ComponentName name, IBinder service) {
+                    clusterService = IClusterService.Stub.asInterface(service);
+                    try { clusterService.registerCallback(clusterCallback); } catch (Exception e) {}
+                    if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.getKey(), false)) {
+                        startClusterHeartbeat();
+                    }
                 }
-                ensureSteeringWheelButtonIntegration();
-                ensureSystemApps();
-            } catch (RemoteException e) {
-                Log.e(TAG, "Error during initialization", e);
-                return false;
+                @Override public void onServiceDisconnected(ComponentName name) { clusterService = null; }
+            };
+            context.bindService(clusterIntent, clusterServiceConnection, Context.BIND_AUTO_CREATE);
+
+            Intent inputIntent = new Intent("com.beantechs.inputservice.service_init");
+            inputIntent.setPackage("com.beantechs.inputservice");
+            inputListener = new IInputListener.Stub() {
+                @Override
+                public void dispatchKeyEvent(KeyEvent keyEvent) {
+                    if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_STEERING_WHEEL_CUSTOM_BUTTONS.getKey(), false)) {
+                        switch (keyEvent.getKeyCode()) {
+                            case 517: handleSteeringWheelCustomButton(sharedPreferences.getString(SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_1_ACTION.getKey(), SteeringWheelCustomActionType.DEFAULT.name()), 1); break;
+                            case 1031: handleSteeringWheelCustomButton(sharedPreferences.getString(SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_2_ACTION.getKey(), SteeringWheelCustomActionType.DEFAULT.name()), 2); break;
+                        }
+                    }
+                    if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_CUSTOM_MENU.getKey(), false)) {
+                        Screen.Key key = null;
+                        switch (keyEvent.getKeyCode()) {
+                            case 1024:
+                                key = Screen.Key.UP;
+                                break;
+                            case 1025:
+                                key = Screen.Key.DOWN;
+                                break;
+                            case 1028:
+                                key = Screen.Key.ENTER;
+                                break;
+                            case 1029:
+                                key = Screen.Key.HOME;
+                                break;
+                            case 1030:
+                                key = Screen.Key.BACK;
+                                break;
+                            case 1033:
+                                key = Screen.Key.UP_LONG;
+                                break;
+                            case 1034:
+                                key = Screen.Key.DOWN_LONG;
+                                break;
+                            case 1037:
+                                key = Screen.Key.ENTER_LONG;
+                                break;
+                            case 1039:
+                                key = Screen.Key.BACK_LONG;
+                                break;
+                        }
+                        if (key != null) MainUiManager.getInstance().handleGeneralKeyEvents(key);
+                        if (key == Screen.Key.BACK) {
+                            dispatchServiceManagerEvent(ServiceManagerEventType.DISMISS_WARNING);
+                        }
+                    }
+                }
+            };
+            inputServiceConnection = new ServiceConnection() {
+                @Override
+                public void onServiceConnected(ComponentName name, IBinder service) {
+                    inputService = IInputService.Stub.asInterface(service);
+                    try { inputService.registerKeyEventListener(new int[]{-1}, inputListener); } catch (Exception e) {}
+                }
+                @Override public void onServiceDisconnected(ComponentName name) { inputService = null; }
+            };
+            context.bindService(inputIntent, inputServiceConnection, Context.BIND_AUTO_CREATE);
+
+            listener = new IListener.Stub() {
+                @Override public void onDataChanged(String key, String value) { OnDataChanged(key, value); }
+            };
+            ShizukuUtils.runCommandAndGetOutput(new String[]{"settings", "put", "secure", "enabled_accessibility_services", "br.com.redesurftank.havalshisuku/.services.AccessibilityService"});
+            ShizukuUtils.runCommandAndGetOutput(new String[]{"settings", "put", "secure", "accessibility_enabled", "1"});
+            ShizukuUtils.runCommandAndGetOutput(new String[]{"pm", "grant", context.getPackageName(), "android.permission.WRITE_SECURE_SETTINGS"});
+            controlService.registerDataChangedListener(context.getPackageName(), listener);
+            controlService.addListenerKey(App.getContext().getPackageName(), getCombinedKeys());
+
+            IBinder connectivityBinder = new ShizukuBinderWrapper(getSystemService(Context.CONNECTIVITY_SERVICE));
+            connectivityManager = IConnectivityManager.Stub.asInterface(connectivityBinder);
+
+            IntentFilter bluetoothFilter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
+            bluetoothFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
+            context.registerReceiver(new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    if (intent.getAction() == null) return;
+                    if (intent.getAction().equals(BluetoothAdapter.ACTION_STATE_CHANGED) || intent.getAction().equals(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED)) {
+                        int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
+                        if (state == BluetoothAdapter.STATE_ON) {
+                            String drivingReady = getUpdatedData(CarConstants.CAR_BASIC_DRIVING_READY_STATE.getValue());
+                            if ((drivingReady.equals("-1") || drivingReady.equals("0")) && sharedPreferences.getBoolean(SharedPreferencesKeys.DISABLE_BLUETOOTH_ON_POWER_OFF.getKey(), false)) {
+                                disableBluetooth();
+                            }
+                        }
+                    }
+                }
+            }, bluetoothFilter);
+
+            IntentFilter wifiFilter = new IntentFilter("android.net.wifi.WIFI_AP_STATE_CHANGED");
+            context.registerReceiver(new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    if ("android.net.wifi.WIFI_AP_STATE_CHANGED".equals(intent.getAction())) {
+                        if (intent.getIntExtra("wifi_state", 0) == 13) {
+                            String drivingReady = getUpdatedData(CarConstants.CAR_BASIC_DRIVING_READY_STATE.getValue());
+                            if ((drivingReady.equals("-1") || drivingReady.equals("0")) && sharedPreferences.getBoolean(SharedPreferencesKeys.DISABLE_HOTSPOT_ON_POWER_OFF.getKey(), false)) {
+                                disableWifiTether();
+                            }
+                        }
+                    }
+                }
+            }, wifiFilter);
+
+            dispatchAllData();
+            if (sharedPreferences.getBoolean(SharedPreferencesKeys.SET_STARTUP_VOLUME.getKey(), false)) {
+                int vol = sharedPreferences.getInt(SharedPreferencesKeys.STARTUP_VOLUME.getKey(), -1);
+                if (vol != -1) controlService.request("cmd.common.request.set", CarConstants.SYS_SETTINGS_AUDIO_MEDIA_VOLUME.getValue(), String.valueOf(vol));
             }
+            if (sharedPreferences.getBoolean(SharedPreferencesKeys.DISABLE_MONITORING.getKey(), false)) setMonitoringEnabled(false);
+            if (sharedPreferences.getBoolean(SharedPreferencesKeys.DISABLE_AVAS.getKey(), false)) setAvasEnabled(false);
+            if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_AUTO_BRIGHTNESS.getKey(), false)) AutoBrightnessManager.Companion.getInstance().setEnabled(true);
+            if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_FRIDA_HOOKS.getKey(), false)) pendingTasks.add(this::initializeFrida);
+            if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_SEAT_VENTILATION_ON_AC_ON.getKey(), false) && "1".equals(getUpdatedData(CarConstants.CAR_HVAC_POWER_MODE.getValue()))) {
+                updateData(CarConstants.CAR_COMFORT_SETTING_DRIVER_SEAT_VENTILATION_LEVEL.getValue(), "3");
+            }
+            ensureSteeringWheelButtonIntegration();
+            ensureSystemApps();
+        } catch (RemoteException e) {
+            Log.e(TAG, "Error during initialization", e);
+            return false;
         }
 
         servicesInitialized = true;
@@ -573,6 +571,24 @@ public class ServiceManager {
                     anion = !anion;
                     updateData(CarConstants.CAR_HVAC_ANION_ENABLE.getValue(), anion ? "1" : "0");
                     Log.w(TAG, "Anion state changed to: " + anion);
+                }
+                break;
+            case TOGGLE_ESP:
+                var espState = getUpdatedData(CarConstants.CAR_DRIVE_SETTING_ESP_ENABLE.getValue());
+                if (espState != null) {
+                    boolean esp = espState.equals("1");
+                    esp = !esp;
+                    updateData(CarConstants.CAR_DRIVE_SETTING_ESP_ENABLE.getValue(), esp ? "1" : "0");
+                    Log.w(TAG, "ESP state changed to: " + esp);
+                }
+                break;
+            case TOGGLE_ONE_PEDAL_DRIVING:
+                var onePedalState = getUpdatedData(CarConstants.CAR_CONFIGURE_PEDAL_CONTROL_ENABLE.getValue());
+                if (onePedalState != null) {
+                    boolean onePedal = onePedalState.equals("1");
+                    onePedal = !onePedal;
+                    updateData(CarConstants.CAR_CONFIGURE_PEDAL_CONTROL_ENABLE.getValue(), onePedal ? "1" : "0");
+                    Log.w(TAG, "One Pedal Driving state changed to: " + onePedal);
                 }
                 break;
             case OPEN_APP:
@@ -1611,9 +1627,6 @@ public class ServiceManager {
     }
 
     public boolean isMainScreenOn() {
-        if (br.com.redesurftank.havalshisuku.services.ForegroundService.isLocalTestMode()) {
-            return true;
-        }
         try {
             String engineState = getData(CarConstants.CAR_BASIC_ENGINE_STATE.getValue());
             return engineState != null && !engineState.equals("-1") && !engineState.equals("15");
@@ -1623,9 +1636,6 @@ public class ServiceManager {
     }
 
     public CarInfo getCarInfo() {
-        if (br.com.redesurftank.havalshisuku.services.ForegroundService.isLocalTestMode()) {
-            return new CarInfo("Haval", "PHEV", "GT");
-        }
         try {
             if (carInfo == null) {
                 carInfo = new CarInfo(vehicleModel.getCarBrand(), vehicleModel.getVehicleModel(), vehicleModel.getVehicleType());

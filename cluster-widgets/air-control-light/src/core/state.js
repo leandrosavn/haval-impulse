@@ -108,19 +108,20 @@ var stateManager = new StateManager({
     appInDash: false,
     clusterEnabled: true,
     brightness: 100,
-    batteryPercent: 0,
     fuelRange: 0,
+    fuelPercent: 0,
     batteryRange: 0,
+    batteryPercent: 0,
     clockTime: '--:--',
     gearState: 'P',
     evModeLabel: 'NORMAL',
-    
+
     // Revision Info / Odometer
     odometer: 0,
     nextRevisionKm: 0,
     nextRevisionDate: 0,
     enableRevisionWarning: false,
-    enableOdometer: true,
+    enableOdometer: false,
     warningActive: false,
     bsdLeft: false,
     bsdRight: false,
