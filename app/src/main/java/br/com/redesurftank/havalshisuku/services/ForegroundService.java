@@ -41,7 +41,6 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
     private static final String TAG = "ForegroundService";
     private static final String CHANNEL_ID = "ForegroundServiceChannel";
     private static final int NOTIFICATION_ID = 1;
-    public static boolean sIsLocalTestMode = false; // Keep for quick sync but update via isLocalTestMode()
 
     private HandlerThread handlerThread;
     private Handler backgroundHandler;
@@ -67,23 +66,14 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
     public synchronized int onStartCommand(Intent intent, int flags, int startId) {
         var sharedPreferences = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE);
         
-        if (intent != null && intent.hasExtra("localTestMode")) {
-            boolean mode = intent.getBooleanExtra("localTestMode", false);
-            Log.w(TAG, "Local Test Mode set via Intent Extra: " + mode);
-            sharedPreferences.edit().putBoolean(SharedPreferencesKeys.LOCAL_TEST_MODE.getKey(), mode).apply();
-            sIsLocalTestMode = mode;
-        } else {
-            // Ensure static field is in sync with SharedPreferences on start
-            sIsLocalTestMode = sharedPreferences.getBoolean(SharedPreferencesKeys.LOCAL_TEST_MODE.getKey(), false);
-        }
 
-        if (isServiceRunning && !isLocalTestMode()) {
+        if (isServiceRunning) {
             Log.w(TAG, "Service is already running, skipping start.");
             return START_STICKY; // Retorna imediatamente se o serviço já estiver rodando
         }
         try {
             isServiceRunning = true; // Marca o serviço como rodando
-            Log.w(TAG, "Service started (localTestMode=" + isLocalTestMode() + ")");
+            Log.w(TAG, "Service started");
             
             // Clear any pending background tasks (retry loops) from previous starts
             backgroundHandler.removeCallbacksAndMessages(null);
@@ -144,11 +134,6 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
                 }
             }
 
-            if (isLocalTestMode()) {
-                Log.w(TAG, "Bypassing telnet and Shizuku initialization (Local Test Mode)");
-                backgroundHandler.post(this::shizukuBinderReceived);
-                return START_STICKY;
-            }
 
             backgroundHandler.post(new Runnable() {
                 @Override
@@ -158,22 +143,10 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
                         String shizukuLibLocation = sharedPreferences.getString("shizuku_lib_location", "");
                         
                         var telnetClient = new TelnetClientWrapper();
-                        if (isLocalTestMode()) {
-                            Log.w(TAG, "Local Test Mode enabled while in telnet loop, breaking loop");
-                            telnetClient.disconnect();
-                            shizukuBinderReceived();
-                            return;
-                        }
                         
                         
                         telnetClient.connect("127.0.0.1", 23);
                         
-                        if (isLocalTestMode()) {
-                            Log.w(TAG, "Local Test Mode enabled AFTER connect attempt, breaking loop");
-                            telnetClient.disconnect();
-                            shizukuBinderReceived();
-                            return;
-                        }
 
                         String filePath = "";
                         if (shizukuLibLocation.isEmpty()) {
@@ -207,12 +180,7 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
                         backgroundHandler.postDelayed(timeoutRunnable, 5000);
                     } catch (Exception e) {
                         Log.e(TAG, "Error executing shell commands: " + e.getMessage(), e);
-                        if (isLocalTestMode()) {
-                            Log.w(TAG, "Error occurred but Local Test Mode is enabled, bypassing further retries");
-                            shizukuBinderReceived();
-                        } else {
-                            backgroundHandler.postDelayed(this, 1000);
-                        }
+                        backgroundHandler.postDelayed(this, 1000);
                     }
                 }
             });
@@ -241,29 +209,23 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
     }
 
     private void checkService() {
-        if (isLocalTestMode()) {
-            Log.w(TAG, "Bypassing Shizuku permission and binder checks (Local Test Mode)");
-            isShizukuInitialized = true; // Ensure flag is set
-            // Proceed to start background tasks like SSHD if possible
-        } else {
-            if (!isShizukuInitialized) {
-                Log.w(TAG, "Shizuku not initialized yet, retrying...");
-                return;
-            }
+        if (!isShizukuInitialized) {
+            Log.w(TAG, "Shizuku not initialized yet, retrying...");
+            return;
+        }
 
-            if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-                Log.w(TAG, "Shizuku permission not granted, requesting permission...");
-                Shizuku.addRequestPermissionResultListener((requestCode, grantResult) -> {
-                    if (requestCode == 0 && grantResult == PackageManager.PERMISSION_GRANTED) {
-                        Log.w(TAG, "Shizuku permission granted");
-                        checkService();
-                    } else {
-                        Log.e(TAG, "Shizuku permission denied");
-                    }
-                });
-                Shizuku.requestPermission(0);
-                return;
-            }
+        if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "Shizuku permission not granted, requesting permission...");
+            Shizuku.addRequestPermissionResultListener((requestCode, grantResult) -> {
+                if (requestCode == 0 && grantResult == PackageManager.PERMISSION_GRANTED) {
+                    Log.w(TAG, "Shizuku permission granted");
+                    checkService();
+                } else {
+                    Log.e(TAG, "Shizuku permission denied");
+                }
+            });
+            Shizuku.requestPermission(0);
+            return;
         }
 
         Log.w(TAG, "Shizuku initialized/bypassed, starting services...");
@@ -469,8 +431,4 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
         stopSelf();
     }
 
-    public static boolean isLocalTestMode() {
-        return App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
-                .getBoolean(SharedPreferencesKeys.LOCAL_TEST_MODE.getKey(), false);
-    }
 }
