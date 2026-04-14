@@ -2173,7 +2173,9 @@ canvas.graph-chart {
 .cluster-disabled .no-app-mask-l,
 .cluster-disabled .no-app-mask-v,
 .cluster-disabled .no-app-mask-h,
-.cluster-disabled .partial-app-mask {
+.cluster-disabled .partial-app-mask,
+.cluster-disabled .mask-bottom-bar,
+.cluster-disabled .mask-top-bar {
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none !important;
