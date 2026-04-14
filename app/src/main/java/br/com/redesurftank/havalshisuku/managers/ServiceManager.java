@@ -575,24 +575,6 @@ public class ServiceManager {
                     Log.w(TAG, "Anion state changed to: " + anion);
                 }
                 break;
-            /*case TOGGLE_ESP:
-                String espState = getUpdatedData(CarConstants.CAR_DRIVE_SETTING_ESP_ENABLE.getValue());
-                if (espState != null) {
-                    boolean esp = espState.equals("1");
-                    esp = !esp;
-                    updateData(CarConstants.CAR_DRIVE_SETTING_ESP_ENABLE.getValue(), esp ? "1" : "0");
-                    Log.w(TAG, "ESP state changed to: " + esp);
-                }
-                break;*/
-            case TOGGLE_ONE_PEDAL_DRIVING:
-                String onePedalState = getUpdatedData(CarConstants.CAR_CONFIGURE_PEDAL_CONTROL_ENABLE.getValue());
-                if (onePedalState != null) {
-                    boolean onePedal = onePedalState.equals("1");
-                    onePedal = !onePedal;
-                    updateData(CarConstants.CAR_CONFIGURE_PEDAL_CONTROL_ENABLE.getValue(), onePedal ? "1" : "0");
-                    Log.w(TAG, "One Pedal Driving state changed to: " + onePedal);
-                }
-                break;
             case OPEN_APP:
                 String packageName = sharedPreferences.getString(button == 1 ? SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_1.getKey() : SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_2.getKey(), "");
                 if (!packageName.isEmpty()) {
