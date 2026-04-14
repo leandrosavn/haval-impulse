@@ -164,7 +164,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     when (event) {
                         ServiceManagerEventType.CLUSTER_CARD_CHANGED -> {
                             currentCard = args[0] as Int
-                            lastAppliedConfigs.clear() // Invalidate cache on card change to force re-sync
+                            lastAppliedConfigs
+                                    .clear() // Invalidate cache on card change to force re-sync
                             evaluateJsIfReady(webView, "control('cardId', $currentCard)")
                             updateVirtualClusterVisibility()
                             syncSecondaryDisplayApps(3)
@@ -464,7 +465,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                     override fun onPageFinished(view: WebView?, url: String?) {
                                         super.onPageFinished(view, url)
                                         view?.let { wv: android.webkit.WebView ->
-                                            Log.w(TAG, "WebView finished loading (PID: ${android.os.Process.myPid()}): $url")
+                                            Log.w(
+                                                    TAG,
+                                                    "WebView finished loading (PID: ${android.os.Process.myPid()}): $url"
+                                            )
 
                                             // Apply pending JS or updates
                                             updateValuesWebView()
@@ -476,7 +480,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                                 pendingJsQueues.remove(wv)
                                             }
                                             // Inject Heartbeat
-                                            wv.evaluateJavascript("setInterval(() => { if (window.Android && window.Android.heartbeat) window.Android.heartbeat(); }, 2000);", null)
+                                            wv.evaluateJavascript(
+                                                    "setInterval(() => { if (window.Android && window.Android.heartbeat) window.Android.heartbeat(); }, 2000);",
+                                                    null
+                                            )
                                         }
                                     }
                                 }
@@ -518,14 +525,6 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         updates["inside_temp"] = formatTemp(sm.getData(CarConstants.CAR_BASIC_INSIDE_TEMP.value))
 
         // Revision info
-        updates["nextRevisionKm"] =
-                preferences
-                        .getInt(SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key, 12000)
-                        .toString()
-        updates["nextRevisionDate"] =
-                preferences
-                        .getLong(SharedPreferencesKeys.INSTRUMENT_REVISION_NEXT_DATE.key, 0L)
-                        .toString()
         val enableOdometerAndRevision =
                 preferences.getBoolean(
                         SharedPreferencesKeys.ENABLE_INSTRUMENT_ODOMETER_AND_REVISION.key,
@@ -533,7 +532,21 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 )
         updates["enableOdometer"] = enableOdometerAndRevision.toString()
         updates["enableRevisionWarning"] = enableOdometerAndRevision.toString()
-        updates["odometer"] = sm.getData(CarConstants.CAR_BASIC_TOTAL_ODOMETER.value) ?: "0"
+
+        val odometer = sm.getData(CarConstants.CAR_BASIC_TOTAL_ODOMETER.value) ?: "0"
+        updates["odometer"] = odometer
+
+        updates["nextRevisionKm"] =
+                preferences
+                        .getInt(
+                                SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key,
+                                odometer.toInt() % 12000
+                        )
+                        .toString()
+        updates["nextRevisionDate"] =
+                preferences
+                        .getLong(SharedPreferencesKeys.INSTRUMENT_REVISION_NEXT_DATE.key, 0L)
+                        .toString()
 
         // Fuel and Battery Percentages/Range
         updates["fuelPercent"] =
@@ -586,7 +599,6 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         updates[GraphicsScreen.GraphOptions.EV_POWER_KW] = kw.toString()
 
         // Consumption initial values
-        // Consumption initial values
         updateGasConsumption(
                 sm.getData(CarConstants.CAR_BASIC_INSTANT_FUEL_CONSUMPTION.value),
                 updates
@@ -600,7 +612,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private fun batchEvaluateJs(view: WebView?, updates: Map<String, String>) {
         if (view == null || updates.isEmpty()) return
         val jsBuilder = StringBuilder("(function(){")
-        updates.forEach { (key, value) -> jsBuilder.append("control('$key', '$value');") }
+        updates.forEach { (key, value) ->
+            val formattedValue = if (value == "true" || value == "false") value else "'$value'"
+            jsBuilder.append("control('$key', $formattedValue);")
+        }
         jsBuilder.append("})()")
         evaluateJsIfReady(view, jsBuilder.toString())
     }
