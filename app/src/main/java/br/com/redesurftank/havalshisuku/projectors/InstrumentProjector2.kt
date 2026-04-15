@@ -204,8 +204,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                             evaluateJsIfReady(webView, "control('cardId', $currentCard)")
                             updateVirtualClusterVisibility()
                             syncSecondaryDisplayApps(3)
+                            MainUiManager.getInstance().handleCardChange(currentCard)
                             if (currentCard == 1 || currentCard == 3) {
-                                MainUiManager.getInstance().handleCardChange(currentCard)
                                 updateValuesWebView()
                             }
                         }
