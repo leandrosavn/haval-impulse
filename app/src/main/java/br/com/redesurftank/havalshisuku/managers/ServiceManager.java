@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import br.com.redesurftank.App;
 import br.com.redesurftank.havalshisuku.listeners.IDataChanged;
@@ -233,6 +234,24 @@ public class ServiceManager {
     private final Map<String, String> previousAcState = new HashMap<>();
     private boolean isMaxAcActive = false;
     private Runnable maxAcTimeoutRunnable;
+
+    private static final String HVAC_PACKAGE_NAME = "com.beantechs.hvac";
+    private static final long HVAC_RESUME_DELAY_MS = 300;
+    private boolean isHvacSuspended = false;
+    private Runnable resumeHvacRunnable;
+    private final Set<String> hvacKeysToSuspend = new HashSet<>(Arrays.asList(
+            CarConstants.CAR_HVAC_ANION_ENABLE.getValue(),
+            CarConstants.CAR_HVAC_BLOWER_MODE.getValue(),
+            CarConstants.CAR_HVAC_CYCLE_MODE.getValue(),
+            CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.getValue(),
+            CarConstants.CAR_HVAC_FAN_SPEED.getValue(),
+            CarConstants.CAR_HVAC_FRONT_DEFROST_ENABLE.getValue(),
+            CarConstants.CAR_HVAC_PASS_TEMPERATURE.getValue(),
+            CarConstants.CAR_HVAC_POWER_MODE.getValue(),
+            CarConstants.CAR_HVAC_SYNC_ENABLE.getValue(),
+            CarConstants.CAR_HVAC_AUTO_ENABLE.getValue(),
+            CarConstants.CAR_HVAC_SETTING_COMFORT_CURVE.getValue()
+    ));
 
 
     private ServiceManager() {
@@ -849,11 +868,72 @@ public class ServiceManager {
             Log.e(TAG, "ControlService not initialized");
             return;
         }
+
+        boolean shouldSuspend = hvacKeysToSuspend.contains(key);
+        if (shouldSuspend) {
+            ensureHvacSuspended(key);
+        }
+
         try {
             controlService.request("cmd.common.request.set", key, value);
         } catch (RemoteException e) {
             Log.e(TAG, "Error updating data", e);
         }
+
+        if (shouldSuspend) {
+            scheduleHvacResumption();
+        }
+    }
+
+    private void ensureHvacSuspended(String triggerKey) {
+        if (resumeHvacRunnable != null) {
+            backgroundHandler.removeCallbacks(resumeHvacRunnable);
+            resumeHvacRunnable = null;
+        }
+
+        if (!isHvacSuspended) {
+            if (isHvacAppInForeground()) {
+                Log.w(TAG, "HVAC app is in foreground, skipping suspension for key: " + triggerKey);
+                return;
+            }
+
+            Log.w(TAG, "Suspending HVAC app due to key: " + triggerKey);
+            ShizukuUtils.runCommandAndGetOutput(new String[]{"pm", "disable-user", "--user", "0", HVAC_PACKAGE_NAME});
+            ShizukuUtils.runCommandAndGetOutput(new String[]{"am", "force-stop", HVAC_PACKAGE_NAME});
+            isHvacSuspended = true;
+            // Short sleep to ensure the app is fully stopped before the car command is sent
+            SystemClock.sleep(150);
+        }
+    }
+
+    private boolean isHvacAppInForeground() {
+        try {
+            // Check if the HVAC app is currently resumed (more reliable than window focus on some units)
+            String output = ShizukuUtils.runCommandAndGetOutput(new String[]{"sh", "-c", "dumpsys activity activities | grep ResumedActivity"});
+            boolean isForeground = output != null && output.contains(HVAC_PACKAGE_NAME);
+            if (isForeground) {
+                Log.w(TAG, "Detection: HVAC app IS resumed in foreground");
+            }
+            return isForeground;
+        } catch (Exception e) {
+            Log.e(TAG, "Error checking HVAC visibility", e);
+        }
+        return false;
+    }
+
+    private void scheduleHvacResumption() {
+        if (resumeHvacRunnable != null) {
+            backgroundHandler.removeCallbacks(resumeHvacRunnable);
+        }
+
+        resumeHvacRunnable = () -> {
+            Log.w(TAG, "Resuming HVAC app after inactivity");
+            ShizukuUtils.runCommandAndGetOutput(new String[]{"pm", "enable", HVAC_PACKAGE_NAME});
+            isHvacSuspended = false;
+            resumeHvacRunnable = null;
+        };
+
+        backgroundHandler.postDelayed(resumeHvacRunnable, HVAC_RESUME_DELAY_MS);
     }
 
     public Map<String, String> getAllCurrentCachedData() {
