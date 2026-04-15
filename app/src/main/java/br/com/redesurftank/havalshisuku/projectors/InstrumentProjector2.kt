@@ -66,6 +66,26 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private val lastAppliedConfigs =
             mutableMapOf<String, br.com.redesurftank.havalshisuku.models.DisplayAppConfig>()
 
+    private var lastHeartbeatTime = System.currentTimeMillis()
+    private val watchdogRunnable =
+            object : Runnable {
+                override fun run() {
+                    val now = System.currentTimeMillis()
+                    // If no heartbeat for 15 seconds, and the projector should be visible, reload
+                    if (now - lastHeartbeatTime > 15000 && shouldShowProjector() && root.isVisible
+                    ) {
+                        Log.e(
+                                TAG,
+                                "WebView watchdog triggered: No heartbeat for ${now - lastHeartbeatTime}ms. Reloading..."
+                        )
+                        ensureUi { webView?.reload() }
+                        lastHeartbeatTime =
+                                System.currentTimeMillis() // Reset to avoid immediate re-trigger
+                    }
+                    handler.postDelayed(this, 5000) // Check every 5s
+                }
+            }
+
     val monitoredWarningKeys =
             setOf(
                     CarConstants.CAR_BASIC_COOLANT_TEMP_WARNING.value,
@@ -277,6 +297,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handler.post(clockRunnable)
+        handler.post(watchdogRunnable)
         preferences.registerOnSharedPreferenceChangeListener(prefsListener)
         ServiceManager.getInstance().addServiceManagerEventListener(eventListener)
         WebView.setWebContentsDebuggingEnabled(true)
@@ -302,11 +323,28 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     }
 
     override fun onStop() {
-        super.onStop()
+        Log.w(TAG, "onStop: Cleaning up resources")
         handler.removeCallbacks(clockRunnable)
+        handler.removeCallbacks(watchdogRunnable)
         scope.cancel()
         preferences.unregisterOnSharedPreferenceChangeListener(prefsListener)
         ServiceManager.getInstance().removeServiceManagerEventListener(eventListener)
+
+        // Hardening: Explicitly destroy WebView to prevent leaks and broken channels
+        webView?.let { wv: WebView ->
+            Log.w(TAG, "Destroying WebView")
+            root.removeView(wv)
+            wv.stopLoading()
+            wv.clearHistory()
+            wv.clearCache(true)
+            wv.loadUrl("about:blank")
+            wv.onPause()
+            wv.removeAllViews()
+            wv.destroy()
+            webView = null
+        }
+
+        super.onStop()
     }
 
     private fun setupDataListeners() {
@@ -942,6 +980,11 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     }
 
     inner class WebAppInterface {
+        @JavascriptInterface
+        fun heartbeat() {
+            lastHeartbeatTime = System.currentTimeMillis()
+        }
+
         @JavascriptInterface
         fun setWarningActive(isActive: Boolean) {
             ensureUi { updateWarningUI(isActive) }

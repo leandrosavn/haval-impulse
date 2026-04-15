@@ -300,8 +300,15 @@ public class ServiceManager {
         handlerThread.start();
         backgroundHandler = new Handler(handlerThread.getLooper());
 
+        int shizukuRetry = 0;
+        while (!Shizuku.pingBinder() && shizukuRetry < 3) {
+            shizukuRetry++;
+            Log.w(TAG, "Shizuku not available, retrying... (" + shizukuRetry + "/3)");
+            try { Thread.sleep(500); } catch (InterruptedException e) {}
+        }
+
         if (!Shizuku.pingBinder()) {
-            Log.e(TAG, "Shizuku not available");
+            Log.e(TAG, "Shizuku not available after retries");
             return false;
         }
 
