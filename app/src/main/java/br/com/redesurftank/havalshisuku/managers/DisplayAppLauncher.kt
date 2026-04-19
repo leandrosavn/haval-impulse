@@ -12,9 +12,9 @@ import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import android.content.Intent
 import br.com.redesurftank.havalshisuku.managers.ThemeManager
 import br.com.redesurftank.havalshisuku.models.BottomBarState
@@ -178,48 +178,60 @@ object DisplayAppLauncher {
         return intArrayOf(x, y, x + width, y + height)
     }
 
-    /**
-     * Launches an app fresh on a secondary display with custom bounds.
-     * If already on target display → just resize.
-     * Otherwise → force-stop + restart with --windowingMode 5.
-     */
-    suspend fun launchApp(config: DisplayAppConfig) = withContext(Dispatchers.IO) {
-        try {
-            val bounds = getEffectiveBounds(config)
-            val x = bounds[0]
-            val y = bounds[1]
-            val right = bounds[2]
-            val bottom = bounds[3]
-            
-            val escapedActivity = config.activityName.replace("$", "\\$")
-            val isOwnPackage = config.packageName == App.getContext().packageName
-
-            // Already on target display — just resize
-            val existingStack = findStackIdForPackage(config.packageName, config.displayId)
-            if (existingStack != null) {
-                sh("am stack resize $existingStack $x $y $right $bottom")
-                return@withContext
+    suspend fun launchApp(config: DisplayAppConfig) {
+        withContext(Dispatchers.IO) {
+            // Any fresh launch clears the 'Restored' status to ensure standard layout
+            // SnapshotStateList operations are thread-safe and can run here
+            if (BottomBarState.restoredApps.contains(config.packageName)) {
+                BottomBarState.restoredApps.remove(config.packageName)
             }
 
-            // Force-stop + start fresh on target display
-            if (!isOwnPackage) {
-                sh("am force-stop ${config.packageName}")
-                Thread.sleep(200)
-                sh("am start -n ${config.packageName}/$escapedActivity --display ${config.displayId} --windowingMode 5")
-            } else {
-                Log.w(TAG, "Skipping force-stop/start for own package ${config.packageName}")
-            }
-            Thread.sleep(300)
+            try {
+                val bounds = getEffectiveBounds(config)
+                val x = bounds[0]
+                val y = bounds[1]
+                val right = bounds[2]
+                val bottom = bounds[3]
+                
+                val escapedActivity = config.activityName.replace("$", "\\$")
+                val isOwnPackage = config.packageName == App.getContext().packageName
 
-            val newStackId = findStackIdForPackage(config.packageName, config.displayId)
-            if (newStackId != null) {
-                sh("am stack resize $newStackId $x $y $right $bottom")
-            } else {
-                Log.w(TAG, "Could not find stack for ${config.packageName} on display ${config.displayId}")
+                // Already on target display — just resize
+                val existingStack = findStackIdForPackage(config.packageName, config.displayId)
+                if (existingStack != null) {
+                    // If launching on secondary display, remove from restored state
+                    if (config.displayId != 0 && BottomBarState.restoredApps.contains(config.packageName)) {
+                        BottomBarState.restoredApps.remove(config.packageName)
+                    }
+                    sh("am stack resize $existingStack $x $y $right $bottom")
+                    notifyDisplayStateChanged(config.displayId)
+                    return@withContext
+                }
+
+                // Force-stop + start fresh on target display
+                if (!isOwnPackage) {
+                    // If launching on secondary display, remove from restored state
+                    if (config.displayId != 0 && BottomBarState.restoredApps.contains(config.packageName)) {
+                        BottomBarState.restoredApps.remove(config.packageName)
+                    }
+                    sh("am force-stop ${config.packageName}")
+                    Thread.sleep(200)
+                    sh("am start -n ${config.packageName}/$escapedActivity --display ${config.displayId} --windowingMode 5")
+                } else {
+                    Log.w(TAG, "Skipping force-stop/start for own package ${config.packageName}")
+                }
+                
+                Thread.sleep(300)
+                val newStackId = findStackIdForPackage(config.packageName, config.displayId)
+                if (newStackId != null) {
+                    sh("am stack resize $newStackId $x $y $right $bottom")
+                } else {
+                    Log.w(TAG, "Could not find stack for ${config.packageName} on display ${config.displayId}")
+                }
+                notifyDisplayStateChanged(config.displayId)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error launching app ${config.packageName}", e)
             }
-            notifyDisplayStateChanged(config.displayId)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error launching app ${config.packageName}", e)
         }
     }
 
@@ -293,6 +305,10 @@ object DisplayAppLauncher {
                 if (!result.contains("Exception") && !result.contains("Error")) {
                     val movedTask = findTaskForPackage(packageName)
                     if (movedTask != null && movedTask.displayId == 0) {
+                        // Mark as restored to enable 3x overscan sync
+                        if (!BottomBarState.restoredApps.contains(packageName)) {
+                            BottomBarState.restoredApps.add(packageName)
+                        }
                         // Restore cached bounds for Display 0 if available, fallback to display resolution
                         val cached = lastKnownDisplayBounds[packageName]?.get(0)
                         val overscanPx = getOverscanForPackage(packageName)
@@ -304,17 +320,17 @@ object DisplayAppLauncher {
 
                         if (cached != null) {
                             var y2 = cached[3]
-                            if (y2 >= 720) {
-                                y2 = 720 - overscanPx
-                                Log.w(TAG, "[DISPLAY_MOVE] RESTORE App: $packageName | Bounds: [${cached[0]},${cached[1]},${cached[2]},$y2] (Adjusted) | Overscan: ${overscanDp}dp | Mode: 1")
+                            if (y2 >= 710) {
+                                y2 = 720
+                                Log.w(TAG, "[DISPLAY_MOVE] RESTORE App: $packageName | Bounds: [${cached[0]},${cached[1]},${cached[2]},$y2] (Full Height) | Overscan: ${overscanDp}dp | Mode: 1")
                             } else {
                                 Log.w(TAG, "[DISPLAY_MOVE] RESTORE App: $packageName | Bounds: [${cached.joinToString(",")}] | Overscan: ${overscanDp}dp | Mode: 1")
                             }
                             sh("am stack resize ${movedTask.stackId} ${cached[0]} ${cached[1]} ${cached[2]} $y2")
                         } else {
                             val res = getDisplayResolution(0)
-                            val effectiveHeight = res.second - overscanPx
-                            Log.w(TAG, "[DISPLAY_MOVE] FALLBACK App: $packageName | Bounds: [0,0,${res.first},$effectiveHeight] | Overscan: ${overscanDp}dp | Mode: 1")
+                            val effectiveHeight = res.second
+                            Log.w(TAG, "[DISPLAY_MOVE] FALLBACK App: $packageName | Bounds: [0,0,${res.first},$effectiveHeight] (Full Height) | Overscan: ${overscanDp}dp | Mode: 1")
                             sh("am stack resize ${movedTask.stackId} 0 0 ${res.first} $effectiveHeight")
                         }
                         
@@ -395,6 +411,11 @@ object DisplayAppLauncher {
                 return@withContext
             }
 
+            // Remove from restored state since it is now on a secondary display
+            if (BottomBarState.restoredApps.contains(config.packageName)) {
+                BottomBarState.restoredApps.remove(config.packageName)
+            }
+
             // Resize with configured bounds
             Thread.sleep(200)
             val stackId = findStackIdForPackage(config.packageName, config.displayId)
@@ -429,6 +450,10 @@ object DisplayAppLauncher {
             val result = sh("am display move-stack ${task.stackId} 0")
             val movedTask = findTaskForPackage(pkg)
             if (movedTask != null && movedTask.displayId == 0) {
+                // Mark evicted app as restored
+                if (!BottomBarState.restoredApps.contains(pkg)) {
+                    BottomBarState.restoredApps.add(pkg)
+                }
                 val cached = lastKnownDisplayBounds[pkg]?.get(0)
                 val overscanPx = getOverscanForPackage(pkg)
                 val density = App.getContext().resources.displayMetrics.density
@@ -438,13 +463,13 @@ object DisplayAppLauncher {
                 
                 if (cached != null) {
                     var y2 = cached[3]
-                    if (y2 >= 720) y2 = 720 - overscanPx
-                    Log.w(TAG, "[EVICT_MOVE] RESTORE App: $pkg | Bounds: [${cached[0]},${cached[1]},${cached[2]},$y2] | Overscan: ${overscanDp}dp | Mode: 1")
+                    if (y2 >= 710) y2 = 720
+                    Log.w(TAG, "[EVICTION] RESTORE App: $pkg | Bounds: [${cached[0]},${cached[1]},${cached[2]},$y2] (Full Height) | Overscan: ${overscanDp}dp | Mode: 1")
                     sh("am stack resize ${movedTask.stackId} ${cached[0]} ${cached[1]} ${cached[2]} $y2")
                 } else {
                     val res = getDisplayResolution(0)
-                    val effectiveHeight = res.second - overscanPx
-                    Log.w(TAG, "[EVICT_MOVE] FALLBACK App: $pkg | Bounds: [0,0,${res.first},$effectiveHeight] | Overscan: ${overscanDp}dp | Mode: 1")
+                    val effectiveHeight = res.second
+                    Log.w(TAG, "[EVICTION] FALLBACK App: $pkg | Bounds: [0,0,${res.first},$effectiveHeight] (Full Height) | Overscan: ${overscanDp}dp | Mode: 1")
                     sh("am stack resize ${movedTask.stackId} 0 0 ${res.first} $effectiveHeight")
                 }
                 notifyBottomBarUpdate()

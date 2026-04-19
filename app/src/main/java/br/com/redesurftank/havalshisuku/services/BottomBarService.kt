@@ -165,6 +165,19 @@ class BottomBarService : LifecycleService() {
                                     BottomBarState.currentPackage = currentPackage
                                 }
                             }
+
+                            // Background Cleanup: Remove apps that are no longer running from the restored set
+                            if (BottomBarState.restoredApps.isNotEmpty()) {
+                                val stackList = ShizukuUtils.runCommandAndGetOutput(arrayOf("am", "stack", "list"))
+                                val missingApps = BottomBarState.restoredApps.filter { pkg -> 
+                                    !stackList.contains(pkg) 
+                                }
+                                if (missingApps.isNotEmpty()) {
+                                    withContext(Dispatchers.Main) {
+                                        BottomBarState.restoredApps.removeAll(missingApps)
+                                    }
+                                }
+                            }
                             
                             val prefs =
                                     br.com.redesurftank.App.getDeviceProtectedContext()
@@ -272,8 +285,11 @@ class BottomBarService : LifecycleService() {
             return
         }
 
+        val isRestored = lastPackage != null && BottomBarState.restoredApps.contains(lastPackage)
+        val multiplier = if (isRestored) 3.0f else 1.0f
+
         val overscanValueRaw = settings.overscan
-        val overscanValuePx = (overscanValueRaw * density).toInt()
+        val overscanValuePx = (overscanValueRaw.toFloat() * density * multiplier).toInt()
         val yOffsetPx = (settings.yOffset * density).toInt()
 
         Log.w(
@@ -343,7 +359,10 @@ class BottomBarService : LifecycleService() {
                     BarSettings(overscan = storedDefault, yOffset = 0)
                 }
                 
-                val overscanValuePx = (settings.overscan * density).toInt()
+                val isRestored = lastPackage != null && BottomBarState.restoredApps.contains(lastPackage)
+                val multiplier = if (isRestored) 3.0f else 1.0f
+
+                val overscanValuePx = (settings.overscan.toFloat() * density * multiplier).toInt()
                 val yOffsetPx = (settings.yOffset * density).toInt()
 
                 withContext(Dispatchers.Main) {

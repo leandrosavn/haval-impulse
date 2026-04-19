@@ -330,47 +330,43 @@ fun BottomBarContent() {
                         }
 
                         // 8. Override Section (5%)
-                        if (BottomBarState.isFridaRunning) {
-                            Box(
-                                    modifier = Modifier.weight(0.05f)
-                                        // Use raw pointerInput instead of IconButton/clickable
-                                        // so it works even in YouTube immersive mode where the
-                                        // system gesture navigation consumes touch events.
-                                        .pointerInput(Unit) {
-                                            awaitPointerEventScope {
-                                                while (true) {
-                                                    val down = awaitFirstDown(requireUnconsumed = false)
-                                                    // Wait for finger lift
-                                                    var totalDrag = 0f
-                                                    do {
-                                                        val event = awaitPointerEvent()
-                                                        val change = event.changes.first()
-                                                        totalDrag += (change.position - change.previousPosition).getDistance()
-                                                    } while (event.changes.any { it.pressed })
-                                                    // Only trigger if it was a tap (not a drag)
-                                                    if (totalDrag < 30f) {
-                                                        android.util.Log.e("FRIDA_DEBUG", "Icon Clicked! Current State: ${BottomBarState.isOverrideMenuExpanded}")
-                                                        BottomBarState.isOverrideMenuExpanded =
-                                                                !BottomBarState.isOverrideMenuExpanded
-                                                        if (BottomBarState.isOverrideMenuExpanded) {
-                                                            BottomBarState.isMenuExpanded = false
-                                                            BottomBarState.isSettingsMenuExpanded = false
-                                                        }
-                                                        android.util.Log.e("FRIDA_DEBUG", "New State: ${BottomBarState.isOverrideMenuExpanded}")
+                        Box(
+                                modifier = Modifier.weight(0.05f)
+                                    // Use raw pointerInput instead of IconButton/clickable
+                                    // so it works even in YouTube immersive mode where the
+                                    // system gesture navigation consumes touch events.
+                                    .pointerInput(Unit) {
+                                        awaitPointerEventScope {
+                                            while (true) {
+                                                val down = awaitFirstDown(requireUnconsumed = false)
+                                                // Wait for finger lift
+                                                var totalDrag = 0f
+                                                do {
+                                                    val event = awaitPointerEvent()
+                                                    val change = event.changes.first()
+                                                    totalDrag += (change.position - change.previousPosition).getDistance()
+                                                } while (event.changes.any { it.pressed })
+                                                // Only trigger if it was a tap (not a drag)
+                                                if (totalDrag < 30f) {
+                                                    android.util.Log.e("OVERSCAN_DEBUG", "Icon Clicked! Current State: ${BottomBarState.isOverrideMenuExpanded}")
+                                                    BottomBarState.isOverrideMenuExpanded =
+                                                            !BottomBarState.isOverrideMenuExpanded
+                                                    if (BottomBarState.isOverrideMenuExpanded) {
+                                                        BottomBarState.isMenuExpanded = false
+                                                        BottomBarState.isSettingsMenuExpanded = false
                                                     }
+                                                    android.util.Log.e("OVERSCAN_DEBUG", "New State: ${BottomBarState.isOverrideMenuExpanded}")
                                                 }
                                             }
-                                        },
-                                    contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    Icons.Default.SwapVert,
-                                    contentDescription = null,
-                                    tint = Color.White.copy(alpha = 0.8f)
-                                )
-                            }
-                        } else {
-                            Spacer(modifier = Modifier.weight(0.05f))
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.SwapVert,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.8f)
+                            )
                         }
                     }
                 }
