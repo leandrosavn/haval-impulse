@@ -23,6 +23,7 @@ export function initializeConstants() {
     window.Esportiva = 'Esportiva';
 
     // Region/Display modes
+    window.Esportivo = 'Esportivo';
     window.Reduzido = 'Reduzido';
     window.Clean = 'Clean';
 

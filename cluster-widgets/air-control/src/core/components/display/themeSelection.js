@@ -2,6 +2,7 @@ import { getState, setState, subscribe } from '../../state.js';
 import { div, span, img } from '../../../utils/createElement.js';
 
 const getIconNormal = (fill) => `data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="' + fill + '" stroke-width="2"/><circle cx="8" cy="12" r="3" stroke="' + fill + '" stroke-width="1.5"/><circle cx="16" cy="12" r="3" stroke="' + fill + '" stroke-width="1.5"/></svg>')}`;
+const getIconSport = (fill) => `data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="' + fill + '" stroke-width="2"/><circle cx="8" cy="12" r="3" stroke="' + fill + '" stroke-width="1.5"/><circle cx="16" cy="12" r="3" stroke="' + fill + '" stroke-width="1.5"/></svg>')}`;
 const getIconReduced = (fill) => `data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="' + fill + '" stroke-width="2"/><circle cx="8" cy="12" r="1.5" stroke="' + fill + '" stroke-width="1.5"/><circle cx="16" cy="12" r="1.5" stroke="' + fill + '" stroke-width="1.5"/></svg>')}`;
 const getIconClean = (fill) => `data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="' + fill + '" stroke-width="2"/></svg>')}`;
 
@@ -102,6 +103,7 @@ export function createDisplaySelectionScreen() {
         const menuItemsData = [
             { id: 'title_mask', label: 'Modos do Tema', type: 'title' },
             { id: 'mode_normal', label: 'Normal', type: 'mode', value: 'Normal', iconSrc: getIconNormal(themeBlue) },
+            { id: 'mode_esportivo', label: 'Esportivo', type: 'mode', value: 'Esportivo', iconSrc: getIconSport(themeBlue) },
             { id: 'mode_reduzido', label: 'Reduzido', type: 'mode', value: 'Reduzido', iconSrc: getIconReduced(themeBlue) },
             { id: 'mode_clean', label: 'Clean', type: 'mode', value: 'Clean', iconSrc: getIconClean(themeBlue) }
         ];
@@ -233,5 +235,3 @@ export function createDisplaySelectionScreen() {
 
     return { element: main, cleanup };
 }
-
-

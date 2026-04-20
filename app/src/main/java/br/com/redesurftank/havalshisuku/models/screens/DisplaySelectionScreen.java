@@ -15,13 +15,14 @@ public class DisplaySelectionScreen implements Screen {
     // The items mirror the frontend displaySelection.js
     private static final String[] ITEM_IDS = {
         "mode_normal",
+        "mode_esportivo",
         "mode_reduzido",
         "mode_clean"
     };
-    private int focusedTemplateIndex = 0;
-    private int focusedDisplayIndex = 0;
+    private int focusedTemplateIndex = 1; // default focus on Esportivo
+    private int focusedDisplayIndex = 1; // default selected display is Esportivo
 
-    private static final String[] DISPLAYS = {"Normal", "Reduzido", "Clean"};
+    private static final String[] DISPLAYS = {"Normal", "Esportivo", "Reduzido", "Clean"};
 
     @Override
     public String getJsName() {
@@ -69,21 +70,24 @@ public class DisplaySelectionScreen implements Screen {
                 case "mode_normal":
                     focusedDisplayIndex = 0;
                     break;
-                case "mode_reduzido":
+                case "mode_esportivo":
                     focusedDisplayIndex = 1;
                     break;
+                case "mode_reduzido":
+                    focusedDisplayIndex = 2;
+                    break;
                 case "mode_clean":
-                    if (focusedDisplayIndex == 2) { // if already in clean mode, exit
+                    if (focusedDisplayIndex == 3) { // if already in clean mode, exit
                         focusedDisplayIndex = 0;
                     } else {
-                        focusedDisplayIndex = 2;
+                        focusedDisplayIndex = 3;
                     }
                     break;
             }
             serviceManager.dispatchServiceManagerEvent(ServiceManagerEventType.DISPLAY_SCREEN_SELECTION, "control('display', '" + DISPLAYS[focusedDisplayIndex] + "')");
         } else {
             // if in clean mode, any key exits
-            if (focusedDisplayIndex == 2) {
+            if (focusedDisplayIndex == 3) {
                 focusedDisplayIndex = 0;
                 serviceManager.dispatchServiceManagerEvent(ServiceManagerEventType.DISPLAY_SCREEN_SELECTION, "control('display', '" + DISPLAYS[focusedDisplayIndex] + "')");
 

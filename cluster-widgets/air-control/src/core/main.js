@@ -15,7 +15,7 @@ initializeConstants();
 initWarningHandler();
 
 if (process.env.NODE_ENV === 'development') {
-    document.body.style.backgroundColor = 'red';
+    document.body.style.backgroundColor = 'black';
     import('../utils/testing-utils.js');
 }
 
@@ -28,6 +28,10 @@ const screenCache = {};
 
 // Initial state from URL parameters
 const urlParams = new URLSearchParams(window.location.search);
+const nativeMockEnabled =
+    process.env.NODE_ENV === 'development' ||
+    urlParams.get('nativeMocks') === '1' ||
+    window.__ENABLE_NATIVE_MOCKS === true;
 
 
 function initializeLayout() {
@@ -108,6 +112,9 @@ function render() {
 
         if (get('cardId') == 0 || get('warningActive') === true) {
             classes.push('warn-is-active');
+        }
+        if (nativeMockEnabled) {
+            classes.push('native-mock-enabled');
         }
 
         appContainer.className = classes.join(' ').trim();
