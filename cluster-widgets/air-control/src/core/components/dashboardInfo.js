@@ -2,12 +2,24 @@ import { getState, setState, subscribe } from '../state.js';
 import { div, span, img } from '../../utils/createElement.js';
 import { logger } from '../../utils/logger.js';
 import { createOdometerInfo } from './display/odometer/odometerInfo.js';
+import { createSpeedometerScreen } from './speedometer/speedometer.js';
 
 const fuelIconBase64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xLDEyTDUsOVYxNVoiLz48cGF0aCBkPSJNMjIsMTBWOGEyLDIsMCwwLDAtMi0yaC0zVjRhMiwyLDAsMCwwLTItMkg5QTIsMiwwLDAsMCw3LDR2MTZhMiwyLDAsMCwwLDIsMmg4YTIsMiwwLDAsMCwyLTJWMTJoMXY0YTIsMiwwLDAsMCw0LDBWMTBaTTksNGg4djZIOVptOCwxNkg5VjEyaDhaIi8+PC9zdmc+";
 const batteryIconBase64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjwhLS0gQm9keSAtLT48cGF0aCBkPSJNMyw2aDE4YzEuMSwwLDIsMC45LDIsMnYxMGMwLDEuMS0wLjksMi0yLDJIM2MtMS4xLDAtMi0wLjktMi0yVjhDMSw2LjksMS45LDYsMyw2eiBNMyw4djEwaDE4VjhIM3oiLz48IS0tIFBvbGVzIC0tPjxyZWN0IHg9IjUiIHk9IjMiIHdpZHRoPSI0IiBoZWlnaHQ9IjMiLz48cmVjdCB4PSIxNSIgeT0iMyIgd2lkdGg9IjQiIGhlaWdodD0iMyIvPjwhLS0gTWludXMgc2lnbiAoLSkgLS0+PHJlY3QgeD0iNiIgeT0iMTIiIHdpZHRoPSI0IiBoZWlnaHQ9IjMiLz48IS0tIFBsdXMgc2lnbiAoKykgLS0+PHBhdGggZD0iTTE2LDEwaC0ydjJoLTJ2MmgydjJoMnYtMmgydi0yaC0yVjEweiIvPjwvc3ZnPg==";
 
 export function createDashboardInfo() {
     logger.enter('createDashboardInfo');
+
+    // Fallback simulation for showcase mode (same spirit as READY and right-side icon simulation).
+    // Only seed values when the real odometer has not arrived yet.
+    const currentOdometer = Number(getState('odometer')) || 0;
+    if (currentOdometer <= 0) {
+        setState('odometer', 15000);
+    }
+    if (!getState('enableOdometer')) {
+        setState('enableOdometer', true);
+    }
+
     const container = div({ className: 'dashboard-info-container' });
     const menuWrapper = div({ className: 'dashboard-menu-container' });
 
@@ -94,13 +106,30 @@ export function createDashboardInfo() {
     const speedContent = div({ className: 'dashboard-speed-content' });
     const speedValue = div({ className: 'dashboard-speed-value', children: [getState('carSpeed')] });
     const speedMetric = div({ className: 'dashboard-speed-metric', children: ['km/h'] });
-
     speedContent.appendChild(speedValue);
     speedContent.appendChild(speedMetric);
 
     const speedContainer = div({ className: 'dashboard-speed-container' });
     speedContainer.appendChild(speedDial);
     speedContainer.appendChild(speedContent);
+    const sportSpeedometer = createSpeedometerScreen();
+    sportSpeedometer.element.classList.add('dashboard-speed-esportivo-widget');
+    speedContainer.appendChild(sportSpeedometer.element);
+    const sportFixedOverlay = div({
+        className: 'dashboard-sport-fixed-overlay',
+        children: [
+            div({ className: 'dashboard-sport-ready-text', children: ['READY'] }),
+            div({
+                className: 'dashboard-sport-right-icon',
+                children: [
+                    div({ className: 'dashboard-sport-right-lane left' }),
+                    div({ className: 'dashboard-sport-right-car' }),
+                    div({ className: 'dashboard-sport-right-lane right' })
+                ]
+            })
+        ]
+    });
+    speedContainer.appendChild(sportFixedOverlay);
 
     // 3. Bottom Gauges
     const bottomGauges = div({ className: 'dashboard-bottom-gauges' });
@@ -336,10 +365,9 @@ export function createDashboardInfo() {
     const cleanup = () => {
         clearInterval(clockInterval);
         subscriptions.forEach(unsubscribe => unsubscribe());
+        if (sportSpeedometer?.cleanup) sportSpeedometer.cleanup();
         if (odometerCleanup) odometerCleanup();
     };
 
     return { element: container, menuWrapper, cleanup };
 }
-
-

@@ -6,7 +6,7 @@ const focusableAreas = {
     ac_control: ['fan', 'temp'],
     regen: ['Baixo', 'Normal', 'Alto'],
     graph: ['evConsumption', 'gasConsumption', 'carSpeed'],
-    display_selection: ['title_mask', 'mode_normal', 'mode_reduzido', 'mode_clean']
+    display_selection: ['title_mask', 'mode_normal', 'mode_esportivo', 'mode_reduzido', 'mode_clean']
 };
 // If running under dev-controls (index.html), add a red background to help identify the environment
 if (window.location.pathname.endsWith('index.html') || window.location.pathname === '/' || window.location.pathname.endsWith('/')) {
@@ -325,7 +325,7 @@ let lastValue = 0;
 const smoothingFactor = 0.05; // Less dramatic changes
 let timeToModeChange = 10;
 let simulationPhase = 'idle';
-let currentSpeed = 0.0;
+let currentSpeed = 20;
 let steadyTimeCounter = 0;
 const SIMULATION_INTERVAL = 100;
 
@@ -494,5 +494,4 @@ window.simulationInterval = setInterval(() => {
 setTimeout(() => {
     simulationPhase = 'accelerating';
 }, 5000);
-
 
