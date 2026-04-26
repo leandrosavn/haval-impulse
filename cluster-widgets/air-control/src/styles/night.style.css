@@ -2275,6 +2275,7 @@ canvas.graph-chart {
 }
 
 .cluster-mask-bg {
+ 
   position: absolute;
   top: 0;
   left: 0;
@@ -2286,6 +2287,7 @@ canvas.graph-chart {
 }
 
 .cluster-mask {
+  
   position: absolute;
   top: 0;
   left: 0;
@@ -2298,6 +2300,7 @@ canvas.graph-chart {
 }
 
 .no-app-mask-l {
+  
   position: absolute;
   top: var(--mask-center-y);
   left: calc(var(--mask-left-x) - var(--display-left-offset));
@@ -2879,6 +2882,7 @@ canvas.graph-chart {
 }
 
 .fuel-percent,
+.fuel-liters,
 .battery-percent {
   position: absolute;
   right: 40px;
@@ -2889,9 +2893,25 @@ canvas.graph-chart {
   text-align: left;
 }
 
+.fuel-liters {
+  right: 23px;
+  top: 5px;
+  font-size: 26px;
+  font-weight: 300;
+  color: var(--menu-text);
+  min-width: 96px;
+  text-align: right;
+  letter-spacing: -1px;
+}
+
+.fuel-liters .dashboard-unit {
+  font-size: 26px;
+  margin-left: 0px;
+}
+
 .dashboard-unit {
   font-size: 26px;
-  font-weight: 500;
+  font-weight: 300;
   color: var(--menu-text);
   margin-left: 4px;
 }
@@ -3128,7 +3148,7 @@ canvas.graph-chart {
 }
 
 .odometer-line {
-  
+ 
   font-size: 26px;
   font-weight: 300;
   color: var(--text-main);
@@ -3136,6 +3156,9 @@ canvas.graph-chart {
   align-items: baseline;
   gap: 6px;
   text-shadow: 0 4px 8px var(--bg-black-100);
+}
+.display-esportivo .odometer-line{
+  margin-bottom: 10px;
 }
 
 .odometer-label {
@@ -3168,8 +3191,9 @@ canvas.graph-chart {
   transform: translateY(-4px);
 }
 
-#app.display-esportivo .revision-line {
-  margin-top: -10px;
+.display-esportivo .revision-line {
+  top:-20px !important;
+  position: relative;
 }
 
 .odometer-text-wrapper.single-line {

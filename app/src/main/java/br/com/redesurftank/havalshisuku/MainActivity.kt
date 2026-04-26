@@ -2742,6 +2742,14 @@ fun TelasTab() {
         var allClusterFunctionsEnabled by remember {
                 mutableStateOf(enableProjector || enableCustomIntegration || enableCustomMenu)
         }
+        var clusterFuelDisplayUnit by remember {
+                mutableStateOf(
+                        prefs.getString(
+                                SharedPreferencesKeys.CLUSTER_FUEL_DISPLAY_UNIT.key,
+                                "liters"
+                        ) ?: "liters"
+                )
+        }
 
         // Revision History States
         var revisionHistory by remember { mutableStateOf(getRevisionHistory(prefs)) }
@@ -2996,6 +3004,126 @@ fun TelasTab() {
                                                                 .clip(RoundedCornerShape(8.dp)),
                                                 contentScale = ContentScale.Fit
                                         )
+                                }
+                        }
+                }
+
+                val personalizationAlpha = if (allClusterFunctionsEnabled) 1f else 0.4f
+                StyledCard(
+                        modifier = Modifier.padding(horizontal = 8.dp).alpha(personalizationAlpha)
+                ) {
+                        Column(
+                                modifier = Modifier.padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                                Text(
+                                        "Personalizações",
+                                        color = Color.White,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                        "Ajustes visuais usados no cluster quando as funções estão habilitadas",
+                                        color = Color(0xFFB0B8C4),
+                                        fontSize = 14.sp
+                                )
+
+                                HorizontalDivider(color = Color(0xFF3A3F47), thickness = 1.dp)
+
+                                Text(
+                                        "Exibição do combustível",
+                                        color = Color.White,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Medium
+                                )
+
+                                Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                        listOf("liters" to "Litros", "percent" to "Percentual")
+                                                .forEach { (value, label) ->
+                                                        Row(
+                                                                modifier =
+                                                                        Modifier.weight(1f)
+                                                                                .clip(
+                                                                                        RoundedCornerShape(
+                                                                                                12.dp
+                                                                                        )
+                                                                                )
+                                                                                .background(
+                                                                                        if (clusterFuelDisplayUnit ==
+                                                                                                        value
+                                                                                        )
+                                                                                                Color(0xFF2563EB)
+                                                                                                        .copy(
+                                                                                                                alpha =
+                                                                                                                        0.25f
+                                                                                                        )
+                                                                                        else Color(
+                                                                                                0xFF1F2430
+                                                                                        )
+                                                                                )
+                                                                                .clickable(
+                                                                                        enabled =
+                                                                                                allClusterFunctionsEnabled
+                                                                                ) {
+                                                                                        clusterFuelDisplayUnit =
+                                                                                                value
+                                                                                        prefs.edit {
+                                                                                                putString(
+                                                                                                        SharedPreferencesKeys
+                                                                                                                .CLUSTER_FUEL_DISPLAY_UNIT
+                                                                                                                .key,
+                                                                                                        value
+                                                                                                )
+                                                                                        }
+                                                                                        Log.d(
+                                                                                                "TelasTab",
+                                                                                                "[HavalDev] Cluster fuel display unit set to $value"
+                                                                                        )
+                                                                                }
+                                                                                .padding(
+                                                                                        horizontal =
+                                                                                                12.dp,
+                                                                                        vertical =
+                                                                                                10.dp
+                                                                                ),
+                                                                verticalAlignment =
+                                                                        Alignment.CenterVertically
+                                                        ) {
+                                                                RadioButton(
+                                                                        selected =
+                                                                                clusterFuelDisplayUnit ==
+                                                                                        value,
+                                                                        enabled =
+                                                                                allClusterFunctionsEnabled,
+                                                                        onClick = {
+                                                                                clusterFuelDisplayUnit =
+                                                                                        value
+                                                                                prefs.edit {
+                                                                                        putString(
+                                                                                                SharedPreferencesKeys
+                                                                                                        .CLUSTER_FUEL_DISPLAY_UNIT
+                                                                                                        .key,
+                                                                                                value
+                                                                                        )
+                                                                                }
+                                                                                Log.d(
+                                                                                        "TelasTab",
+                                                                                        "[HavalDev] Cluster fuel display unit set to $value"
+                                                                                )
+                                                                        }
+                                                                )
+                                                                Text(
+                                                                        label,
+                                                                        color = Color.White,
+                                                                        fontSize = 15.sp,
+                                                                        fontWeight =
+                                                                                FontWeight.Medium
+                                                                )
+                                                        }
+                                                }
                                 }
                         }
                 }
