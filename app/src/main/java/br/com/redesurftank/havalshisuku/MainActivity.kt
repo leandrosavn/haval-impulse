@@ -5784,17 +5784,31 @@ fun AppPickerItem(app: InstalledAppInfo, onClick: (InstalledAppInfo) -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
+                val model =
+                        app.icon
+                                ?: when {
+                                        app.packageName.contains("androidauto") ->
+                                                Icons.Default.Android
+                                        app.packageName.contains("carplay") ->
+                                                Icons.Default.DirectionsCar
+                                        else -> Icons.Default.Apps
+                                }
+
                 AsyncImage(
-                        model = app.icon,
+                        model = model,
                         contentDescription = app.label,
                         modifier = Modifier.size(44.dp),
-                        contentScale = ContentScale.Fit
+                        contentScale = ContentScale.Fit,
+                        colorFilter =
+                                if (app.icon == null) ColorFilter.tint(Color.White) else null
                 )
                 Text(
                         text = app.label,
                         color = Color.White,
                         fontSize = 10.sp,
-                        maxLines = 1,
+                        maxLines = 2,
+                        minLines = 2,
+                        lineHeight = 12.sp,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center
                 )
@@ -6079,10 +6093,14 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                                         }
                                 }
 
+                                val allAvailableApps = remember(predefinedApps, installedApps) {
+                                        predefinedApps + installedApps
+                                }
+
                                 val filteredApps =
-                                        if (searchQuery.isBlank()) installedApps
+                                        if (searchQuery.isBlank()) allAvailableApps
                                         else
-                                                installedApps.filter {
+                                                allAvailableApps.filter {
                                                         it.label.contains(
                                                                 searchQuery,
                                                                 ignoreCase = true
@@ -6096,42 +6114,10 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                                 LazyVerticalGrid(
                                         columns = GridCells.Adaptive(minSize = 80.dp),
                                         modifier = Modifier.heightIn(max = 350.dp),
-                                        contentPadding = PaddingValues(0.dp),
+                                        contentPadding = PaddingValues(top = 8.dp),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                        if (searchQuery.isBlank()) {
-                                                item(span = { GridItemSpan(maxLineSpan) }) {
-                                                        Text(
-                                                                "Sugeridos (Topway)",
-                                                                color = Color(0xFF4A9EFF),
-                                                                fontSize = 12.sp,
-                                                                fontWeight = FontWeight.Bold,
-                                                                modifier =
-                                                                        Modifier.padding(
-                                                                                top = 8.dp,
-                                                                                bottom = 4.dp
-                                                                        )
-                                                        )
-                                                }
-                                                items(predefinedApps) { app ->
-                                                        AppPickerItem(app, onAppSelected)
-                                                }
-                                                item(span = { GridItemSpan(maxLineSpan) }) {
-                                                        Text(
-                                                                "Todos os Apps",
-                                                                color = Color(0xFFB0B8C4),
-                                                                fontSize = 12.sp,
-                                                                fontWeight = FontWeight.Bold,
-                                                                modifier =
-                                                                        Modifier.padding(
-                                                                                top = 12.dp,
-                                                                                bottom = 4.dp
-                                                                        )
-                                                        )
-                                                }
-                                        }
-
                                         items(filteredApps) { app ->
                                                 AppPickerItem(app, onAppSelected)
                                         }
