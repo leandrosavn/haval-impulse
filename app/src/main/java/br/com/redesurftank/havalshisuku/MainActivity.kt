@@ -5773,9 +5773,57 @@ fun SliderWithLabel(
 }
 
 @Composable
+fun AppPickerItem(app: InstalledAppInfo, onClick: (InstalledAppInfo) -> Unit) {
+        Column(
+                modifier =
+                        Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF2A2F37).copy(alpha = 0.5f))
+                                .clickable { onClick(app) }
+                                .padding(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+                AsyncImage(
+                        model = app.icon,
+                        contentDescription = app.label,
+                        modifier = Modifier.size(44.dp),
+                        contentScale = ContentScale.Fit
+                )
+                Text(
+                        text = app.label,
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center
+                )
+        }
+}
+
+@Composable
 fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> Unit) {
         val context = LocalContext.current
         var searchQuery by remember { mutableStateOf("") }
+        val predefinedApps = remember {
+                DisplayAppLauncher.PREDEFINED_APPS.map { config ->
+                        val pm = context.packageManager
+                        val label = config.customName ?: config.packageName
+                        val icon =
+                                try {
+                                        pm.getApplicationIcon(config.packageName)
+                                } catch (_: Exception) {
+                                        null
+                                }
+                        InstalledAppInfo(
+                                packageName = config.packageName,
+                                activityName = config.activityName,
+                                label = label,
+                                icon = icon
+                        )
+                }
+        }
+
         val installedApps = remember {
                 val pm = context.packageManager
                 val intent =
@@ -6052,46 +6100,40 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                        items(filteredApps) { app ->
-                                                Column(
-                                                        modifier =
-                                                                Modifier.fillMaxWidth()
-                                                                        .clip(
-                                                                                RoundedCornerShape(
-                                                                                        8.dp
-                                                                                )
-                                                                        )
-                                                                        .background(
-                                                                                Color(0xFF2A2F37)
-                                                                                        .copy(
-                                                                                                alpha =
-                                                                                                        0.5f
-                                                                                        )
-                                                                        )
-                                                                        .clickable {
-                                                                                onAppSelected(app)
-                                                                        }
-                                                                        .padding(8.dp),
-                                                        horizontalAlignment =
-                                                                Alignment.CenterHorizontally,
-                                                        verticalArrangement =
-                                                                Arrangement.spacedBy(4.dp)
-                                                ) {
-                                                        AsyncImage(
-                                                                model = app.icon,
-                                                                contentDescription = app.label,
-                                                                modifier = Modifier.size(44.dp),
-                                                                contentScale = ContentScale.Fit
-                                                        )
+                                        if (searchQuery.isBlank()) {
+                                                item(span = { GridItemSpan(maxLineSpan) }) {
                                                         Text(
-                                                                text = app.label,
-                                                                color = Color.White,
-                                                                fontSize = 10.sp,
-                                                                maxLines = 1,
-                                                                overflow = TextOverflow.Ellipsis,
-                                                                textAlign = TextAlign.Center
+                                                                "Sugeridos (Topway)",
+                                                                color = Color(0xFF4A9EFF),
+                                                                fontSize = 12.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                modifier =
+                                                                        Modifier.padding(
+                                                                                top = 8.dp,
+                                                                                bottom = 4.dp
+                                                                        )
                                                         )
                                                 }
+                                                items(predefinedApps) { app ->
+                                                        AppPickerItem(app, onAppSelected)
+                                                }
+                                                item(span = { GridItemSpan(maxLineSpan) }) {
+                                                        Text(
+                                                                "Todos os Apps",
+                                                                color = Color(0xFFB0B8C4),
+                                                                fontSize = 12.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                modifier =
+                                                                        Modifier.padding(
+                                                                                top = 12.dp,
+                                                                                bottom = 4.dp
+                                                                        )
+                                                        )
+                                                }
+                                        }
+
+                                        items(filteredApps) { app ->
+                                                AppPickerItem(app, onAppSelected)
                                         }
                                 }
                         }

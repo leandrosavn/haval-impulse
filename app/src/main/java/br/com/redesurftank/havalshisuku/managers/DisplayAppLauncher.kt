@@ -60,6 +60,32 @@ object DisplayAppLauncher {
         Log.e("DisplayAppLauncher", "CarPlay/CarLink package not found")
     }
 
+    /**
+     * Pre-defined apps that are commonly used on Haval TS multimedia systems but might not be in the launcher.
+     */
+    val PREDEFINED_APPS = listOf(
+        DisplayAppConfig(
+            packageName = "com.ts.androidauto.app",
+            activityName = "com.ts.androidauto.app.display.AapActivity",
+            displayId = 3, // Default to Cluster
+            x = 0,
+            y = 0,
+            width = 1920,
+            height = 720,
+            customName = "Android Auto (TS)"
+        ),
+        DisplayAppConfig(
+            packageName = "com.ts.carplay.app",
+            activityName = "com.ts.carplay.app.display.AapActivity",
+            displayId = 3, // Default to Cluster
+            x = 0,
+            y = 0,
+            width = 1920,
+            height = 720,
+            customName = "Apple CarPlay (TS)"
+        )
+    )
+
     private const val TAG = "DisplayAppLauncher"
 
     private val gson = Gson()
