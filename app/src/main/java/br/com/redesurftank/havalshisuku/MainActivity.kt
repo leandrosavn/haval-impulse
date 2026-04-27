@@ -5784,24 +5784,30 @@ fun AppPickerItem(app: InstalledAppInfo, onClick: (InstalledAppInfo) -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-                val model =
-                        app.icon
-                                ?: when {
+                if (app.icon != null) {
+                        AsyncImage(
+                                model = app.icon,
+                                contentDescription = app.label,
+                                modifier = Modifier.size(44.dp),
+                                contentScale = ContentScale.Fit
+                        )
+                } else {
+                        val vector =
+                                when {
                                         app.packageName.contains("androidauto") ->
                                                 Icons.Default.Android
                                         app.packageName.contains("carplay") ->
                                                 Icons.Default.DirectionsCar
                                         else -> Icons.Default.Apps
                                 }
+                        Icon(
+                                imageVector = vector,
+                                contentDescription = app.label,
+                                modifier = Modifier.size(44.dp),
+                                tint = Color.White
+                        )
+                }
 
-                AsyncImage(
-                        model = model,
-                        contentDescription = app.label,
-                        modifier = Modifier.size(44.dp),
-                        contentScale = ContentScale.Fit,
-                        colorFilter =
-                                if (app.icon == null) ColorFilter.tint(Color.White) else null
-                )
                 Text(
                         text = app.label,
                         color = Color.White,
