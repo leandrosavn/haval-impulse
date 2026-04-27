@@ -5792,20 +5792,32 @@ fun AppPickerItem(app: InstalledAppInfo, onClick: (InstalledAppInfo) -> Unit) {
                                 contentScale = ContentScale.Fit
                         )
                 } else {
-                        val vector =
-                                when {
-                                        app.packageName.contains("androidauto") ->
-                                                Icons.Default.Android
-                                        app.packageName.contains("carplay") ->
-                                                Icons.Default.DirectionsCar
-                                        else -> Icons.Default.Apps
+                        when {
+                                app.packageName.contains("androidauto") -> {
+                                        AsyncImage(
+                                                model = R.drawable.ic_android_auto_default,
+                                                contentDescription = app.label,
+                                                modifier = Modifier.size(44.dp),
+                                                contentScale = ContentScale.Fit
+                                        )
                                 }
-                        Icon(
-                                imageVector = vector,
-                                contentDescription = app.label,
-                                modifier = Modifier.size(44.dp),
-                                tint = Color.White
-                        )
+                                app.packageName.contains("carplay") -> {
+                                        AsyncImage(
+                                                model = R.drawable.ic_carplay_default,
+                                                contentDescription = app.label,
+                                                modifier = Modifier.size(44.dp),
+                                                contentScale = ContentScale.Fit
+                                        )
+                                }
+                                else -> {
+                                        Icon(
+                                                imageVector = Icons.Default.Apps,
+                                                contentDescription = app.label,
+                                                modifier = Modifier.size(44.dp),
+                                                tint = Color.White
+                                        )
+                                }
+                        }
                 }
 
                 Text(
