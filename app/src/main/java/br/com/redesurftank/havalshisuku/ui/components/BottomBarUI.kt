@@ -499,19 +499,20 @@ fun AppSwitcherSection() {
                         modifier = Modifier.size(32.dp)
                 )
             } else if (selectedPackage.isNotEmpty()) {
+                val appIcon = try {
+                    context.packageManager.getApplicationIcon(selectedPackage)
+                } catch (e: Exception) {
+                    when {
+                        selectedPackage.contains("androidauto") -> context.getDrawable(br.com.redesurftank.havalshisuku.R.drawable.ic_android_auto_default)
+                        selectedPackage.contains("carplay") -> context.getDrawable(br.com.redesurftank.havalshisuku.R.drawable.ic_carplay_default)
+                        else -> null
+                    }
+                }
+                
                 AsyncImage(
-                        model =
-                                ImageRequest.Builder(context)
-                                        .data(
-                                                try {
-                                                    context.packageManager.getApplicationIcon(
-                                                            selectedPackage
-                                                    )
-                                                } catch (e: Exception) {
-                                                    null
-                                                }
-                                        )
-                                        .build(),
+                        model = ImageRequest.Builder(context)
+                                .data(appIcon)
+                                .build(),
                         contentDescription = "App Icon",
                         modifier = Modifier.size(40.dp)
                 )
@@ -1207,7 +1208,11 @@ fun AppGridItem(
                 try {
                     context.packageManager.getApplicationIcon(pkg)
                 } catch (e: Exception) {
-                    null
+                    when {
+                        pkg.contains("androidauto") -> context.getDrawable(br.com.redesurftank.havalshisuku.R.drawable.ic_android_auto_default)
+                        pkg.contains("carplay") -> context.getDrawable(br.com.redesurftank.havalshisuku.R.drawable.ic_carplay_default)
+                        else -> null
+                    }
                 }
             }
 

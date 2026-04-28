@@ -4440,26 +4440,32 @@ fun DisplayAppConfigSection() {
                                                                 } else if (appIcon != null) {
                                                                         AsyncImage(
                                                                                 model = appIcon,
-                                                                                contentDescription =
-                                                                                        null,
-                                                                                modifier =
-                                                                                        Modifier.fillMaxSize(),
-                                                                                contentScale =
-                                                                                        ContentScale
-                                                                                                .Fit
+                                                                                contentDescription = null,
+                                                                                modifier = Modifier.fillMaxSize(),
+                                                                                contentScale = ContentScale.Fit
                                                                         )
                                                                 } else {
-                                                                        Icon(
-                                                                                Icons.Default
-                                                                                        .Android,
-                                                                                contentDescription =
-                                                                                        null,
-                                                                                tint = Color.White,
-                                                                                modifier =
-                                                                                        Modifier.size(
-                                                                                                32.dp
-                                                                                        )
-                                                                        )
+                                                                        val fallbackIcon = when {
+                                                                                config.packageName.contains("androidauto") -> R.drawable.ic_android_auto_default
+                                                                                config.packageName.contains("carplay") -> R.drawable.ic_carplay_default
+                                                                                else -> null
+                                                                        }
+                                                                        
+                                                                        if (fallbackIcon != null) {
+                                                                                AsyncImage(
+                                                                                        model = fallbackIcon,
+                                                                                        contentDescription = null,
+                                                                                        modifier = Modifier.fillMaxSize(),
+                                                                                        contentScale = ContentScale.Fit
+                                                                                )
+                                                                        } else {
+                                                                                Icon(
+                                                                                        Icons.Default.Android,
+                                                                                        contentDescription = null,
+                                                                                        tint = Color.White,
+                                                                                        modifier = Modifier.size(32.dp)
+                                                                                )
+                                                                        }
                                                                 }
                                                         }
                                                         Spacer(Modifier.width(16.dp))
