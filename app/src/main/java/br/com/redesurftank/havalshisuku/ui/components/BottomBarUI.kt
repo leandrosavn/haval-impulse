@@ -499,19 +499,14 @@ fun AppSwitcherSection() {
                         modifier = Modifier.size(32.dp)
                 )
             } else if (selectedPackage.isNotEmpty()) {
+                val appInfo = remember(selectedPackage) {
+                    br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.resolveAppInfo(context, selectedPackage, selectedConfig?.customName)
+                }
+                
                 AsyncImage(
-                        model =
-                                ImageRequest.Builder(context)
-                                        .data(
-                                                try {
-                                                    context.packageManager.getApplicationIcon(
-                                                            selectedPackage
-                                                    )
-                                                } catch (e: Exception) {
-                                                    null
-                                                }
-                                        )
-                                        .build(),
+                        model = ImageRequest.Builder(context)
+                                .data(appInfo.icon)
+                                .build(),
                         contentDescription = "App Icon",
                         modifier = Modifier.size(40.dp)
                 )
@@ -1193,32 +1188,19 @@ fun AppGridItem(
         scope: CoroutineScope,
         onClick: () -> Unit
 ) {
-    val appLabel =
-            remember(pkg) {
-                try {
-                    val info = context.packageManager.getApplicationInfo(pkg, 0)
-                    context.packageManager.getApplicationLabel(info).toString()
-                } catch (e: Exception) {
-                    pkg
-                }
-            }
-    val appIcon =
-            remember(pkg) {
-                try {
-                    context.packageManager.getApplicationIcon(pkg)
-                } catch (e: Exception) {
-                    null
-                }
-            }
-
-    val substituteIconVector = getSubstituteIconVector(substituteIcon)
-
     val appConfig =
             remember(pkg) {
                 br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAppConfig(pkg)
             }
+    
+    val appInfo = remember(pkg) {
+        br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.resolveAppInfo(context, pkg, appConfig?.customName)
+    }
+
+    val substituteIconVector = getSubstituteIconVector(substituteIcon)
+
     val iconTint = appConfig?.iconColor.toComposeColor()
-    val displayName = appConfig?.customName ?: appLabel
+    val displayName = appInfo.label
 
     Column(
             modifier =
@@ -1253,9 +1235,9 @@ fun AppGridItem(
                         tint = iconTint,
                         modifier = Modifier.size(40.dp)
                 )
-            } else if (appIcon != null) {
+            } else if (appInfo.icon != null) {
                 AsyncImage(
-                        model = appIcon,
+                        model = appInfo.icon,
                         contentDescription = null,
                         modifier = Modifier.size(48.dp)
                 )

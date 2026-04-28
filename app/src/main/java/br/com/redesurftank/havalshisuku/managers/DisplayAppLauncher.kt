@@ -18,6 +18,12 @@ import kotlinx.coroutines.delay
 import android.content.Intent
 import br.com.redesurftank.havalshisuku.managers.ThemeManager
 import br.com.redesurftank.havalshisuku.models.BottomBarState
+import br.com.redesurftank.havalshisuku.R
+
+data class ResolvedAppInfo(
+    val label: String,
+    val icon: android.graphics.drawable.Drawable?
+)
 
 object DisplayAppLauncher {
     
@@ -72,7 +78,7 @@ object DisplayAppLauncher {
             y = 0,
             width = 1920,
             height = 720,
-            customName = "Android Auto (TS)"
+            customName = "Android Auto"
         ),
         DisplayAppConfig(
             packageName = "com.ts.carplay.app",
@@ -82,7 +88,7 @@ object DisplayAppLauncher {
             y = 0,
             width = 1920,
             height = 720,
-            customName = "Apple CarPlay (TS)"
+            customName = "Apple CarPlay"
         )
     )
 
@@ -97,6 +103,41 @@ object DisplayAppLauncher {
     private fun getPrefs() =
         App.getDeviceProtectedContext()
             .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
+
+    /**
+     * Resolves the label and icon for a given package name, handling pre-defined apps as first-class items.
+     */
+    fun resolveAppInfo(context: Context, packageName: String, customName: String? = null): ResolvedAppInfo {
+        val pm = context.packageManager
+        
+        // 1. Determine Label
+        val label = when {
+            !customName.isNullOrBlank() -> customName
+            packageName.contains("androidauto") -> "Android Auto"
+            packageName.contains("carplay") -> "Apple CarPlay"
+            else -> {
+                try {
+                    val info = pm.getApplicationInfo(packageName, 0)
+                    pm.getApplicationLabel(info).toString()
+                } catch (e: Exception) {
+                    packageName
+                }
+            }
+        }
+
+        // 2. Determine Icon
+        val icon = try {
+            pm.getApplicationIcon(packageName)
+        } catch (e: Exception) {
+            when {
+                packageName.contains("androidauto") -> context.getDrawable(R.drawable.ic_android_auto_default)
+                packageName.contains("carplay") -> context.getDrawable(R.drawable.ic_carplay_default)
+                else -> null
+            }
+        }
+
+        return ResolvedAppInfo(label, icon)
+    }
 
     fun getAllConfigs(): List<DisplayAppConfig> {
         val json = getPrefs().getString(SharedPreferencesKeys.DISPLAY_APP_CONFIGS.key, null)

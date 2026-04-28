@@ -2967,36 +2967,6 @@ fun TelasTab() {
                                         )
                                 }
 
-                                // Image 4 Example
-                                val image4 = remember {
-                                        try {
-                                                // NOTE: This is a hardcoded absolute path that may
-                                                // not exist on your
-                                                // machine.
-                                                // To fix this, add your image to 'res/drawable' and
-                                                // use:
-                                                // BitmapFactory.decodeResource(context.resources,
-                                                // R.drawable.your_image)
-                                                BitmapFactory.decodeFile(
-                                                                "C:\\Users\\marce\\.gemini\\antigravity\\brain\\6ffae6a8-c34c-41a2-8637-3fbac551d5a1\\media__1773951437085.png"
-                                                        )
-                                                        ?.asImageBitmap()
-                                        } catch (e: Exception) {
-                                                null
-                                        }
-                                }
-                                if (image4 != null) {
-                                        Image(
-                                                bitmap = image4,
-                                                contentDescription =
-                                                        "Exemplo de Funções do Cluster",
-                                                modifier =
-                                                        Modifier.fillMaxWidth()
-                                                                .heightIn(max = 160.dp)
-                                                                .clip(RoundedCornerShape(8.dp)),
-                                                contentScale = ContentScale.Fit
-                                        )
-                                }
                         }
                 }
 
@@ -3083,42 +3053,6 @@ fun TelasTab() {
                                         )
                                 }
 
-                                // Image 5 Example
-                                if (enableMask || !allClusterFunctionsEnabled) {
-                                        val image5 = remember {
-                                                try {
-                                                        // NOTE: This is a hardcoded absolute path
-                                                        // that may not exist on your
-                                                        // machine.
-                                                        // To fix this, add your image to
-                                                        // 'res/drawable' and use:
-                                                        // BitmapFactory.decodeResource(context.resources,
-                                                        // R.drawable.your_image)
-                                                        BitmapFactory.decodeFile(
-                                                                        "C:\\Users\\marce\\.gemini\\antigravity\\brain\\6ffae6a8-c34c-41a2-8637-3fbac551d5a1\\media__1773951531439.png"
-                                                                )
-                                                                ?.asImageBitmap()
-                                                } catch (e: Exception) {
-                                                        null
-                                                }
-                                        }
-                                        if (image5 != null) {
-                                                Image(
-                                                        bitmap = image5,
-                                                        contentDescription =
-                                                                "Exemplo do Virtual Cluster",
-                                                        modifier =
-                                                                Modifier.fillMaxWidth()
-                                                                        .heightIn(max = 140.dp)
-                                                                        .clip(
-                                                                                RoundedCornerShape(
-                                                                                        8.dp
-                                                                                )
-                                                                        ),
-                                                        contentScale = ContentScale.Fit
-                                                )
-                                        }
-                                }
 
                                 if (enableMask && allClusterFunctionsEnabled) {
                                         HorizontalDivider(
@@ -4350,27 +4284,9 @@ fun DisplayAppConfigSection() {
                         }
                 } else {
                         configs.forEach { config ->
-                                val pm = context.packageManager
-                                val appName =
-                                        if (!config.customName.isNullOrBlank()) {
-                                                config.customName
-                                        } else {
-                                                try {
-                                                        pm.getApplicationInfo(config.packageName, 0)
-                                                                .let {
-                                                                        pm.getApplicationLabel(it)
-                                                                                .toString()
-                                                                }
-                                                } catch (_: Exception) {
-                                                        config.packageName
-                                                }
-                                        }
-                                val appIcon =
-                                        try {
-                                                pm.getApplicationIcon(config.packageName)
-                                        } catch (_: Exception) {
-                                                null
-                                        }
+                                val appInfo = remember(config.packageName, config.customName) {
+                                        DisplayAppLauncher.resolveAppInfo(context, config.packageName, config.customName)
+                                }
                                 val displayLabel =
                                         TargetDisplay.fromId(config.displayId)?.label
                                                 ?: "Display ${config.displayId}"
@@ -4437,35 +4353,26 @@ fun DisplayAppConfigSection() {
                                                                                                 32.dp
                                                                                         )
                                                                         )
-                                                                } else if (appIcon != null) {
+                                                                } else if (appInfo.icon != null) {
                                                                         AsyncImage(
-                                                                                model = appIcon,
-                                                                                contentDescription =
-                                                                                        null,
-                                                                                modifier =
-                                                                                        Modifier.fillMaxSize(),
-                                                                                contentScale =
-                                                                                        ContentScale
-                                                                                                .Fit
+                                                                                model = appInfo.icon,
+                                                                                contentDescription = null,
+                                                                                modifier = Modifier.fillMaxSize(),
+                                                                                contentScale = ContentScale.Fit
                                                                         )
                                                                 } else {
                                                                         Icon(
-                                                                                Icons.Default
-                                                                                        .Android,
-                                                                                contentDescription =
-                                                                                        null,
+                                                                                Icons.Default.Android,
+                                                                                contentDescription = null,
                                                                                 tint = Color.White,
-                                                                                modifier =
-                                                                                        Modifier.size(
-                                                                                                32.dp
-                                                                                        )
+                                                                                modifier = Modifier.size(32.dp)
                                                                         )
                                                                 }
                                                         }
                                                         Spacer(Modifier.width(16.dp))
                                                         Column(modifier = Modifier.weight(4f)) {
                                                                 Text(
-                                                                        appName,
+                                                                        appInfo.label,
                                                                         color = Color.White,
                                                                         fontSize = 16.sp,
                                                                         fontWeight =
@@ -5792,16 +5699,8 @@ fun AppPickerItem(app: InstalledAppInfo, onClick: (InstalledAppInfo) -> Unit) {
                                 contentScale = ContentScale.Fit
                         )
                 } else {
-                        val vector =
-                                when {
-                                        app.packageName.contains("androidauto") ->
-                                                Icons.Default.Android
-                                        app.packageName.contains("carplay") ->
-                                                Icons.Default.DirectionsCar
-                                        else -> Icons.Default.Apps
-                                }
                         Icon(
-                                imageVector = vector,
+                                imageVector = Icons.Default.Apps,
                                 contentDescription = app.label,
                                 modifier = Modifier.size(44.dp),
                                 tint = Color.White
@@ -5827,19 +5726,12 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
         var searchQuery by remember { mutableStateOf("") }
         val predefinedApps = remember {
                 DisplayAppLauncher.PREDEFINED_APPS.map { config ->
-                        val pm = context.packageManager
-                        val label = config.customName ?: config.packageName
-                        val icon =
-                                try {
-                                        pm.getApplicationIcon(config.packageName)
-                                } catch (_: Exception) {
-                                        null
-                                }
+                        val resolved = DisplayAppLauncher.resolveAppInfo(context, config.packageName, config.customName)
                         InstalledAppInfo(
                                 packageName = config.packageName,
                                 activityName = config.activityName,
-                                label = label,
-                                icon = icon
+                                label = resolved.label,
+                                icon = resolved.icon
                         )
                 }
         }
