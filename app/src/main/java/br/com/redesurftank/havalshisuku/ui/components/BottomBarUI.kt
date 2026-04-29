@@ -35,6 +35,8 @@ import br.com.redesurftank.havalshisuku.utils.*
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.*
+import br.com.redesurftank.havalshisuku.R
+import androidx.compose.ui.res.painterResource
 
 private val commonTextStyle =
         TextStyle(
@@ -448,8 +450,9 @@ fun AppSwitcherSection() {
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(
                 onClick = {
-                    configs.find { it.packageName == selectedPackage }?.let {
-                        scope.launch {
+                    scope.launch {
+                        br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                                .getOrCreateDefaultConfig(context, selectedPackage)?.let {
                             br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
                                     .sendToDisplay(it)
                         }
@@ -478,6 +481,8 @@ fun AppSwitcherSection() {
                                                     br.com.redesurftank.havalshisuku.models
                                                             .BottomBarState.isMenuExpanded = false
                                                     scope.launch {
+                                                        br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                                                            .getOrCreateDefaultConfig(context, selectedPackage)
                                                         br.com.redesurftank.havalshisuku.managers
                                                                 .DisplayAppLauncher.launchAnyApp(
                                                                 context,
@@ -490,7 +495,16 @@ fun AppSwitcherSection() {
                                 },
                 contentAlignment = Alignment.Center
         ) {
-            if (substituteIconVector != null) {
+            if (selectedConfig?.substituteIcon == "youtube" || selectedConfig?.substituteIcon == "youtube_music") {
+                Image(
+                    painter = painterResource(
+                        id = if (selectedConfig.substituteIcon == "youtube") R.drawable.ic_youtube_default 
+                             else R.drawable.ic_youtube_music_default
+                    ),
+                    contentDescription = "App Icon",
+                    modifier = Modifier.size(32.dp)
+                )
+            } else if (substituteIconVector != null) {
                 val iconTint = selectedConfig?.iconColor.toComposeColor()
                 Icon(
                         substituteIconVector,
@@ -522,8 +536,11 @@ fun AppSwitcherSection() {
 
         IconButton(
                 onClick = {
-                    if (selectedPackage.isNotEmpty()) {
-                        scope.launch {
+                    scope.launch {
+                        br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.bringAllToMainDisplay()
+                        if (selectedPackage.isNotEmpty()) {
+                            br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                                .getOrCreateDefaultConfig(context, selectedPackage)
                             br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
                                     .launchAnyApp(context, selectedPackage)
                         }
@@ -1228,7 +1245,16 @@ fun AppGridItem(
                                 ),
                 contentAlignment = Alignment.Center
         ) {
-            if (substituteIconVector != null) {
+            if (substituteIcon == "youtube" || substituteIcon == "youtube_music") {
+                Image(
+                    painter = painterResource(
+                        id = if (substituteIcon == "youtube") R.drawable.ic_youtube_default 
+                             else R.drawable.ic_youtube_music_default
+                    ),
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp)
+                )
+            } else if (substituteIconVector != null) {
                 Icon(
                         substituteIconVector,
                         contentDescription = null,

@@ -4870,6 +4870,8 @@ fun DisplayAppConfigDialog(
                         "nav" to "Mapa",
                         "music" to "Música",
                         "video" to "Vídeo",
+                        "youtube" to "YouTube",
+                        "youtube_music" to "Music",
                         "settings" to "Ajustes",
                         "haval" to "Carro",
                         "game" to "Jogo",
@@ -5359,48 +5361,59 @@ fun DisplayAppConfigDialog(
                                                                                 .padding(4.dp),
                                                                 contentAlignment = Alignment.Center
                                                         ) {
-                                                                Icon(
-                                                                        imageVector =
-                                                                                when (id) {
-                                                                                        "nav" ->
-                                                                                                Icons.Default
-                                                                                                        .Place
-                                                                                        "music" ->
-                                                                                                Icons.Default
-                                                                                                        .PlayArrow
-                                                                                        "video" ->
-                                                                                                Icons.Default
-                                                                                                        .Movie
-                                                                                        "settings" ->
-                                                                                                Icons.Default
-                                                                                                        .Settings
-                                                                                        "haval" ->
-                                                                                                Icons.Default
-                                                                                                        .DirectionsCar
-                                                                                        "game" ->
-                                                                                                Icons.Default
-                                                                                                        .SportsEsports
-                                                                                        "tv" ->
-                                                                                                Icons.Default
-                                                                                                        .Tv
-                                                                                        "phone" ->
-                                                                                                Icons.Default
-                                                                                                        .Phone
-                                                                                        "chat" ->
-                                                                                                Icons.Default
-                                                                                                        .Chat
-                                                                                        "map_alt" ->
-                                                                                                Icons.Default
-                                                                                                        .Map
-                                                                                        else ->
-                                                                                                Icons.Default
-                                                                                                        .Android
-                                                                                },
-                                                                        contentDescription = null,
-                                                                        tint = Color.White,
-                                                                        modifier =
-                                                                                Modifier.size(24.dp)
-                                                                )
+                                                                if (id == "youtube" || id == "youtube_music") {
+                                                                        Image(
+                                                                                painter = painterResource(
+                                                                                        id = if (id == "youtube") R.drawable.ic_youtube_default 
+                                                                                             else R.drawable.ic_youtube_music_default
+                                                                                ),
+                                                                                contentDescription = null,
+                                                                                modifier = Modifier.size(32.dp)
+                                                                        )
+                                                                } else {
+                                                                        Icon(
+                                                                                imageVector =
+                                                                                        when (id) {
+                                                                                                "nav" ->
+                                                                                                        Icons.Default
+                                                                                                                .Place
+                                                                                                "music" ->
+                                                                                                        Icons.Default
+                                                                                                                .PlayArrow
+                                                                                                "video" ->
+                                                                                                        Icons.Default
+                                                                                                                .Movie
+                                                                                                "settings" ->
+                                                                                                        Icons.Default
+                                                                                                                .Settings
+                                                                                                "haval" ->
+                                                                                                        Icons.Default
+                                                                                                                .DirectionsCar
+                                                                                                "game" ->
+                                                                                                        Icons.Default
+                                                                                                                .SportsEsports
+                                                                                                "tv" ->
+                                                                                                        Icons.Default
+                                                                                                                .Tv
+                                                                                                "phone" ->
+                                                                                                        Icons.Default
+                                                                                                                .Phone
+                                                                                                "chat" ->
+                                                                                                        Icons.Default
+                                                                                                                .Chat
+                                                                                                "map_alt" ->
+                                                                                                        Icons.Default
+                                                                                                                .Map
+                                                                                                else ->
+                                                                                                        Icons.Default
+                                                                                                                .Android
+                                                                                        },
+                                                                                contentDescription = null,
+                                                                                tint = Color.White,
+                                                                                modifier =
+                                                                                        Modifier.size(24.dp)
+                                                                        )
+                                                                }
                                                         }
                                                 }
                                         }

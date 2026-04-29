@@ -2,6 +2,8 @@ package br.com.redesurftank.havalshisuku.services
 
 import android.content.Context
 import android.graphics.PixelFormat
+import android.graphics.Rect
+import android.graphics.Region
 import android.os.Build
 import android.util.Log
 import android.view.Gravity
@@ -9,10 +11,6 @@ import android.view.WindowManager
 import androidx.appcompat.view.ContextThemeWrapper
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.ComposeView
-import android.view.ViewTreeObserver
-import java.lang.reflect.Proxy
-import android.graphics.Region
-import android.graphics.Rect
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
@@ -29,10 +27,11 @@ import br.com.redesurftank.havalshisuku.ui.components.BottomBarContent
 import br.com.redesurftank.havalshisuku.ui.components.BottomBarMenus
 import br.com.redesurftank.havalshisuku.ui.theme.HavalShisukuTheme
 import br.com.redesurftank.havalshisuku.utils.ShizukuUtils
-import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.collectLatest
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import java.lang.reflect.Proxy
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.collectLatest
 
 class BottomBarService : LifecycleService() {
 
@@ -60,6 +59,14 @@ class BottomBarService : LifecycleService() {
                     "deezer.android.app" to BarSettings(60, 0),
             )
 
+    private val IGNORE_PACKAGES =
+            setOf(
+                    "com.beantechs.applist",
+                    "com.beantechs.mediacenter" // ,
+                    // "com.beantechs.vehiclecenter",
+                    // "com.beantechs.settings"
+                    )
+
     private val BOTTOM_BAR_BASE_HEIGHT_DP = 60f
     private val REFERENCE_OVERSCAN = 60
     private val BASE_OFFSET_Y = -60 // Starting point for y at 60 overscan
@@ -67,14 +74,16 @@ class BottomBarService : LifecycleService() {
     override fun onCreate() {
         android.util.Log.e("BottomBarService", "SERVICE ONCREATE - STARTING")
         super.onCreate()
-        
+
         // Initialize state from SharedPreferences
-        val prefs = br.com.redesurftank.App.getDeviceProtectedContext()
-            .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
-        BottomBarState.autoHideEnabled = prefs.getBoolean(SharedPreferencesKeys.BOTTOM_BAR_AUTO_HIDE.key, false)
-        
+        val prefs =
+                br.com.redesurftank.App.getDeviceProtectedContext()
+                        .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
+        BottomBarState.autoHideEnabled =
+                prefs.getBoolean(SharedPreferencesKeys.BOTTOM_BAR_AUTO_HIDE.key, false)
+
         BottomBarState.isVisible = true
-        
+
         // Initial check for Frida status
         updateFridaStatus(prefs)
 
@@ -84,13 +93,14 @@ class BottomBarService : LifecycleService() {
         observeAutoHide()
         registerUpdateReceiver()
         startDynamicOverscanMonitoring()
-        
+
         // Initial timer start
         resetAutoHideTimer()
     }
 
     private fun registerUpdateReceiver() {
-        val filter = android.content.IntentFilter("br.com.redesurftank.havalshisuku.UPDATE_BAR_POSITION")
+        val filter =
+                android.content.IntentFilter("br.com.redesurftank.havalshisuku.UPDATE_BAR_POSITION")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(updateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
@@ -98,56 +108,65 @@ class BottomBarService : LifecycleService() {
         }
     }
 
-    private val updateReceiver = object : android.content.BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: android.content.Intent?) {
-            val overscan = intent?.getIntExtra("overscan", -1) ?: -1
-            val offset = intent?.getIntExtra("offset", -101) ?: -101
-            
-            if (overscan != -1 || offset != -101) {
-                // Real-time update from Apply button
-                val currentPackage = BottomBarState.currentPackage
-                if (currentPackage.isNotEmpty()) {
-                    val settings = BarSettings(
-                        overscan = if (overscan != -1) overscan else (currentAppSettings?.overscan ?: 0),
-                        yOffset = if (offset != -101) offset else (currentAppSettings?.yOffset ?: 0)
-                    )
-                    currentAppSettings = settings
-                    applyAppSettings(settings)
+    private val updateReceiver =
+            object : android.content.BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: android.content.Intent?) {
+                    val overscan = intent?.getIntExtra("overscan", -1) ?: -1
+                    val offset = intent?.getIntExtra("offset", -101) ?: -101
+
+                    if (overscan != -1 || offset != -101) {
+                        // Real-time update from Apply button
+                        val currentPackage = BottomBarState.currentPackage
+                        if (currentPackage.isNotEmpty()) {
+                            val settings =
+                                    BarSettings(
+                                            overscan =
+                                                    if (overscan != -1) overscan
+                                                    else (currentAppSettings?.overscan ?: 0),
+                                            yOffset =
+                                                    if (offset != -101) offset
+                                                    else (currentAppSettings?.yOffset ?: 0)
+                                    )
+                            currentAppSettings = settings
+                            applyAppSettings(settings)
+                        }
+                    } else {
+                        // Reload from SharedPreferences (Save button or generic refresh)
+                        lastPackage = null // Force reload in monitoring loop
+                    }
                 }
-            } else {
-                // Reload from SharedPreferences (Save button or generic refresh)
-                lastPackage = null // Force reload in monitoring loop
             }
-        }
-    }
 
     private fun observeAutoHide() {
         lifecycleScope.launch {
             // Reset timer on any state change that might indicate activity
-            snapshotFlow { 
+            snapshotFlow {
                 listOf(
-                    BottomBarState.isVisible,
-                    BottomBarState.isMenuExpanded,
-                    BottomBarState.isSettingsMenuExpanded,
-                    BottomBarState.isOverrideMenuExpanded
+                        BottomBarState.isVisible,
+                        BottomBarState.isMenuExpanded,
+                        BottomBarState.isSettingsMenuExpanded,
+                        BottomBarState.isOverrideMenuExpanded
                 )
-            }.collectLatest { 
-                resetAutoHideTimer()
             }
+                    .collectLatest { resetAutoHideTimer() }
         }
     }
 
     fun resetAutoHideTimer() {
         autoHideJob?.cancel()
         if (!BottomBarState.autoHideEnabled || !BottomBarState.isVisible) return
-        
-        autoHideJob = lifecycleScope.launch {
-            delay(30000) // 30 seconds
-            if (BottomBarState.isVisible && !BottomBarState.isMenuExpanded && 
-                !BottomBarState.isSettingsMenuExpanded && !BottomBarState.isOverrideMenuExpanded) {
-                BottomBarState.isVisible = false
-            }
-        }
+
+        autoHideJob =
+                lifecycleScope.launch {
+                    delay(30000) // 30 seconds
+                    if (BottomBarState.isVisible &&
+                                    !BottomBarState.isMenuExpanded &&
+                                    !BottomBarState.isSettingsMenuExpanded &&
+                                    !BottomBarState.isOverrideMenuExpanded
+                    ) {
+                        BottomBarState.isVisible = false
+                    }
+                }
     }
 
     private var currentAppSettings: BarSettings? = null
@@ -162,23 +181,38 @@ class BottomBarService : LifecycleService() {
                             val currentPackage = getTopPackageName()
                             if (currentPackage != null) {
                                 withContext(Dispatchers.Main) {
-                                    BottomBarState.currentPackage = currentPackage
+                                    if (BottomBarState.currentPackage != currentPackage) {
+                                        BottomBarState.currentPackage = currentPackage
+                                        // Auto-select the current app if it's not the tool itself,
+                                        // a launcher, or in the ignore list
+                                        if (currentPackage != this@BottomBarService.packageName &&
+                                                        !IGNORE_PACKAGES.contains(currentPackage) &&
+                                                        !isLauncher(currentPackage)
+                                        ) {
+                                            BottomBarState.selectedPackage = currentPackage
+                                        }
+                                    }
                                 }
                             }
 
-                            // Background Cleanup: Remove apps that are no longer running from the restored set
+                            // Background Cleanup: Remove apps that are no longer running from the
+                            // restored set
                             if (BottomBarState.restoredApps.isNotEmpty()) {
-                                val stackList = ShizukuUtils.runCommandAndGetOutput(arrayOf("am", "stack", "list"))
-                                val missingApps = BottomBarState.restoredApps.filter { pkg -> 
-                                    !stackList.contains(pkg) 
-                                }
+                                val stackList =
+                                        ShizukuUtils.runCommandAndGetOutput(
+                                                arrayOf("am", "stack", "list")
+                                        )
+                                val missingApps =
+                                        BottomBarState.restoredApps.filter { pkg ->
+                                            !stackList.contains(pkg)
+                                        }
                                 if (missingApps.isNotEmpty()) {
                                     withContext(Dispatchers.Main) {
                                         BottomBarState.restoredApps.removeAll(missingApps)
                                     }
                                 }
                             }
-                            
+
                             val prefs =
                                     br.com.redesurftank.App.getDeviceProtectedContext()
                                             .getSharedPreferences(
@@ -196,13 +230,14 @@ class BottomBarService : LifecycleService() {
                                                         .key,
                                                 0
                                         )
-                                
+
                                 // Also update autoHideEnabled from prefs
                                 withContext(Dispatchers.Main) {
-                                    BottomBarState.autoHideEnabled = prefs.getBoolean(
-                                        SharedPreferencesKeys.BOTTOM_BAR_AUTO_HIDE.key, 
-                                        false
-                                    )
+                                    BottomBarState.autoHideEnabled =
+                                            prefs.getBoolean(
+                                                    SharedPreferencesKeys.BOTTOM_BAR_AUTO_HIDE.key,
+                                                    false
+                                            )
                                 }
 
                                 val settings = getSettingsForPackage(currentPackage, storedDefault)
@@ -211,7 +246,6 @@ class BottomBarService : LifecycleService() {
                             }
                             // Update Frida status reactive to switches
                             updateFridaStatus(prefs)
-
                         } catch (e: Exception) {
                             Log.e("BottomBarService", "Error in monitoring loop", e)
                         }
@@ -222,50 +256,67 @@ class BottomBarService : LifecycleService() {
 
     private fun updateFridaStatus(prefs: android.content.SharedPreferences) {
         val hooksEnabled = prefs.getBoolean(SharedPreferencesKeys.ENABLE_FRIDA_HOOKS.key, false)
-        
+
         // Only require the main Frida switch to be enabled as requested
         val switchesOn = hooksEnabled
-        
+
         lifecycleScope.launch(Dispatchers.IO) {
             // UI shows Frida menu if main switch is ON
-            withContext(Dispatchers.Main) {
-                BottomBarState.isFridaRunning = switchesOn
-            }
+            withContext(Dispatchers.Main) { BottomBarState.isFridaRunning = switchesOn }
         }
     }
 
     private fun getTopPackageName(): String? {
         val output =
                 ShizukuUtils.runCommandAndGetOutput(
-                        arrayOf("sh", "-c", "dumpsys activity activities | grep -E 'mResumedActivity|mCurrentFocus|mFocusedActivity'")
+                        arrayOf(
+                                "sh",
+                                "-c",
+                                "dumpsys activity activities | grep -E 'mResumedActivity|mCurrentFocus|mFocusedActivity'"
+                        )
                 )
-        // More robust regex to handle various dumpsys formats, including inner classes ($) and different prefixes
+        // More robust regex to handle various dumpsys formats, including inner classes ($) and
+        // different prefixes
         val regex = Regex("""([a-zA-Z0-9._]+)/[.${'$'}a-zA-Z0-9._]+""")
         val match = regex.find(output)
-        Log.d("BottomBarService", "getTopPackageName - raw: ${output.take(200)}, match: ${match?.value}, package: ${match?.groupValues?.get(1)}")
+        Log.d(
+                "BottomBarService",
+                "getTopPackageName - raw: ${output.take(200)}, match: ${match?.value}, package: ${match?.groupValues?.get(1)}"
+        )
         return match?.groupValues?.get(1)
     }
 
+    private fun isLauncher(packageName: String): Boolean {
+        val intent =
+                android.content.Intent(android.content.Intent.ACTION_MAIN)
+                        .addCategory(android.content.Intent.CATEGORY_HOME)
+        val launchers = packageManager.queryIntentActivities(intent, 0)
+        return launchers.any { it.activityInfo.packageName == packageName }
+    }
+
     private fun getSettingsForPackage(packageName: String, defaultOverscan: Int): BarSettings {
-        val prefs = br.com.redesurftank.App.getDeviceProtectedContext()
-            .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
-        
-        val dynamicOverridesJson = prefs.getString(SharedPreferencesKeys.BOTTOM_BAR_OVERRIDES.key, null)
-        val dynamicOverrides: Map<String, BarSettings> = if (dynamicOverridesJson != null) {
-            try {
-                val type = object : TypeToken<Map<String, BarSettings>>() {}.type
-                Gson().fromJson(dynamicOverridesJson, type)
-            } catch (e: Exception) {
-                emptyMap()
-            }
-        } else {
-            emptyMap()
-        }
+        val prefs =
+                br.com.redesurftank.App.getDeviceProtectedContext()
+                        .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
+
+        val dynamicOverridesJson =
+                prefs.getString(SharedPreferencesKeys.BOTTOM_BAR_OVERRIDES.key, null)
+        val dynamicOverrides: Map<String, BarSettings> =
+                if (dynamicOverridesJson != null) {
+                    try {
+                        val type = object : TypeToken<Map<String, BarSettings>>() {}.type
+                        Gson().fromJson(dynamicOverridesJson, type)
+                    } catch (e: Exception) {
+                        emptyMap()
+                    }
+                } else {
+                    emptyMap()
+                }
 
         // Priority: Dynamic Overrides -> Hardcoded Overrides -> Default
-        return dynamicOverrides[packageName] 
-            ?: APP_OVERRIDES[packageName] 
-            ?: BarSettings(overscan = defaultOverscan, yOffset = 0)
+        return dynamicOverrides[packageName]
+                ?: APP_OVERRIDES[packageName]
+                        ?: BarSettings(overscan = defaultOverscan, yOffset = 0)
     }
 
     private fun applyAppSettings(settings: BarSettings) {
@@ -276,8 +327,8 @@ class BottomBarService : LifecycleService() {
 
         if (!BottomBarState.isVisible) {
             Log.d(
-                "BottomBarService",
-                "Bottom bar hidden, ignoring dynamic overscan request: ${settings.overscan}"
+                    "BottomBarService",
+                    "Bottom bar hidden, ignoring dynamic overscan request: ${settings.overscan}"
             )
             lifecycleScope.launch(Dispatchers.IO) {
                 ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,0"))
@@ -293,8 +344,8 @@ class BottomBarService : LifecycleService() {
         val yOffsetPx = (settings.yOffset * density).toInt()
 
         Log.w(
-            "BottomBarService",
-            "[OVERSCAN_SYNC] App: $lastPackage | Overscan: ${overscanValueRaw}dp(${overscanValuePx}px) | Offset: ${settings.yOffset}dp(${yOffsetPx}px) | Visible: ${BottomBarState.isVisible}"
+                "BottomBarService",
+                "[OVERSCAN_SYNC] App: $lastPackage | Overscan: ${overscanValueRaw}dp(${overscanValuePx}px) | Offset: ${settings.yOffset}dp(${yOffsetPx}px) | Visible: ${BottomBarState.isVisible}"
         )
 
         lifecycleScope.launch(Dispatchers.IO) {
@@ -305,7 +356,11 @@ class BottomBarService : LifecycleService() {
                 try {
                     wm.updateViewLayout(cv, lp)
                 } catch (e: Exception) {
-                    Log.e("BottomBarService", "Error updating window layout during app settings change", e)
+                    Log.e(
+                            "BottomBarService",
+                            "Error updating window layout during app settings change",
+                            e
+                    )
                 }
             }
         }
@@ -332,10 +387,14 @@ class BottomBarService : LifecycleService() {
 
     private fun observeMenuState() {
         lifecycleScope.launch {
-            snapshotFlow { BottomBarState.isMenuExpanded || BottomBarState.isSettingsMenuExpanded || BottomBarState.isOverrideMenuExpanded }
-                    .collectLatest { expanded -> 
+            snapshotFlow {
+                BottomBarState.isMenuExpanded ||
+                        BottomBarState.isSettingsMenuExpanded ||
+                        BottomBarState.isOverrideMenuExpanded
+            }
+                    .collectLatest { expanded ->
                         updateMenuWindow(expanded)
-                        // Force recompute touchable regions when menu state changes 
+                        // Force recompute touchable regions when menu state changes
                         composeView?.requestLayout()
                         menuComposeView?.requestLayout()
                     }
@@ -352,14 +411,27 @@ class BottomBarService : LifecycleService() {
         lifecycleScope.launch(Dispatchers.IO) {
             val overscanCmd: Array<String>
             if (visible) {
-                val settings = currentAppSettings ?: run {
-                    val prefs = br.com.redesurftank.App.getDeviceProtectedContext()
-                        .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
-                    val storedDefault = prefs.getInt(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR_OVERSCAN.key, 0)
-                    BarSettings(overscan = storedDefault, yOffset = 0)
-                }
-                
-                val isRestored = lastPackage != null && BottomBarState.restoredApps.contains(lastPackage)
+                val settings =
+                        currentAppSettings
+                                ?: run {
+                                    val prefs =
+                                            br.com.redesurftank.App.getDeviceProtectedContext()
+                                                    .getSharedPreferences(
+                                                            "haval_prefs",
+                                                            Context.MODE_PRIVATE
+                                                    )
+                                    val storedDefault =
+                                            prefs.getInt(
+                                                    SharedPreferencesKeys
+                                                            .PERSISTENT_BOTTOM_BAR_OVERSCAN
+                                                            .key,
+                                                    0
+                                            )
+                                    BarSettings(overscan = storedDefault, yOffset = 0)
+                                }
+
+                val isRestored =
+                        lastPackage != null && BottomBarState.restoredApps.contains(lastPackage)
                 val multiplier = if (isRestored) 3.0f else 1.0f
 
                 val overscanValuePx = (settings.overscan.toFloat() * density * multiplier).toInt()
@@ -374,7 +446,7 @@ class BottomBarService : LifecycleService() {
                 // Trigger zone - keep 40dp (20dp on screen) area touchable
                 withContext(Dispatchers.Main) {
                     lp.height = (100 * density).toInt()
-                    lp.y = -(20 * density).toInt() 
+                    lp.y = -(20 * density).toInt()
                 }
                 overscanCmd = arrayOf("wm", "overscan", "0,0,0,0")
             }
@@ -390,9 +462,6 @@ class BottomBarService : LifecycleService() {
             }
         }
     }
-
-
-
 
     private fun updateMenuWindow(show: Boolean) {
         val wm = mWindowManager ?: return
@@ -422,7 +491,7 @@ class BottomBarService : LifecycleService() {
 
         composeView =
                 ComposeView(themedContext)
-                        .apply { 
+                        .apply {
                             setContent { HavalShisukuTheme { BottomBarContent() } }
                             setupTouchableRegions(this, isMenuWindow = false)
                         }
@@ -430,7 +499,7 @@ class BottomBarService : LifecycleService() {
 
         menuComposeView =
                 ComposeView(themedContext)
-                        .apply { 
+                        .apply {
                             setContent { HavalShisukuTheme { BottomBarMenus() } }
                             setupTouchableRegions(this, isMenuWindow = true)
                         }
@@ -446,7 +515,6 @@ class BottomBarService : LifecycleService() {
                     @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
                 }
 
-
         params =
                 WindowManager.LayoutParams(
                                 WindowManager.LayoutParams.MATCH_PARENT,
@@ -461,12 +529,14 @@ class BottomBarService : LifecycleService() {
                         )
                         .apply {
                             // Immersive mode flags to hide system bars
-                            systemUiVisibility = (android.view.View.SYSTEM_UI_FLAG_LOW_PROFILE
-                                    or android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
-                                    or android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                                    or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                                    or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                                    or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION)
+                            systemUiVisibility =
+                                    (android.view.View.SYSTEM_UI_FLAG_LOW_PROFILE or
+                                            android.view.View.SYSTEM_UI_FLAG_FULLSCREEN or
+                                            android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                                            android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                                            android.view.View
+                                                    .SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                                            android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION)
 
                             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
                             // On show, we derive y from the currently applied overscan value if
@@ -494,12 +564,14 @@ class BottomBarService : LifecycleService() {
                         )
                         .apply {
                             // Immersive mode flags to hide system bars
-                            systemUiVisibility = (android.view.View.SYSTEM_UI_FLAG_LOW_PROFILE
-                                    or android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
-                                    or android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                                    or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                                    or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                                    or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION)
+                            systemUiVisibility =
+                                    (android.view.View.SYSTEM_UI_FLAG_LOW_PROFILE or
+                                            android.view.View.SYSTEM_UI_FLAG_FULLSCREEN or
+                                            android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                                            android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                                            android.view.View
+                                                    .SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                                            android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION)
 
                             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
                             y = 0
@@ -513,13 +585,25 @@ class BottomBarService : LifecycleService() {
         if (android.provider.Settings.canDrawOverlays(this)) {
             try {
                 mWindowManager?.addView(composeView, params)
-                val settings = currentAppSettings ?: run {
-                    val prefs = br.com.redesurftank.App.getDeviceProtectedContext()
-                        .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
-                    val storedDefault = prefs.getInt(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR_OVERSCAN.key, 0)
-                    BarSettings(overscan = storedDefault, yOffset = 0)
-                }
-                
+                val settings =
+                        currentAppSettings
+                                ?: run {
+                                    val prefs =
+                                            br.com.redesurftank.App.getDeviceProtectedContext()
+                                                    .getSharedPreferences(
+                                                            "haval_prefs",
+                                                            Context.MODE_PRIVATE
+                                                    )
+                                    val storedDefault =
+                                            prefs.getInt(
+                                                    SharedPreferencesKeys
+                                                            .PERSISTENT_BOTTOM_BAR_OVERSCAN
+                                                            .key,
+                                                    0
+                                            )
+                                    BarSettings(overscan = storedDefault, yOffset = 0)
+                                }
+
                 val overscanValuePx = (settings.overscan * density).toInt()
                 val yOffsetPx = (settings.yOffset * density).toInt()
 
@@ -531,7 +615,7 @@ class BottomBarService : LifecycleService() {
                 lifecycleScope.launch(Dispatchers.IO) {
                     ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "size", "reset"))
                     ShizukuUtils.runCommandAndGetOutput(
-                        arrayOf("wm", "overscan", "0,0,0,$overscanValuePx")
+                            arrayOf("wm", "overscan", "0,0,0,$overscanValuePx")
                     )
                 }
             } catch (e: Exception) {
@@ -546,57 +630,87 @@ class BottomBarService : LifecycleService() {
     private fun setupTouchableRegions(composeView: ComposeView, isMenuWindow: Boolean = false) {
         val observer = composeView.viewTreeObserver
         try {
-            val listenerClass = Class.forName("android.view.ViewTreeObserver\$OnComputeInternalInsetsListener")
+            val listenerClass =
+                    Class.forName("android.view.ViewTreeObserver\$OnComputeInternalInsetsListener")
             val infoClass = Class.forName("android.view.ViewTreeObserver\$InternalInsetsInfo")
-            val setTouchableInsetsMethod = infoClass.getMethod("setTouchableInsets", Int::class.javaPrimitiveType)
+            val setTouchableInsetsMethod =
+                    infoClass.getMethod("setTouchableInsets", Int::class.javaPrimitiveType)
             val touchableRegionField = infoClass.getField("touchableRegion")
 
-            val proxy = Proxy.newProxyInstance(
-                listenerClass.classLoader,
-                arrayOf(listenerClass)
-            ) { _, method, args ->
-                if (method.name == "onComputeInternalInsets") {
-                    val info = args[0]
-                    // 3 is TOUCHABLE_INSETS_REGION
-                    setTouchableInsetsMethod.invoke(info, 3)
-                    val region = touchableRegionField.get(info) as Region
-                    region.setEmpty()
+            val proxy =
+                    Proxy.newProxyInstance(listenerClass.classLoader, arrayOf(listenerClass)) {
+                            _,
+                            method,
+                            args ->
+                        if (method.name == "onComputeInternalInsets") {
+                            val info = args[0]
+                            // 3 is TOUCHABLE_INSETS_REGION
+                            setTouchableInsetsMethod.invoke(info, 3)
+                            val region = touchableRegionField.get(info) as Region
+                            region.setEmpty()
 
-                    val density = resources.displayMetrics.density
-                    val windowWidth = resources.displayMetrics.widthPixels
+                            val density = resources.displayMetrics.density
+                            val windowWidth = resources.displayMetrics.widthPixels
 
-                    if (isMenuWindow) {
-                        // Menu window is MATCH_PARENT (full screen height)
-                        val anyMenuExpanded = BottomBarState.isMenuExpanded || BottomBarState.isSettingsMenuExpanded || BottomBarState.isOverrideMenuExpanded
-                        Log.d("BottomBarService", "TouchRegion[MENU] anyMenuExpanded=$anyMenuExpanded")
-                        if (anyMenuExpanded) {
-                            val screenHeight = resources.displayMetrics.heightPixels
-                            region.union(Rect(0, 0, windowWidth, screenHeight))
+                            if (isMenuWindow) {
+                                // Menu window is MATCH_PARENT (full screen height)
+                                val anyMenuExpanded =
+                                        BottomBarState.isMenuExpanded ||
+                                                BottomBarState.isSettingsMenuExpanded ||
+                                                BottomBarState.isOverrideMenuExpanded
+                                Log.d(
+                                        "BottomBarService",
+                                        "TouchRegion[MENU] anyMenuExpanded=$anyMenuExpanded"
+                                )
+                                if (anyMenuExpanded) {
+                                    val screenHeight = resources.displayMetrics.heightPixels
+                                    region.union(Rect(0, 0, windowWidth, screenHeight))
+                                }
+                            } else {
+                                // Bar window is 100dp tall
+                                val windowHeight = (100 * density).toInt()
+                                val topHandleHeight = (15 * density).toInt()
+                                val hiddenTriggerHeight = (40 * density).toInt()
+                                val visibleBarTouchHeight = (80 * density).toInt()
+
+                                Log.d(
+                                        "BottomBarService",
+                                        "TouchRegion[BAR] isVisible=${BottomBarState.isVisible}, windowWidth=$windowWidth, windowHeight=$windowHeight, visibleBarTouchHeight=$visibleBarTouchHeight"
+                                )
+
+                                if (BottomBarState.isVisible) {
+                                    // Main Bar touchable area - full width, bottom 80dp
+                                    region.union(
+                                            Rect(
+                                                    0,
+                                                    windowHeight - visibleBarTouchHeight,
+                                                    windowWidth,
+                                                    windowHeight
+                                            )
+                                    )
+                                    // Top Handle for swipe gesture
+                                    region.union(Rect(0, 0, windowWidth, topHandleHeight))
+                                } else {
+                                    // Hidden: only a small trigger zone at the bottom for swipe-up
+                                    region.union(
+                                            Rect(
+                                                    0,
+                                                    windowHeight - hiddenTriggerHeight,
+                                                    windowWidth,
+                                                    windowHeight
+                                            )
+                                    )
+                                }
+                            }
                         }
-                    } else {
-                        // Bar window is 100dp tall
-                        val windowHeight = (100 * density).toInt()
-                        val topHandleHeight = (15 * density).toInt()
-                        val hiddenTriggerHeight = (40 * density).toInt()
-                        val visibleBarTouchHeight = (80 * density).toInt()
-
-                        Log.d("BottomBarService", "TouchRegion[BAR] isVisible=${BottomBarState.isVisible}, windowWidth=$windowWidth, windowHeight=$windowHeight, visibleBarTouchHeight=$visibleBarTouchHeight")
-
-                        if (BottomBarState.isVisible) {
-                            // Main Bar touchable area - full width, bottom 80dp
-                            region.union(Rect(0, windowHeight - visibleBarTouchHeight, windowWidth, windowHeight))
-                            // Top Handle for swipe gesture
-                            region.union(Rect(0, 0, windowWidth, topHandleHeight))
-                        } else {
-                            // Hidden: only a small trigger zone at the bottom for swipe-up
-                            region.union(Rect(0, windowHeight - hiddenTriggerHeight, windowWidth, windowHeight))
-                        }
+                        null
                     }
-                }
-                null
-            }
 
-            val addMethod = observer.javaClass.getMethod("addOnComputeInternalInsetsListener", listenerClass)
+            val addMethod =
+                    observer.javaClass.getMethod(
+                            "addOnComputeInternalInsetsListener",
+                            listenerClass
+                    )
             addMethod.invoke(observer, proxy)
         } catch (e: Exception) {
             Log.e("BottomBarService", "Failed to setup touchable regions via reflection", e)

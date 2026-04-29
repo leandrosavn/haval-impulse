@@ -118,6 +118,8 @@ object DisplayAppLauncher {
             packageName.contains("carplay", ignoreCase = true) ||
             packageName.contains("carlink", ignoreCase = true) ||
             packageName.contains("zlink", ignoreCase = true) -> "Apple CarPlay"
+            packageName.equals("com.google.android.youtube", ignoreCase = true) -> "YouTube"
+            packageName.equals("com.google.android.apps.youtube.music", ignoreCase = true) -> "YouTube Music"
             else -> {
                 try {
                     val info = pm.getApplicationInfo(packageName, 0)
@@ -136,6 +138,8 @@ object DisplayAppLauncher {
             packageName.contains("carplay", ignoreCase = true) ||
             packageName.contains("carlink", ignoreCase = true) ||
             packageName.contains("zlink", ignoreCase = true) -> context.getDrawable(R.drawable.ic_carplay_default)
+            packageName.equals("com.google.android.youtube", ignoreCase = true) -> context.getDrawable(R.drawable.ic_youtube_default)
+            packageName.equals("com.google.android.apps.youtube.music", ignoreCase = true) -> context.getDrawable(R.drawable.ic_youtube_music_default)
             else -> {
                 try {
                     pm.getApplicationIcon(packageName)
@@ -182,6 +186,31 @@ object DisplayAppLauncher {
         getPrefs().edit()
             .putString(SharedPreferencesKeys.DISPLAY_APP_CONFIGS.key, gson.toJson(configs))
             .apply()
+    }
+
+    /**
+     * Resolves the main activity for a package and creates a default config if it doesn't exist.
+     * Defaults to Display 3 (Cluster) with full screen dimensions.
+     */
+    fun getOrCreateDefaultConfig(context: Context, packageName: String): DisplayAppConfig? {
+        val existing = getAllConfigs().find { it.packageName == packageName }
+        if (existing != null) return existing
+
+        val pm = context.packageManager
+        val intent = pm.getLaunchIntentForPackage(packageName) ?: return null
+        val activityName = intent.component?.className ?: return null
+
+        val config = DisplayAppConfig(
+            packageName = packageName,
+            activityName = activityName,
+            displayId = 3,
+            x = 0,
+            y = 0,
+            width = 1920,
+            height = 720
+        )
+        saveConfig(config)
+        return config
     }
 
     fun deleteConfig(packageName: String) {
@@ -436,6 +465,83 @@ object DisplayAppLauncher {
             Log.e(TAG, "Error launching $packageName", e)
         }
     }
+
+    /**
+     * Finds the package name for the first task in a given stack by parsing the stack list.
+     */
+    private fun findPackageNameForStack(stackId: Int, stackList: String): String? {
+        var inTargetStack = false
+        for (line in stackList.lines()) {
+            val stackMatch = Regex("""Stack id=(\d+)""").find(line)
+            if (stackMatch != null) {
+                inTargetStack = stackMatch.groupValues[1].toIntOrNull() == stackId
+                continue
+            }
+            if (inTargetStack) {
+                if (line.contains("Stack id=")) break
+                
+                val taskMatch = Regex("""taskId=(\d+):\s*([^/]+)/""").find(line)
+                if (taskMatch != null) {
+                    return taskMatch.groupValues[2]
+                }
+            }
+        }
+        return null
+    }
+
+    /**
+     * Brings all applications from secondary displays (1 and 3) back to the main display (0).
+     */
+    suspend fun bringAllToMainDisplay() = withContext(Dispatchers.IO) {
+        val stackList = getStackList()
+        val displaysToEvict = setOf(1, 3)
+        val stacksToMove = mutableListOf<Pair<Int, Int>>() // stackId, displayId
+        
+        var currentDisplayId: Int? = null
+        for (line in stackList.lines()) {
+            val stackMatch = Regex("""Stack id=(\d+).*displayId=(\d+)""").find(line)
+            if (stackMatch != null) {
+                val stackId = stackMatch.groupValues[1].toIntOrNull()
+                currentDisplayId = stackMatch.groupValues[2].toIntOrNull()
+                if (stackId != null && currentDisplayId != null && displaysToEvict.contains(currentDisplayId)) {
+                    stacksToMove.add(stackId to currentDisplayId)
+                }
+            }
+        }
+        
+        if (stacksToMove.isEmpty()) {
+            Log.w(TAG, "No stacks found on displays 1 or 3 to move")
+            return@withContext
+        }
+
+        for ((stackId, displayId) in stacksToMove) {
+            val pkg = findPackageNameForStack(stackId, stackList)
+            Log.w(TAG, "Moving stack $stackId ($pkg) from display $displayId to display 0")
+            
+            val result = sh("am display move-stack $stackId 0")
+            if (result.contains("Exception") || result.contains("Error")) {
+                Log.e(TAG, "Failed to move stack $stackId: $result")
+                continue
+            }
+
+            sh("am stack set-windowing-mode $stackId 1")
+            
+            if (pkg != null) {
+                if (!BottomBarState.restoredApps.contains(pkg)) {
+                    withContext(Dispatchers.Main) {
+                        BottomBarState.restoredApps.add(pkg)
+                    }
+                }
+            }
+            
+            val res = getDisplayResolution(0)
+            sh("am stack resize $stackId 0 0 ${res.first} ${res.second}")
+        }
+        
+        displaysToEvict.forEach { notifyDisplayStateChanged(it) }
+        notifyBottomBarUpdate()
+    }
+
 
     /**
      * Sends the app to the target secondary display with saved bounds.
