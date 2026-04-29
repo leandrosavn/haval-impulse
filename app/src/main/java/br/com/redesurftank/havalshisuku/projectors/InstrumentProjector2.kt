@@ -3,6 +3,7 @@ package br.com.redesurftank.havalshisuku.projectors
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.pm.ApplicationInfo
 import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
@@ -38,6 +39,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         BaseProjector(outerContext, display) {
 
     private val TAG = "InstrumentProjector2"
+    private val DEBUG_EXTERNAL_APP_HTML = "/data/local/tmp/app.html"
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val clockRunnable =
             object : Runnable {
@@ -123,6 +125,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                         SharedPreferencesKeys.VIRTUAL_CLUSTER_DISPLAY_ID.key,
                                         SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key,
                                         SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key,
+                                        SharedPreferencesKeys.CLUSTER_FUEL_DISPLAY_UNIT.key,
                                         SharedPreferencesKeys
                                                 .ENABLE_INSTRUMENT_ODOMETER_AND_REVISION
                                                 .key
@@ -154,6 +157,11 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                     "UTF-8",
                                     null
                             )
+                        }
+                        if (key == SharedPreferencesKeys.CLUSTER_FUEL_DISPLAY_UNIT.key) {
+                            val unit = getClusterFuelDisplayUnit()
+                            Log.d(TAG, "[HavalDev] Cluster fuel display unit changed: $unit")
+                            evaluateJsIfReady(webView, "control('fuelDisplayUnit', '$unit')")
                         }
                         root.isVisible =
                                 shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn
@@ -563,6 +571,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
         val updates = mutableMapOf<String, String>()
 
+        updates["display"] = getSavedClusterDisplay()
+
         // Gears
         updates["gearState"] = getGearLabel(sm.getData(CarConstants.CAR_BASIC_GEAR_STATUS.value))
 
@@ -609,6 +619,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 sm.getData(CarConstants.CAR_EV_INFO_FUEL_MODE_REMAIN_ODOMETER.value) ?: "0"
         updates["batteryRange"] =
                 sm.getData(CarConstants.CAR_EV_INFO_ELECTRIC_MODE_REMAIN_ODOMETER.value) ?: "0"
+        updates["fuelDisplayUnit"] = getClusterFuelDisplayUnit()
 
         // Speed and Engine
         val speedStr = getAdjustedSpeed(sm.getData(CarConstants.CAR_BASIC_VEHICLE_SPEED.value))
@@ -659,6 +670,15 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 sm.getData(CarConstants.CAR_EV_INFO_INSTANT_ENERGY_CONSUMPTION.value) ?: "0"
 
         batchEvaluateJs(webView, updates)
+    }
+
+    private fun getClusterFuelDisplayUnit(): String {
+        val unit =
+                preferences.getString(
+                        SharedPreferencesKeys.CLUSTER_FUEL_DISPLAY_UNIT.key,
+                        "liters"
+                ) ?: "liters"
+        return if (unit == "percent") "percent" else "liters"
     }
 
     private fun batchEvaluateJs(view: WebView?, updates: Map<String, String>) {
@@ -827,6 +847,12 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     }
 
     private fun readAppContent(context: Context): String {
+        if (isDebuggableApp()) {
+            tryLoadExternalDebugHtml()?.let { externalHtml ->
+                return externalHtml
+            }
+        }
+
         val customThemeName =
                 preferences.getString(SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key, "") ?: ""
         if (customThemeName.isNotEmpty()) {
@@ -853,6 +879,35 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
         Log.d(TAG, "Loading base HTML from resource: app.html")
         return context.resources.openRawResource(R.raw.app).bufferedReader().use { it.readText() }
+    }
+
+    private fun tryLoadExternalDebugHtml(): String? {
+        val externalFile = File(DEBUG_EXTERNAL_APP_HTML)
+        if (!externalFile.exists() || !externalFile.isFile || !externalFile.canRead()) {
+            Log.d(TAG, "[HavalDev] External debug HTML not available at $DEBUG_EXTERNAL_APP_HTML")
+            return null
+        }
+
+        val html = externalFile.readText()
+        val normalized = html.lowercase(Locale.ROOT)
+        val isValidHtml =
+                html.isNotBlank() &&
+                        (normalized.contains("<html") || normalized.contains("<!doctype html"))
+
+        if (!isValidHtml) {
+            Log.w(
+                    TAG,
+                    "[HavalDev] External debug HTML exists but is invalid. Falling back to packaged app.html"
+            )
+            return null
+        }
+
+        Log.i(TAG, "[HavalDev] Loading external debug HTML from $DEBUG_EXTERNAL_APP_HTML")
+        return html
+    }
+
+    private fun isDebuggableApp(): Boolean {
+        return (outerContext.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
     }
 
     override fun carMainScreenOff() {
@@ -963,6 +1018,31 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         return finalSpeed.toInt().toString()
     }
 
+    private fun getSavedClusterDisplay(): String {
+        val savedDisplay =
+                preferences.getString(
+                        SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key,
+                        "Normal"
+                ) ?: "Normal"
+
+        return normalizeClusterDisplay(savedDisplay)
+    }
+
+    private fun normalizeClusterDisplay(display: String): String {
+        return when (display) {
+            "Normal", "Esportivo", "Reduzido", "Clean" -> display
+            else -> "Normal"
+        }
+    }
+
+    private fun saveClusterDisplay(display: String) {
+        val normalizedDisplay = normalizeClusterDisplay(display)
+        preferences.edit()
+                .putString(SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key, normalizedDisplay)
+                .apply()
+        Log.d(TAG, "Cluster display saved: $normalizedDisplay")
+    }
+
     private fun updateWarningUI(anyWarningActive: Boolean) {
         isWarningActive = anyWarningActive
         lastAppliedConfigs.clear() // Invalidate cache on warning toggle to force re-sync
@@ -995,6 +1075,14 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
             currentCard = cardId
             Log.d(TAG, "Card ID updated to $cardId")
             syncSecondaryDisplayApps(3)
+        }
+
+        @JavascriptInterface
+        fun saveSetting(key: String, value: String) {
+            when (key) {
+                SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key -> saveClusterDisplay(value)
+                else -> Log.w(TAG, "Ignoring unsupported WebView setting: $key")
+            }
         }
     }
 }

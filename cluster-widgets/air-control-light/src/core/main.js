@@ -15,7 +15,7 @@ initializeConstants();
 initWarningHandler();
 
 if (process.env.NODE_ENV === 'development') {
-    document.body.style.backgroundColor = 'red';
+    document.body.style.backgroundColor = 'black';
     import('../utils/testing-utils.js');
 }
 

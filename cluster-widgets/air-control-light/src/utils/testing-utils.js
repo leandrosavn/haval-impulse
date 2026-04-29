@@ -464,7 +464,7 @@ window.simulationInterval = setInterval(() => {
         const delta = (currentSpeed * SIMULATION_INTERVAL) / 3600000;
         window.simulatedOdo += delta;
     }
-    setState('odometer', Math.floor(window.simulatedOdo));
+    setState('odometer', 15000);
 
     // Revision Simulation (Testing Warning logic)
     if (window.simulatedOdo > 0) {

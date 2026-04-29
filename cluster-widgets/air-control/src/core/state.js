@@ -103,13 +103,14 @@ var stateManager = new StateManager({
     evPowerKwAvg: 0,
 
     // Template states
-    display: 'Normal', //Display mode, should be either Normal, Reduzido or Clean
+    display: 'Normal', //Display mode, should be either Normal, Esportivo, Reduzido or Clean
     displayFocus: 'sel_template',
     appInDash: false,
     clusterEnabled: true,
     brightness: 100,
     fuelRange: 0,
     fuelPercent: 0,
+    fuelDisplayUnit: 'liters',
     batteryRange: 0,
     batteryPercent: 0,
     clockTime: '--:--',
