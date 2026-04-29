@@ -4906,27 +4906,17 @@ fun DisplayAppConfigDialog(
         // Load existing app info and auto-launch preview
         LaunchedEffect(existingConfig) {
                 if (existingConfig != null) {
-                        val pm = context.packageManager
-                        val label =
-                                try {
-                                        pm.getApplicationInfo(existingConfig.packageName, 0).let {
-                                                pm.getApplicationLabel(it).toString()
-                                        }
-                                } catch (_: Exception) {
-                                        existingConfig.packageName
-                                }
-                        val icon =
-                                try {
-                                        pm.getApplicationIcon(existingConfig.packageName)
-                                } catch (_: Exception) {
-                                        null
-                                }
+                        val appInfo = DisplayAppLauncher.resolveAppInfo(
+                                context,
+                                existingConfig.packageName,
+                                existingConfig.customName
+                        )
                         selectedApp =
                                 InstalledAppInfo(
                                         existingConfig.packageName,
                                         existingConfig.activityName,
-                                        label,
-                                        icon
+                                        appInfo.label,
+                                        appInfo.icon
                                 )
                         // Auto-launch with existing config for visual reference
                         previewActive = true

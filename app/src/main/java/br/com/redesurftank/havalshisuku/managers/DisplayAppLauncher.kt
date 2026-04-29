@@ -113,8 +113,11 @@ object DisplayAppLauncher {
         // 1. Determine Label
         val label = when {
             !customName.isNullOrBlank() -> customName
-            packageName.contains("androidauto") -> "Android Auto"
-            packageName.contains("carplay") -> "Apple CarPlay"
+            packageName.contains("androidauto", ignoreCase = true) || 
+            packageName.contains("gearhead", ignoreCase = true) -> "Android Auto"
+            packageName.contains("carplay", ignoreCase = true) ||
+            packageName.contains("carlink", ignoreCase = true) ||
+            packageName.contains("zlink", ignoreCase = true) -> "Apple CarPlay"
             else -> {
                 try {
                     val info = pm.getApplicationInfo(packageName, 0)
@@ -126,13 +129,19 @@ object DisplayAppLauncher {
         }
 
         // 2. Determine Icon
-        val icon = try {
-            pm.getApplicationIcon(packageName)
-        } catch (e: Exception) {
-            when {
-                packageName.contains("androidauto") -> context.getDrawable(R.drawable.ic_android_auto_default)
-                packageName.contains("carplay") -> context.getDrawable(R.drawable.ic_carplay_default)
-                else -> null
+        // Prioritize our custom icons for known system/predefined apps
+        val icon = when {
+            packageName.contains("androidauto", ignoreCase = true) || 
+            packageName.contains("gearhead", ignoreCase = true) -> context.getDrawable(R.drawable.ic_android_auto_default)
+            packageName.contains("carplay", ignoreCase = true) ||
+            packageName.contains("carlink", ignoreCase = true) ||
+            packageName.contains("zlink", ignoreCase = true) -> context.getDrawable(R.drawable.ic_carplay_default)
+            else -> {
+                try {
+                    pm.getApplicationIcon(packageName)
+                } catch (e: Exception) {
+                    null
+                }
             }
         }
 
