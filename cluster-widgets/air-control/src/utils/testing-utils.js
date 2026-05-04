@@ -7,6 +7,8 @@ setState('enableRevisionWarning', true);
 setState('odometer', 11450);
 setState('nextRevisionKm', 12000);
 setState('nextRevisionDate', Date.now() + 15 * 24 * 60 * 60 * 1000);
+setState('tripAnalysisActive', true);
+setState('tripAnalysisScore', 82);
 
 const focusableAreas = {
     main_menu: menuItems.map(item => item.id),
@@ -396,6 +398,7 @@ window.simulationInterval = setInterval(() => {
     }
 
     setState('carSpeed', Math.max(0, currentSpeed.toFixed(1)));
+    setState('tripAnalysisScore', Math.max(74, Math.min(99, Math.round(88 - (lastValue / 12) + (currentSpeed / 30)))));
 
     const randomTarget = Math.floor(Math.random() * 101);
     lastValue = (lastValue * (1 - smoothingFactor)) + (randomTarget * smoothingFactor);

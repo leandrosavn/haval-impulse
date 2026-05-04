@@ -277,6 +277,30 @@ export function createDashboardInfo() {
     bsdLeftIndicator.style.display = getState('bsdLeft') ? 'block' : 'none';
     bsdRightIndicator.style.display = getState('bsdRight') ? 'block' : 'none';
 
+    const tripAnalysisIndicator = div({
+        className: 'trip-analysis-indicator',
+        children: [
+            div({
+                className: 'trip-analysis-indicator-status',
+                children: [
+                    div({ className: 'trip-analysis-indicator-icon' }),
+                    div({ className: 'trip-analysis-indicator-label', children: ['SCORE'] })
+                ]
+            }),
+            div({ className: 'trip-analysis-indicator-value', children: ['--'] })
+        ]
+    });
+    tripAnalysisIndicator.style.display = getState('tripAnalysisActive') ? 'flex' : 'none';
+
+    const updateTripAnalysisScore = (score) => {
+        const scoreValue = tripAnalysisIndicator.querySelector('.trip-analysis-indicator-value');
+        const numericScore = Number(score);
+        scoreValue.textContent = Number.isFinite(numericScore)
+            ? Math.round(numericScore).toString().padStart(2, '0')
+            : '--';
+    };
+    updateTripAnalysisScore(getState('tripAnalysisScore'));
+
     batteryContainer.appendChild(batteryBar);
     batteryContainer.appendChild(batteryLabels);
     container.appendChild(warningLabel);
@@ -295,6 +319,7 @@ export function createDashboardInfo() {
     container.appendChild(bottomEvMode);
     container.appendChild(menuWrapper);
     container.appendChild(alertIndicatorsContainer);
+    container.appendChild(tripAnalysisIndicator);
 
     // Subscriptions
     const updateBarSegments = (tracks, percent) => {
@@ -387,7 +412,9 @@ export function createDashboardInfo() {
             warningLabel.style.display = val ? 'block' : 'none';
         }),
         subscribe('bsdLeft', val => bsdLeftIndicator.style.display = val ? 'block' : 'none'),
-        subscribe('bsdRight', val => bsdRightIndicator.style.display = val ? 'block' : 'none')
+        subscribe('bsdRight', val => bsdRightIndicator.style.display = val ? 'block' : 'none'),
+        subscribe('tripAnalysisActive', val => tripAnalysisIndicator.style.display = val ? 'flex' : 'none'),
+        subscribe('tripAnalysisScore', updateTripAnalysisScore)
     ];
 
     updateBarSegments(fuelSegments, getState('fuelPercent'));

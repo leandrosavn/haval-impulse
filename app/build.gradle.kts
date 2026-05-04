@@ -78,6 +78,7 @@ dependencies {
     implementation(libs.material.icons.extended)
     annotationProcessor(libs.annotation.processor)
     compileOnly(libs.annotation)
+    testImplementation(libs.junit)
     debugImplementation(libs.ui.tooling)
     debugImplementation(libs.ui.test.manifest)
 }

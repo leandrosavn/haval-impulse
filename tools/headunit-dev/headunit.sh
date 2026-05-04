@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TELNET_EXEC="$SCRIPT_DIR/telnet-exec.sh"
 
-HEADUNIT_HOST="${HEADUNIT_HOST:-192.168.15.46}"
+HEADUNIT_HOST="${HEADUNIT_HOST:-172.20.10.2}"
 HEADUNIT_PORT="${HEADUNIT_PORT:-23}"
 HEADUNIT_TMP="${HEADUNIT_TMP:-/data/local/tmp}"
 APK_DEST="${APK_DEST:-/data/local/tmp/haval-tool-dev.apk}"
@@ -21,7 +21,7 @@ Usage:
   ./tools/headunit-dev/headunit.sh push-apk <path.apk>
   ./tools/headunit-dev/headunit.sh install-apk <remote.apk>
   ./tools/headunit-dev/headunit.sh deploy-apk
-  ./tools/headunit-dev/headunit.sh deploy-air-control
+  ./tools/headunit-dev/headunit.sh deploy-air-control [http-url]
   ./tools/headunit-dev/headunit.sh logcat
   ./tools/headunit-dev/headunit.sh logcat-app
   ./tools/headunit-dev/headunit.sh dump-info
@@ -38,6 +38,16 @@ Defaults:
   HEADUNIT_HOST=$HEADUNIT_HOST
   HEADUNIT_TMP=$HEADUNIT_TMP
   APK_DEST=$APK_DEST
+
+Deploy air-control via remote curl:
+  If [http-url] is provided, headunit downloads app.html from this URL:
+  curl -L -o /data/local/tmp/app.html <http-url>; chmod 644 /data/local/tmp/app.html
+  Then deploy-air-control auto-restarts by default:
+  AIR_CONTROL_RESTART_MODE=activity-init-clean (default, force-stop + BootReceiver + SplashActivity)
+  AIR_CONTROL_RESTART_MODE=activity-init      (BootReceiver + SplashActivity)
+  AIR_CONTROL_RESTART_MODE=activity         (start activity only)
+  AIR_CONTROL_RESTART_MODE=force-stop-start (more aggressive)
+  AIR_CONTROL_RESTART_MODE=reboot           (reboot headunit)
 EOF
 }
 
@@ -143,7 +153,12 @@ case "${1:-}" in
     exec "$SCRIPT_DIR/deploy-apk.sh"
     ;;
   deploy-air-control)
-    exec "$SCRIPT_DIR/deploy-air-control.sh"
+    shift
+    if [[ $# -ge 1 ]]; then
+      AIR_CONTROL_REMOTE_URL="$1" exec "$SCRIPT_DIR/deploy-air-control.sh"
+    else
+      exec "$SCRIPT_DIR/deploy-air-control.sh"
+    fi
     ;;
   logcat)
     remote_exec "logcat -d -v time | tail -n 400"

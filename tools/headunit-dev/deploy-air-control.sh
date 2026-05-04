@@ -7,8 +7,17 @@ TELNET_EXEC="$SCRIPT_DIR/telnet-exec.sh"
 
 AIR_CONTROL_DIR="${AIR_CONTROL_DIR:-$ROOT_DIR/cluster-widgets/air-control}"
 REMOTE_HTML_PATH="${REMOTE_HTML_PATH:-/data/local/tmp/app.html}"
-HEADUNIT_HOST="${HEADUNIT_HOST:-192.168.15.46}"
+HEADUNIT_HOST="${HEADUNIT_HOST:-172.20.10.2}"
+HEADUNIT_LOCAL_HOST="${HEADUNIT_LOCAL_HOST:-172.20.10.5}"
 HTTP_PORT="${HTTP_PORT:-8766}"
+HTTP_PORT_SEARCH_LIMIT="${HTTP_PORT_SEARCH_LIMIT:-20}"
+AIR_CONTROL_REMOTE_URL="${AIR_CONTROL_REMOTE_URL:-}"
+AIR_CONTROL_SKIP_BUILD="${AIR_CONTROL_SKIP_BUILD:-0}"
+AIR_CONTROL_AUTO_RESTART="${AIR_CONTROL_AUTO_RESTART:-1}"
+AIR_CONTROL_RESTART_MODE="${AIR_CONTROL_RESTART_MODE:-activity-init-clean}" # activity-init-clean | activity-init | activity | force-stop-start | reboot
+AIR_CONTROL_MIN_BYTES="${AIR_CONTROL_MIN_BYTES:-100000}"
+APP_PACKAGE="${APP_PACKAGE:-br.com.redesurftank.havalshisuku}"
+APP_ACTIVITY="${APP_ACTIVITY:-br.com.redesurftank.havalshisuku/.SplashActivity}"
 
 require_file() {
   local file="$1"
@@ -42,12 +51,42 @@ local_http_host() {
   ipconfig getifaddr en0 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}'
 }
 
+find_available_http_port() {
+  local start_port="$1"
+  local max_tries="$2"
+  local candidate
+
+  for ((candidate=start_port; candidate<start_port+max_tries; candidate++)); do
+    if python3 - "$candidate" <<'PY' >/dev/null 2>&1
+import socket
+import sys
+
+port = int(sys.argv[1])
+sock = socket.socket()
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    sock.bind(("0.0.0.0", port))
+except OSError:
+    sys.exit(1)
+finally:
+    sock.close()
+PY
+    then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 push_html_via_http() {
   local html_path="$1"
   local remote_path="$2"
   local host_ip
   local server_log
   local server_pid
+  local server_port
   local url
   local remote_cmd
 
@@ -57,8 +96,17 @@ push_html_via_http() {
     return 1
   fi
 
+  server_port="$(find_available_http_port "$HTTP_PORT" "$HTTP_PORT_SEARCH_LIMIT")" || {
+    echo "[HavalDev] Could not find a free local HTTP port starting at $HTTP_PORT" >&2
+    return 1
+  }
+
+  if [[ "$server_port" != "$HTTP_PORT" ]]; then
+    echo "[HavalDev] HTTP port $HTTP_PORT busy, using $server_port"
+  fi
+
   server_log="$(mktemp)"
-  python3 -m http.server "$HTTP_PORT" --bind 0.0.0.0 --directory "$(dirname "$html_path")" > "$server_log" 2>&1 &
+  python3 -m http.server "$server_port" --bind 0.0.0.0 --directory "$(dirname "$html_path")" > "$server_log" 2>&1 &
   server_pid="$!"
   trap 'if [[ -n "${server_pid:-}" ]]; then kill "$server_pid" >/dev/null 2>&1 || true; fi; if [[ -n "${server_log:-}" ]]; then rm -f "$server_log"; fi' RETURN
 
@@ -69,7 +117,7 @@ push_html_via_http() {
     return 1
   fi
 
-  url="http://${host_ip}:${HTTP_PORT}/$(basename "$html_path")"
+  url="http://${host_ip}:${server_port}/$(basename "$html_path")"
   echo "[HavalDev] Asking headunit to download $url"
 
   remote_cmd="rm -f '${remote_path}.tmp' '${remote_path}'; (curl -fsSL '$url' -o '${remote_path}.tmp' || wget -O '${remote_path}.tmp' '$url' || toybox wget -O '${remote_path}.tmp' '$url' || busybox wget -O '${remote_path}.tmp' '$url') && mv '${remote_path}.tmp' '${remote_path}' && chmod 644 '${remote_path}' && ls -l '${remote_path}'"
@@ -90,6 +138,62 @@ push_html_via_http() {
   echo "[HavalDev] Headunit did not complete app.html download from local HTTP server" >&2
   sed -n '1,80p' "$server_log" >&2
   return 1
+}
+
+push_html_from_remote_url() {
+  local remote_url="$1"
+  local remote_path="$2"
+  local remote_tmp="${remote_path}.tmp"
+  local min_bytes="$AIR_CONTROL_MIN_BYTES"
+  local remote_size_raw
+  local remote_size
+
+  echo "[HavalDev] Sending app.html to $HEADUNIT_HOST using remote curl"
+  echo "[HavalDev] URL: $remote_url"
+  "$TELNET_EXEC" "rm -f '$remote_tmp'; curl -fL -o '$remote_tmp' '$remote_url' || exit 1; size=\$(wc -c '$remote_tmp' | awk '{print \$1}'); if [ \"\$size\" -lt '$min_bytes' ]; then echo '[HavalDev] downloaded file too small:' \"\$size\" >&2; rm -f '$remote_tmp'; exit 2; fi; mv '$remote_tmp' '$remote_path'; chmod 644 '$remote_path'; wc -c '$remote_path'; ls -l '$remote_path'"
+
+  remote_size_raw="$("$TELNET_EXEC" "wc -c '$remote_path' 2>/dev/null | awk '{print \\$1}'" 2>/dev/null || true)"
+  remote_size="$(printf '%s' "$remote_size_raw" | tr -cd '0-9' | head -c 20)"
+  if [[ -z "$remote_size" || "$remote_size" -lt "$min_bytes" ]]; then
+    echo "[HavalDev] Remote app.html validation failed (size=$remote_size, min=$min_bytes). Aborting restart." >&2
+    return 1
+  fi
+
+  echo "[HavalDev] Remote app.html validated (size=$remote_size)"
+}
+
+restart_after_deploy() {
+  if [[ "$AIR_CONTROL_AUTO_RESTART" != "1" ]]; then
+    echo "[HavalDev] Auto-restart disabled (AIR_CONTROL_AUTO_RESTART=$AIR_CONTROL_AUTO_RESTART)"
+    return 0
+  fi
+
+  if [[ "$AIR_CONTROL_RESTART_MODE" == "reboot" ]]; then
+    echo "[HavalDev] Restarting headunit (reboot)"
+    "$TELNET_EXEC" "reboot" || true
+    return 0
+  fi
+
+  if [[ "$AIR_CONTROL_RESTART_MODE" == "force-stop-start" ]]; then
+    echo "[HavalDev] Restarting app (force-stop + start)"
+    "$TELNET_EXEC" "am force-stop '$APP_PACKAGE'; am start -n '$APP_ACTIVITY'" || true
+    return 0
+  fi
+
+  if [[ "$AIR_CONTROL_RESTART_MODE" == "activity-init-clean" ]]; then
+    echo "[HavalDev] Restarting with clean init sequence (force-stop + service start + SplashActivity)"
+    "$TELNET_EXEC" "am force-stop '$APP_PACKAGE'; am start-foreground-service -n '$APP_PACKAGE/.services.ForegroundService' || am startservice -n '$APP_PACKAGE/.services.ForegroundService'; sleep 3; am start -W -n '$APP_ACTIVITY'" || true
+    return 0
+  fi
+
+  if [[ "$AIR_CONTROL_RESTART_MODE" == "activity-init" ]]; then
+    echo "[HavalDev] Restarting with init sequence (service start + SplashActivity)"
+    "$TELNET_EXEC" "am start-foreground-service -n '$APP_PACKAGE/.services.ForegroundService' || am startservice -n '$APP_PACKAGE/.services.ForegroundService'; sleep 2; am start -W -n '$APP_ACTIVITY'" || true
+    return 0
+  fi
+
+  echo "[HavalDev] Restarting activity only (safe mode)"
+  "$TELNET_EXEC" "am start -n '$APP_ACTIVITY' || monkey -p '$APP_PACKAGE' -c android.intent.category.LAUNCHER 1" || true
 }
 
 push_html() {
@@ -163,13 +267,24 @@ push_html() {
 }
 
 echo "[HavalDev] Building air-control frontend"
-cd "$AIR_CONTROL_DIR"
+if [[ -n "$AIR_CONTROL_REMOTE_URL" ]]; then
+  push_html_from_remote_url "$AIR_CONTROL_REMOTE_URL" "$REMOTE_HTML_PATH"
+  restart_after_deploy
+  echo "[HavalDev] Hot deploy complete. APK was not reinstalled."
+  exit 0
+fi
 
-if command -v bun >/dev/null 2>&1; then
-  bun run build
+if [[ "$AIR_CONTROL_SKIP_BUILD" == "1" ]]; then
+  echo "[HavalDev] Skipping build (AIR_CONTROL_SKIP_BUILD=1)"
 else
-  echo "[HavalDev] bun not found, using npm run build"
-  npm run build
+  cd "$AIR_CONTROL_DIR"
+
+  if command -v bun >/dev/null 2>&1; then
+    bun run build
+  else
+    echo "[HavalDev] bun not found, using npm run build"
+    npm run build
+  fi
 fi
 
 HTML_PATH="$AIR_CONTROL_DIR/dist/app.html"
@@ -179,7 +294,6 @@ fi
 
 require_file "$HTML_PATH"
 push_html "$HTML_PATH" "$REMOTE_HTML_PATH"
+restart_after_deploy
 
 echo "[HavalDev] Hot deploy complete. APK was not reinstalled."
-echo "[HavalDev] To reload HTML, restart only the app/screen, for example:"
-echo "  ./tools/headunit-dev/headunit.sh exec \"am force-stop br.com.redesurftank.havalshisuku && am start -n br.com.redesurftank.havalshisuku/.SplashActivity\""

@@ -126,6 +126,8 @@ var stateManager = new StateManager({
     warningActive: false,
     bsdLeft: false,
     bsdRight: false,
+    tripAnalysisActive: false,
+    tripAnalysisScore: null,
 });
 
 var getState = function (key) { return stateManager.get(key); };

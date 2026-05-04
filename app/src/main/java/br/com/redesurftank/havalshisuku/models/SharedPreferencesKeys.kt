@@ -84,5 +84,7 @@ enum class SharedPreferencesKeys(val key: String, val description: String) {
     BOTTOM_BAR_OVERRIDES("bottomBarOverrides", "Overrides de aplicativos salvos (JSON)"),
     ENABLE_SPEED_ADJUSTMENT("enableSpeedAdjustment", "Habilitar ajuste de velocidade no painel"),
     SPEED_ADJUSTMENT_OFFSET("speedAdjustmentOffset", "Fator de ajuste de velocidade (%)"),
-    ALWAYS_USE_THEME_DIMENSIONS("alwaysUseThemeDimensions", "Sempre usar dimensões do tema para apps")
+    ALWAYS_USE_THEME_DIMENSIONS("alwaysUseThemeDimensions", "Sempre usar dimensões do tema para apps"),
+    TRIP_CONSISTENCY_CLUSTER_ACTIVE("tripConsistencyClusterActive", "Indicador discreto de análise de viagem ativa no cluster"),
+    TRIP_CONSISTENCY_CLUSTER_SCORE("tripConsistencyClusterScore", "Score de consistência em tempo real no cluster")
 }

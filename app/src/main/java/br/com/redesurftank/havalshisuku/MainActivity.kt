@@ -97,13 +97,14 @@ fun MainScreen(modifier: Modifier = Modifier) {
         val advancedUse = prefs.getBoolean(SharedPreferencesKeys.ADVANCE_USE.key, false)
 
         val menuItems = buildList {
-                add(DrawerMenuItem("Configurações", Icons.Default.Settings))
-                add(DrawerMenuItem("Telas", Icons.Default.SmartDisplay))
-                add(DrawerMenuItem("Valores Atuais", Icons.Default.DeveloperMode))
-                add(DrawerMenuItem("Instalar Apps", Icons.Default.ShoppingCart))
-                add(DrawerMenuItem("Informações", Icons.Default.Info))
+                add(DrawerMenuItem("Configurações", Icons.Default.Settings, "settings"))
+                add(DrawerMenuItem("Telas", Icons.Default.SmartDisplay, "screens"))
+                add(DrawerMenuItem("Valores Atuais", Icons.Default.DeveloperMode, "values"))
+                add(DrawerMenuItem("Instalar Apps", Icons.Default.ShoppingCart, "apps"))
+                add(DrawerMenuItem("Recursos", Icons.Default.Apps, "features"))
+                add(DrawerMenuItem("Informações", Icons.Default.Info, "info"))
                 if (advancedUse) {
-                        add(DrawerMenuItem("Frida Hooks", Icons.Default.Build))
+                        add(DrawerMenuItem("Frida Hooks", Icons.Default.Build, "frida"))
                 }
         }
 
@@ -261,13 +262,15 @@ fun MainScreen(modifier: Modifier = Modifier) {
                 ) {
                         // Content Area
                         ContentArea {
-                                when (selectedItem) {
-                                        0 -> BasicSettingsTab()
-                                        1 -> TelasTab()
-                                        2 -> CurrentValuesTab()
-                                        3 -> InstallAppsTab()
-                                        4 -> InformacoesTab()
-                                        5 -> FridaHooksTab()
+                                when (menuItems.getOrNull(selectedItem)?.route) {
+                                        "settings" -> BasicSettingsTab()
+                                        "screens" -> TelasTab()
+                                        "values" -> CurrentValuesTab()
+                                        "apps" -> InstallAppsTab()
+                                        "features" -> FeaturesHubScreen()
+                                        "info" -> InformacoesTab()
+                                        "frida" -> FridaHooksTab()
+                                        else -> BasicSettingsTab()
                                 }
                         }
                 }
@@ -276,7 +279,8 @@ fun MainScreen(modifier: Modifier = Modifier) {
 
 data class DrawerMenuItem(
         val title: String,
-        val icon: androidx.compose.ui.graphics.vector.ImageVector
+        val icon: androidx.compose.ui.graphics.vector.ImageVector,
+        val route: String
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
