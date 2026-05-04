@@ -268,6 +268,11 @@ public class ServiceManager {
     }
 
     public synchronized boolean initializeServices(Context context) {
+        if (timeBootReceived <= 0) {
+            timeBootReceived = SystemClock.uptimeMillis();
+            Log.w(TAG, "[HavalDev] timeBootReceived fallback set during initializeServices");
+        }
+
         try {
             if (controlService != null) {
                 if (controlService.asBinder().isBinderAlive()) {
@@ -509,6 +514,7 @@ public class ServiceManager {
             }
             ensureSteeringWheelButtonIntegration();
             ensureSystemApps();
+            TripConsistencyManager.Companion.getInstance().initialize();
         } catch (RemoteException e) {
             Log.e(TAG, "Error during initialization", e);
             return false;
@@ -1716,9 +1722,18 @@ public class ServiceManager {
     public boolean isMainScreenOn() {
         try {
             String engineState = getData(CarConstants.CAR_BASIC_ENGINE_STATE.getValue());
-            return engineState != null && !engineState.equals("-1") && !engineState.equals("15");
+            if (engineState == null || engineState.isEmpty()) {
+                Log.w(TAG, "[HavalDev] Engine state unavailable during visibility check; defaulting main screen to ON");
+                return true;
+            }
+
+            return !engineState.equals("-1") &&
+                    !engineState.equals("10") &&
+                    !engineState.equals("14") &&
+                    !engineState.equals("15");
         } catch (Exception e) {
-            return false;
+            Log.w(TAG, "[HavalDev] Failed to read engine state during visibility check; defaulting main screen to ON", e);
+            return true;
         }
     }
 

@@ -5,9 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TELNET_EXEC="$SCRIPT_DIR/telnet-exec.sh"
 
-HEADUNIT_HOST="${HEADUNIT_HOST:-192.168.15.46}"
-HEADUNIT_LOCAL_HOST="${HEADUNIT_LOCAL_HOST:-}"
+HEADUNIT_HOST="${HEADUNIT_HOST:-172.20.10.2}"
+HEADUNIT_LOCAL_HOST="${HEADUNIT_LOCAL_HOST:-172.20.10.5}"
 HTTP_PORT="${HTTP_PORT:-8768}"
+HTTP_PORT_SEARCH_LIMIT="${HTTP_PORT_SEARCH_LIMIT:-20}"
 OUTPUT_DIR="${OUTPUT_DIR:-$SCRIPT_DIR/output/pulled-files}"
 
 usage() {
@@ -40,6 +41,35 @@ local_http_host() {
   fi
 
   ipconfig getifaddr en0 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}'
+}
+
+find_available_http_port() {
+  local start_port="$1"
+  local max_tries="$2"
+  local candidate
+
+  for ((candidate=start_port; candidate<start_port+max_tries; candidate++)); do
+    if python3 - "$candidate" <<'PY' >/dev/null 2>&1
+import socket
+import sys
+
+port = int(sys.argv[1])
+sock = socket.socket()
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    sock.bind(("0.0.0.0", port))
+except OSError:
+    sys.exit(1)
+finally:
+    sock.close()
+PY
+    then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
 }
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" || $# -lt 1 ]]; then
@@ -112,9 +142,18 @@ if [[ -z "$HOST_IP" ]]; then
   exit 1
 fi
 
+SERVER_PORT="$(find_available_http_port "$HTTP_PORT" "$HTTP_PORT_SEARCH_LIMIT")" || {
+  echo "[HavalDev] Could not find a free local HTTP port starting at $HTTP_PORT" >&2
+  exit 1
+}
+
+if [[ "$SERVER_PORT" != "$HTTP_PORT" ]]; then
+  echo "[HavalDev] HTTP port $HTTP_PORT busy, using $SERVER_PORT"
+fi
+
 rm -f "$LOCAL_PATH" "$LOCAL_PATH.tmp"
 
-python3 "$SERVER_SCRIPT" --port "$HTTP_PORT" --output "$LOCAL_PATH" > "$SERVER_LOG" 2>&1 &
+python3 "$SERVER_SCRIPT" --port "$SERVER_PORT" --output "$LOCAL_PATH" > "$SERVER_LOG" 2>&1 &
 SERVER_PID="$!"
 sleep 1
 
@@ -130,7 +169,7 @@ if [[ -z "$REMOTE_SIZE" ]]; then
   exit 1
 fi
 
-URL="http://${HOST_IP}:${HTTP_PORT}/${LOCAL_NAME}"
+URL="http://${HOST_IP}:${SERVER_PORT}/${LOCAL_NAME}"
 echo "[HavalDev] Pulling $REMOTE_PATH ($REMOTE_SIZE bytes)"
 echo "[HavalDev] Receiver: $URL"
 

@@ -6,11 +6,13 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 HEADUNIT_SCRIPT="$SCRIPT_DIR/headunit.sh"
 TELNET_EXEC="$SCRIPT_DIR/telnet-exec.sh"
 
-HEADUNIT_HOST="${HEADUNIT_HOST:-192.168.15.46}"
+HEADUNIT_HOST="${HEADUNIT_HOST:-172.20.10.2}"
+HEADUNIT_LOCAL_HOST="${HEADUNIT_LOCAL_HOST:-172.20.10.5}"
 APK_DEST="${APK_DEST:-/data/local/tmp/haval-tool-dev.apk}"
 APP_PACKAGE="${APP_PACKAGE:-br.com.redesurftank.havalshisuku}"
 APP_ACTIVITY="${APP_ACTIVITY:-br.com.redesurftank.havalshisuku/.SplashActivity}"
 HTTP_PORT="${HTTP_PORT:-8765}"
+HTTP_PORT_SEARCH_LIMIT="${HTTP_PORT_SEARCH_LIMIT:-20}"
 
 require_file() {
   local file="$1"
@@ -35,12 +37,42 @@ local_http_host() {
   ipconfig getifaddr en0 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}'
 }
 
+find_available_http_port() {
+  local start_port="$1"
+  local max_tries="$2"
+  local candidate
+
+  for ((candidate=start_port; candidate<start_port+max_tries; candidate++)); do
+    if python3 - "$candidate" <<'PY' >/dev/null 2>&1
+import socket
+import sys
+
+port = int(sys.argv[1])
+sock = socket.socket()
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    sock.bind(("0.0.0.0", port))
+except OSError:
+    sys.exit(1)
+finally:
+    sock.close()
+PY
+    then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 download_apk_via_http() {
   local apk_path="$1"
   local remote_path="$2"
   local host_ip
   local server_log
   local server_pid
+  local server_port
   local url
   local remote_cmd
   local expected_size
@@ -52,8 +84,17 @@ download_apk_via_http() {
     return 1
   fi
 
+  server_port="$(find_available_http_port "$HTTP_PORT" "$HTTP_PORT_SEARCH_LIMIT")" || {
+    echo "[HavalDev] Could not find a free local HTTP port starting at $HTTP_PORT" >&2
+    return 1
+  }
+
+  if [[ "$server_port" != "$HTTP_PORT" ]]; then
+    echo "[HavalDev] HTTP port $HTTP_PORT busy, using $server_port"
+  fi
+
   server_log="$(mktemp)"
-  python3 -m http.server "$HTTP_PORT" --bind 0.0.0.0 --directory "$(dirname "$apk_path")" > "$server_log" 2>&1 &
+  python3 -m http.server "$server_port" --bind 0.0.0.0 --directory "$(dirname "$apk_path")" > "$server_log" 2>&1 &
   server_pid="$!"
   trap 'if [[ -n "${server_pid:-}" ]]; then kill "$server_pid" >/dev/null 2>&1 || true; fi; if [[ -n "${server_log:-}" ]]; then rm -f "$server_log"; fi' RETURN
 
@@ -64,7 +105,7 @@ download_apk_via_http() {
     return 1
   fi
 
-  url="http://${host_ip}:${HTTP_PORT}/$(basename "$apk_path")"
+  url="http://${host_ip}:${server_port}/$(basename "$apk_path")"
   expected_size="$(wc -c < "$apk_path" | tr -d '[:space:]')"
   echo "[HavalDev] Asking headunit to download $url"
 

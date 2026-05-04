@@ -3,7 +3,7 @@ set -euo pipefail
 export LC_ALL=C
 export LANG=C
 
-HEADUNIT_HOST="${HEADUNIT_HOST:-192.168.15.46}"
+HEADUNIT_HOST="${HEADUNIT_HOST:-172.20.10.2}"
 HEADUNIT_PORT="${HEADUNIT_PORT:-23}"
 HEADUNIT_TELNET_WAIT="${HEADUNIT_TELNET_WAIT:-1}"
 DONE_MARKER="__HAVALDEV_DONE__"
@@ -14,7 +14,7 @@ Usage:
   ./tools/headunit-dev/telnet-exec.sh "command to run"
 
 Environment:
-  HEADUNIT_HOST   Target host (default: 192.168.15.46)
+  HEADUNIT_HOST   Target host (default: 172.20.10.2)
   HEADUNIT_PORT   Target port (default: 23)
   HEADUNIT_TELNET_WAIT Seconds to keep the socket open after sending command (default: 1)
 EOF

@@ -126,6 +126,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                         SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key,
                                         SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key,
                                         SharedPreferencesKeys.CLUSTER_FUEL_DISPLAY_UNIT.key,
+                                        SharedPreferencesKeys.TRIP_CONSISTENCY_CLUSTER_ACTIVE.key,
+                                        SharedPreferencesKeys.TRIP_CONSISTENCY_CLUSTER_SCORE.key,
                                         SharedPreferencesKeys
                                                 .ENABLE_INSTRUMENT_ODOMETER_AND_REVISION
                                                 .key
@@ -162,6 +164,22 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                             val unit = getClusterFuelDisplayUnit()
                             Log.d(TAG, "[HavalDev] Cluster fuel display unit changed: $unit")
                             evaluateJsIfReady(webView, "control('fuelDisplayUnit', '$unit')")
+                        }
+                        if (key == SharedPreferencesKeys.TRIP_CONSISTENCY_CLUSTER_ACTIVE.key) {
+                            val active = preferences.getBoolean(key, false)
+                            evaluateJsIfReady(webView, "control('tripAnalysisActive', $active)")
+                        }
+                        if (key == SharedPreferencesKeys.TRIP_CONSISTENCY_CLUSTER_SCORE.key) {
+                            val score =
+                                    preferences.getInt(
+                                            SharedPreferencesKeys.TRIP_CONSISTENCY_CLUSTER_SCORE
+                                                    .key,
+                                            -1
+                                    )
+                            evaluateJsIfReady(
+                                    webView,
+                                    "control('tripAnalysisScore', ${if (score >= 0) score else "null"})"
+                            )
                         }
                         root.isVisible =
                                 shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn
@@ -620,6 +638,15 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         updates["batteryRange"] =
                 sm.getData(CarConstants.CAR_EV_INFO_ELECTRIC_MODE_REMAIN_ODOMETER.value) ?: "0"
         updates["fuelDisplayUnit"] = getClusterFuelDisplayUnit()
+        val tripAnalysisActive =
+                preferences.getBoolean(
+                        SharedPreferencesKeys.TRIP_CONSISTENCY_CLUSTER_ACTIVE.key,
+                        false
+                )
+        val tripAnalysisScore =
+                preferences.getInt(SharedPreferencesKeys.TRIP_CONSISTENCY_CLUSTER_SCORE.key, -1)
+        updates["tripAnalysisActive"] = tripAnalysisActive.toString()
+        updates["tripAnalysisScore"] = if (tripAnalysisScore >= 0) tripAnalysisScore.toString() else "null"
 
         // Speed and Engine
         val speedStr = getAdjustedSpeed(sm.getData(CarConstants.CAR_BASIC_VEHICLE_SPEED.value))
@@ -685,7 +712,14 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         if (view == null || updates.isEmpty()) return
         val jsBuilder = StringBuilder("(function(){")
         updates.forEach { (key, value) ->
-            val formattedValue = if (value == "true" || value == "false") value else "'$value'"
+            val formattedValue =
+                    if (value == "true" ||
+                                    value == "false" ||
+                                    value == "null" ||
+                                    value.toDoubleOrNull() != null
+                    )
+                            value
+                    else "'$value'"
             jsBuilder.append("control('$key', $formattedValue);")
         }
         jsBuilder.append("})()")

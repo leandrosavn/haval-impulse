@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TELNET_EXEC="$SCRIPT_DIR/telnet-exec.sh"
 
-HEADUNIT_HOST="${HEADUNIT_HOST:-192.168.15.46}"
+HEADUNIT_HOST="${HEADUNIT_HOST:-172.20.10.2}"
 HEADUNIT_TMP="${HEADUNIT_TMP:-/data/local/tmp}"
 APP_PACKAGE="${APP_PACKAGE:-br.com.redesurftank.havalshisuku}"
 MODE="${1:-diagnostics}"
