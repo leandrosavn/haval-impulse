@@ -1,6 +1,7 @@
 package br.com.redesurftank.havalshisuku.services
 
 import android.content.Context
+import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.graphics.Region
@@ -21,6 +22,8 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import br.com.redesurftank.havalshisuku.R
+import br.com.redesurftank.havalshisuku.broadcastReceivers.AndroidAutoMonitorReceiver
+import br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
 import br.com.redesurftank.havalshisuku.models.BottomBarState
 import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys
 import br.com.redesurftank.havalshisuku.ui.components.BottomBarContent
@@ -50,6 +53,7 @@ class BottomBarService : LifecycleService() {
 
     // Hardcoded overrides for density-aware apps that auto-scale overscan
     // These values are in DP and will be scaled by density
+    /*
     private val APP_OVERRIDES =
             mapOf(
                     "com.google.android.youtube" to BarSettings(0, 0),
@@ -58,18 +62,16 @@ class BottomBarService : LifecycleService() {
                     "com.google.android.apps.messaging" to BarSettings(60, 0),
                     "deezer.android.app" to BarSettings(60, 0),
             )
+    */
 
     private val IGNORE_PACKAGES =
-            setOf(
-                    "com.beantechs.applist",
-                    "com.beantechs.mediacenter" // ,
-                    // "com.beantechs.vehiclecenter",
-                    // "com.beantechs.settings"
+            setOf<String>(
+                    // "com.beantechs.applist",
+                    // "com.beantechs.mediacenter"
                     )
 
     private val BOTTOM_BAR_BASE_HEIGHT_DP = 60f
     private val REFERENCE_OVERSCAN = 60
-    private val BASE_OFFSET_Y = -60 // Starting point for y at 60 overscan
 
     override fun onCreate() {
         android.util.Log.e("BottomBarService", "SERVICE ONCREATE - STARTING")
@@ -93,9 +95,129 @@ class BottomBarService : LifecycleService() {
         observeAutoHide()
         registerUpdateReceiver()
         startDynamicOverscanMonitoring()
+        ensureAccessibilityServiceEnabled()
+        startAppMonitoring()
 
         // Initial timer start
         resetAutoHideTimer()
+
+        // Start Android Auto Broadcast Discovery and Monitoring (Phase 1)
+        lifecycleScope.launch(Dispatchers.IO) {
+            // Wait for Shizuku to be ready
+            var retry = 0
+            while (!ShizukuUtils.isShizukuAvailable() && retry < 20) {
+                delay(1000)
+                retry++
+            }
+
+            val actions = mutableListOf<String>()
+            if (ShizukuUtils.isShizukuAvailable()) {
+                actions.addAll(DisplayAppLauncher.discoverAndroidAutoBroadcasts())
+            } else {
+                Log.e(
+                        "AA_DISCOVERY",
+                        "Shizuku not available after 20s, using fallback actions only"
+                )
+            }
+
+            // Always include these critical ones just in case discovery fails or Shizuku is missing
+            if (!actions.contains("ts.car.androidauto.view_state"))
+                    actions.add("ts.car.androidauto.view_state")
+            if (!actions.contains("com.ts.androidauto.adapter.resource.RECEIVER_CLICK_ACTION"))
+                    actions.add("com.ts.androidauto.adapter.resource.RECEIVER_CLICK_ACTION")
+
+            if (actions.isNotEmpty()) {
+                withContext(Dispatchers.Main) {
+                    val filter = IntentFilter()
+                    actions.forEach { filter.addAction(it) }
+                    registerReceiver(AndroidAutoMonitorReceiver(), filter)
+                    Log.w("AA_MONITOR", "Registered monitor for ${actions.size} actions")
+                }
+            }
+
+            startBroadcastSniffer()
+        }
+    }
+
+    private var isAppMonitoringActive = false
+    private var appMonitorJob: Job? = null
+
+    private fun startAppMonitoring() {
+        if (appMonitorJob?.isActive == true) return
+        isAppMonitoringActive = true
+
+        appMonitorJob =
+                lifecycleScope.launch(Dispatchers.IO) {
+                    Log.w("BottomBarService", "App monitoring watchdog STARTED")
+                    var cycleCount = 0
+                    while (isActive && isAppMonitoringActive) {
+                        cycleCount++
+
+                        if (cycleCount % 6 == 0) { // Every 60 seconds
+                            Log.i("BottomBarService", "WATCHDOG HEARTBEAT #$cycleCount")
+                        }
+
+                        if (DisplayAppLauncher.hasAnyForceFocusApp()) {
+                            try {
+                                val aaPackage = "com.ts.androidauto.app"
+                                val aaTask = DisplayAppLauncher.findTaskForPackage(aaPackage)
+
+                                if (aaTask != null &&
+                                                (aaTask.displayId == 3 || aaTask.displayId == 1)
+                                ) {
+                                    val topApp =
+                                            DisplayAppLauncher.getTopPackageOnDisplay(
+                                                    aaTask.displayId
+                                            )
+                                    val isUserApp =
+                                            DisplayAppLauncher.getAllConfigs().any {
+                                                it.packageName == topApp
+                                            }
+
+                                    if (topApp != aaPackage && !isUserApp) {
+                                        // AA is covered by a system app — send full poke
+                                        Log.w(
+                                                "BottomBarService",
+                                                "Watchdog: app ($topApp) covering AA on display ${aaTask.displayId}. Restoring..."
+                                        )
+                                        DisplayAppLauncher.syncInterconnectionFocus(
+                                                "polling_covered"
+                                        )
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.e("BottomBarService", "Error in watchdog polling", e)
+                            }
+                        }
+                        delay(10000) // Poll every 10 seconds — coverage detection only
+                    }
+                }
+    }
+
+    private fun startBroadcastSniffer() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            // Sniff for the first 60 seconds of service life
+            val startTime = System.currentTimeMillis()
+            while (System.currentTimeMillis() - startTime < 60000) {
+                try {
+                    val output =
+                            ShizukuUtils.runCommandAndGetOutput(
+                                    arrayOf(
+                                            "sh",
+                                            "-c",
+                                            "dumpsys activity broadcasts | grep -i 'androidauto\\|mirror\\|video.*focus\\|projection'"
+                                    )
+                            )
+                    if (output.isNotBlank()) {
+                        Log.d("AA_SNIFFER", "Recent relevant broadcasts:\n$output")
+                    }
+                } catch (e: Exception) {
+                    Log.e("AA_SNIFFER", "Error sniffing broadcasts", e)
+                }
+                delay(10000) // Every 10 seconds
+            }
+            Log.w("AA_SNIFFER", "Broadcast discovery sniffer finished")
+        }
     }
 
     private fun registerUpdateReceiver() {
@@ -169,29 +291,83 @@ class BottomBarService : LifecycleService() {
                 }
     }
 
+    private fun ensureAccessibilityServiceEnabled() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                // Wait for Shizuku
+                var retry = 0
+                while (!ShizukuUtils.isShizukuAvailable() && retry < 20) {
+                    delay(1000)
+                    retry++
+                }
+
+                if (!ShizukuUtils.isShizukuAvailable()) return@launch
+
+                val currentServices =
+                        ShizukuUtils.runCommandAndGetOutput(
+                                        arrayOf(
+                                                "sh",
+                                                "-c",
+                                                "settings get secure enabled_accessibility_services"
+                                        )
+                                )
+                                .trim()
+                val ourService =
+                        "${packageName}/br.com.redesurftank.havalshisuku.services.AccessibilityService"
+
+                if (!currentServices.contains(ourService)) {
+                    val newServices =
+                            if (currentServices == "null" || currentServices.isEmpty()) {
+                                ourService
+                            } else {
+                                "$currentServices:$ourService"
+                            }
+                    ShizukuUtils.runCommandAndGetOutput(
+                            arrayOf(
+                                    "sh",
+                                    "-c",
+                                    "settings put secure enabled_accessibility_services '$newServices'"
+                            )
+                    )
+                    ShizukuUtils.runCommandAndGetOutput(
+                            arrayOf("sh", "-c", "settings put secure accessibility_enabled 1")
+                    )
+                    Log.w("AccessibilityService", "Auto-enabled accessibility service via Shizuku")
+                } else {
+                    Log.d("AccessibilityService", "Accessibility service is already enabled")
+                }
+            } catch (e: Exception) {
+                Log.e("AccessibilityService", "Failed to auto-enable accessibility service", e)
+            }
+        }
+    }
+
     private var currentAppSettings: BarSettings? = null
 
     private fun startDynamicOverscanMonitoring() {
         monitoringJob =
                 lifecycleScope.launch(Dispatchers.IO) {
-                    val density = resources.displayMetrics.density
-
                     while (isActive) {
                         try {
-                            val currentPackage = getTopPackageName()
+                            val currentPackage = getTopPackageOnDisplay(0)
                             if (currentPackage != null) {
                                 withContext(Dispatchers.Main) {
                                     if (BottomBarState.currentPackage != currentPackage) {
                                         BottomBarState.currentPackage = currentPackage
-                                        // Auto-select the current app if it's not the tool itself,
-                                        // a launcher, or in the ignore list
-                                        if (currentPackage != this@BottomBarService.packageName &&
-                                                        !IGNORE_PACKAGES.contains(currentPackage) &&
+                                        // Auto-select the current app if it's not a launcher or in the ignore list
+                                        if (!IGNORE_PACKAGES.contains(currentPackage) &&
                                                         !isLauncher(currentPackage)
                                         ) {
                                             BottomBarState.selectedPackage = currentPackage
                                         }
                                     }
+                                }
+                            } else {
+                                // If we can't find Display 0 package, use tool package as fallback
+                                // to apply default overscan
+                                withContext(Dispatchers.Main) {
+                                    BottomBarState.currentPackage =
+                                            this@BottomBarService.packageName
                                 }
                             }
 
@@ -223,12 +399,12 @@ class BottomBarService : LifecycleService() {
                             if (currentPackage != null && currentPackage != lastPackage) {
                                 lastPackage = currentPackage
 
-                                // Default overscan is now 0 as requested
+                                // Default overscan is back to REFERENCE_OVERSCAN (60)
                                 val storedDefault =
                                         prefs.getInt(
                                                 SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR_OVERSCAN
                                                         .key,
-                                                0
+                                                REFERENCE_OVERSCAN
                                         )
 
                                 // Also update autoHideEnabled from prefs
@@ -244,12 +420,13 @@ class BottomBarService : LifecycleService() {
                                 currentAppSettings = settings
                                 applyAppSettings(settings)
                             }
+
                             // Update Frida status reactive to switches
                             updateFridaStatus(prefs)
                         } catch (e: Exception) {
                             Log.e("BottomBarService", "Error in monitoring loop", e)
                         }
-                        delay(2000)
+                        delay(1000)
                     }
                 }
     }
@@ -266,24 +443,8 @@ class BottomBarService : LifecycleService() {
         }
     }
 
-    private fun getTopPackageName(): String? {
-        val output =
-                ShizukuUtils.runCommandAndGetOutput(
-                        arrayOf(
-                                "sh",
-                                "-c",
-                                "dumpsys activity activities | grep -E 'mResumedActivity|mCurrentFocus|mFocusedActivity'"
-                        )
-                )
-        // More robust regex to handle various dumpsys formats, including inner classes ($) and
-        // different prefixes
-        val regex = Regex("""([a-zA-Z0-9._]+)/[.${'$'}a-zA-Z0-9._]+""")
-        val match = regex.find(output)
-        Log.d(
-                "BottomBarService",
-                "getTopPackageName - raw: ${output.take(200)}, match: ${match?.value}, package: ${match?.groupValues?.get(1)}"
-        )
-        return match?.groupValues?.get(1)
+    private fun getTopPackageOnDisplay(displayId: Int): String? {
+        return DisplayAppLauncher.getTopPackageOnDisplay(displayId)
     }
 
     private fun isLauncher(packageName: String): Boolean {
@@ -313,10 +474,10 @@ class BottomBarService : LifecycleService() {
                     emptyMap()
                 }
 
-        // Priority: Dynamic Overrides -> Hardcoded Overrides -> Default
+        // Priority: Dynamic Overrides -> Default
         return dynamicOverrides[packageName]
-                ?: APP_OVERRIDES[packageName]
-                        ?: BarSettings(overscan = defaultOverscan, yOffset = 0)
+                // ?: APP_OVERRIDES[packageName]
+                ?: BarSettings(overscan = defaultOverscan, yOffset = 0)
     }
 
     private fun applyAppSettings(settings: BarSettings) {
@@ -425,7 +586,7 @@ class BottomBarService : LifecycleService() {
                                                     SharedPreferencesKeys
                                                             .PERSISTENT_BOTTOM_BAR_OVERSCAN
                                                             .key,
-                                                    0
+                                                    REFERENCE_OVERSCAN
                                             )
                                     BarSettings(overscan = storedDefault, yOffset = 0)
                                 }
@@ -438,14 +599,14 @@ class BottomBarService : LifecycleService() {
                 val yOffsetPx = (settings.yOffset * density).toInt()
 
                 withContext(Dispatchers.Main) {
-                    lp.height = (100 * density).toInt()
+                    lp.height = (60 * density).toInt()
                     lp.y = 0
                 }
                 overscanCmd = arrayOf("wm", "overscan", "0,0,0,$overscanValuePx")
             } else {
                 // Trigger zone - keep 40dp (20dp on screen) area touchable
                 withContext(Dispatchers.Main) {
-                    lp.height = (100 * density).toInt()
+                    lp.height = (60 * density).toInt()
                     lp.y = -(20 * density).toInt()
                 }
                 overscanCmd = arrayOf("wm", "overscan", "0,0,0,0")
@@ -524,7 +685,8 @@ class BottomBarService : LifecycleService() {
                                         WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                                         WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                                         WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR or
-                                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                                        WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
                                 PixelFormat.TRANSLUCENT
                         )
                         .apply {
@@ -559,7 +721,8 @@ class BottomBarService : LifecycleService() {
                                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                                         WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                                         WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR or
-                                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                                        WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
                                 PixelFormat.TRANSLUCENT
                         )
                         .apply {
@@ -599,7 +762,7 @@ class BottomBarService : LifecycleService() {
                                                     SharedPreferencesKeys
                                                             .PERSISTENT_BOTTOM_BAR_OVERSCAN
                                                             .key,
-                                                    0
+                                                    REFERENCE_OVERSCAN
                                             )
                                     BarSettings(overscan = storedDefault, yOffset = 0)
                                 }
@@ -613,7 +776,6 @@ class BottomBarService : LifecycleService() {
                 }
 
                 lifecycleScope.launch(Dispatchers.IO) {
-                    ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "size", "reset"))
                     ShizukuUtils.runCommandAndGetOutput(
                             arrayOf("wm", "overscan", "0,0,0,$overscanValuePx")
                     )
@@ -667,8 +829,8 @@ class BottomBarService : LifecycleService() {
                                     region.union(Rect(0, 0, windowWidth, screenHeight))
                                 }
                             } else {
-                                // Bar window is 100dp tall
-                                val windowHeight = (100 * density).toInt()
+                                // Bar window is 60dp tall
+                                val windowHeight = (60 * density).toInt()
                                 val topHandleHeight = (15 * density).toInt()
                                 val hiddenTriggerHeight = (40 * density).toInt()
                                 val visibleBarTouchHeight = (80 * density).toInt()

@@ -943,8 +943,10 @@ public class ServiceManager {
     private void OnDataChanged(String key, String value) {
         Intent broadcastIntent = new Intent("android.intent.haval." + key);
         broadcastIntent.putExtra("value", value);
+        broadcastIntent.setPackage(App.getContext().getPackageName());
         App.getContext().sendBroadcast(broadcastIntent);
         broadcastIntent = new Intent("android.intent.haval." + key + "_" + value);
+        broadcastIntent.setPackage(App.getContext().getPackageName());
         App.getContext().sendBroadcast(broadcastIntent);
         for (IDataChanged listener : new ArrayList<>(dataChangedListeners)) {
             try {

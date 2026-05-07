@@ -1317,29 +1317,13 @@ fun BasicSettingsTab() {
                                                                                         .key,
                                                                                 60
                                                                         )
-                                                                br.com.redesurftank.havalshisuku
-                                                                        .utils.ShizukuUtils
-                                                                        .runCommandAndGetOutput(
-                                                                                arrayOf(
-                                                                                        "sh",
-                                                                                        "-c",
-                                                                                        "wm overscan 0,0,0,$overscan"
-                                                                                )
-                                                                        )
+                                                                br.com.redesurftank.havalshisuku.utils.ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,$overscan"))
                                                         }
                                                         .start()
                                         } else {
                                                 context.stopService(serviceIntent)
                                                 Thread {
-                                                                br.com.redesurftank.havalshisuku
-                                                                        .utils.ShizukuUtils
-                                                                        .runCommandAndGetOutput(
-                                                                                arrayOf(
-                                                                                        "sh",
-                                                                                        "-c",
-                                                                                        "wm overscan 0,0,0,0"
-                                                                                )
-                                                                        )
+                                                                br.com.redesurftank.havalshisuku.utils.ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,0"))
                                                         }
                                                         .start()
                                         }
@@ -1465,7 +1449,6 @@ fun BasicSettingsTab() {
                                                                                         12.dp
                                                                                 )
                                                                 )
-
                                                         }
                                                 }
                                         } else null
@@ -2758,14 +2741,6 @@ fun TelasTab() {
                                 ?: "Básico"
                 )
         }
-        var alwaysUseThemeDimensions by remember {
-                mutableStateOf(
-                        prefs.getBoolean(
-                                SharedPreferencesKeys.ALWAYS_USE_THEME_DIMENSIONS.key,
-                                true
-                        )
-                )
-        }
         var defaultApp by remember {
                 mutableStateOf(
                         prefs.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "")
@@ -3007,16 +2982,6 @@ fun TelasTab() {
                                                                                 .key,
                                                                         it
                                                                 )
-                                                                if (it) {
-                                                                        putBoolean(
-                                                                                SharedPreferencesKeys
-                                                                                        .ALWAYS_USE_THEME_DIMENSIONS
-                                                                                        .key,
-                                                                                true
-                                                                        )
-                                                                        alwaysUseThemeDimensions =
-                                                                                true
-                                                                }
                                                         }
                                                 },
                                                 modifier = Modifier.scale(0.9f),
@@ -3065,91 +3030,6 @@ fun TelasTab() {
                                                 verticalAlignment = Alignment.CenterVertically
                                         ) {
 
-                                                // Theme Dimensions Override Switch
-                                                Row(
-                                                        modifier = Modifier.weight(1f),
-                                                        verticalAlignment =
-                                                                Alignment.CenterVertically
-                                                ) {
-                                                        Column(
-                                                                modifier = Modifier.weight(1f),
-                                                                horizontalAlignment =
-                                                                        Alignment.Start
-                                                        ) {
-                                                                Text(
-                                                                        "Dimensões do Tema",
-                                                                        color = Color.White,
-                                                                        fontSize = 14.sp,
-                                                                        fontWeight =
-                                                                                FontWeight.Medium
-                                                                )
-                                                                Text(
-                                                                        "Sempre usar dimensões do tema para apps",
-                                                                        color = Color(0xFFB0B8C4),
-                                                                        fontSize = 10.sp,
-                                                                        lineHeight = 12.sp
-                                                                )
-                                                        }
-
-                                                        Switch(
-                                                                checked = alwaysUseThemeDimensions,
-                                                                enabled =
-                                                                        enableMask &&
-                                                                                allClusterFunctionsEnabled,
-                                                                onCheckedChange = {
-                                                                        alwaysUseThemeDimensions =
-                                                                                it
-                                                                        prefs.edit {
-                                                                                putBoolean(
-                                                                                        SharedPreferencesKeys
-                                                                                                .ALWAYS_USE_THEME_DIMENSIONS
-                                                                                                .key,
-                                                                                        it
-                                                                                )
-                                                                        }
-                                                                },
-                                                                modifier = Modifier.scale(0.8f),
-                                                                colors =
-                                                                        SwitchDefaults.colors(
-                                                                                checkedThumbColor =
-                                                                                        br.com
-                                                                                                .redesurftank
-                                                                                                .havalshisuku
-                                                                                                .ui
-                                                                                                .components
-                                                                                                .AppColors
-                                                                                                .TextPrimary,
-                                                                                checkedTrackColor =
-                                                                                        br.com
-                                                                                                .redesurftank
-                                                                                                .havalshisuku
-                                                                                                .ui
-                                                                                                .components
-                                                                                                .AppColors
-                                                                                                .Primary,
-                                                                                uncheckedThumbColor =
-                                                                                        br.com
-                                                                                                .redesurftank
-                                                                                                .havalshisuku
-                                                                                                .ui
-                                                                                                .components
-                                                                                                .AppColors
-                                                                                                .TextSecondary,
-                                                                                uncheckedTrackColor =
-                                                                                        br.com
-                                                                                                .redesurftank
-                                                                                                .havalshisuku
-                                                                                                .ui
-                                                                                                .components
-                                                                                                .AppColors
-                                                                                                .ButtonSecondary,
-                                                                                uncheckedBorderColor =
-                                                                                        Color.Transparent,
-                                                                                checkedBorderColor =
-                                                                                        Color.Transparent
-                                                                        )
-                                                        )
-                                                }
 
                                                 Spacer(modifier = Modifier.width(16.dp))
 
@@ -4322,37 +4202,40 @@ fun DisplayAppConfigSection() {
                                                                 contentAlignment = Alignment.Center
                                                         ) {
                                                                 if (config.substituteIcon != null) {
-                                                                        Icon(
-                                                                                imageVector =
-                                                                                        when (config.substituteIcon
-                                                                                        ) {
-                                                                                                "nav" ->
-                                                                                                        Icons.Default
-                                                                                                                .Place
-                                                                                                "music" ->
-                                                                                                        Icons.Default
-                                                                                                                .PlayArrow
-                                                                                                "video" ->
-                                                                                                        Icons.Default
-                                                                                                                .Movie
-                                                                                                "settings" ->
-                                                                                                        Icons.Default
-                                                                                                                .Settings
-                                                                                                "haval" ->
-                                                                                                        Icons.Default
-                                                                                                                .DirectionsCar
-                                                                                                else ->
-                                                                                                        Icons.Default
-                                                                                                                .Android
-                                                                                        },
-                                                                                contentDescription =
-                                                                                        null,
-                                                                                tint = Color.White,
-                                                                                modifier =
-                                                                                        Modifier.size(
-                                                                                                32.dp
-                                                                                        )
-                                                                        )
+                                                                        if (config.substituteIcon == "youtube" || config.substituteIcon == "youtube_music" || config.substituteIcon == "gwm") {
+                                                                                Image(
+                                                                                        painter = painterResource(
+                                                                                                id = when (config.substituteIcon) {
+                                                                                                        "youtube" -> R.drawable.ic_youtube_default
+                                                                                                        "youtube_music" -> R.drawable.ic_youtube_music_default
+                                                                                                        "gwm" -> R.drawable.ic_gwm
+                                                                                                        else -> R.drawable.ic_youtube_default
+                                                                                                }
+                                                                                        ),
+                                                                                        contentDescription = null,
+                                                                                        modifier = Modifier.size(32.dp)
+                                                                                )
+                                                                        } else {
+                                                                                Icon(
+                                                                                        imageVector =
+                                                                                                when (config.substituteIcon) {
+                                                                                                        "nav" -> Icons.Default.Place
+                                                                                                        "music" -> Icons.Default.PlayArrow
+                                                                                                        "video" -> Icons.Default.Movie
+                                                                                                        "settings" -> Icons.Default.Settings
+                                                                                                        "haval" -> Icons.Default.DirectionsCar
+                                                                                                        "game" -> Icons.Default.SportsEsports
+                                                                                                        "tv" -> Icons.Default.Tv
+                                                                                                        "phone" -> Icons.Default.Phone
+                                                                                                        "chat" -> Icons.Default.Chat
+                                                                                                        "map_alt" -> Icons.Default.Map
+                                                                                                        else -> Icons.Default.Android
+                                                                                                },
+                                                                                        contentDescription = null,
+                                                                                        tint = Color.White,
+                                                                                        modifier = Modifier.size(32.dp)
+                                                                                )
+                                                                        }
                                                                 } else if (appInfo.icon != null) {
                                                                         AsyncImage(
                                                                                 model = appInfo.icon,
@@ -4863,6 +4746,8 @@ fun DisplayAppConfigDialog(
         var posY by remember { mutableIntStateOf(existingConfig?.y ?: 0) }
         var sizeW by remember { mutableIntStateOf(existingConfig?.width ?: resolution.first) }
         var sizeH by remember { mutableIntStateOf(existingConfig?.height ?: resolution.second) }
+        var forceFocus by remember { mutableStateOf(existingConfig?.forceFocus ?: false) }
+        var overrideThemeDimensions by remember { mutableStateOf(existingConfig?.overrideThemeDimensions ?: false) }
         var selectedSubIcon by remember { mutableStateOf(existingConfig?.substituteIcon) }
 
         val substituteIcons =
@@ -4878,7 +4763,8 @@ fun DisplayAppConfigDialog(
                         "tv" to "TV",
                         "phone" to "Telefone",
                         "chat" to "Conversa",
-                        "map_alt" to "Explorar"
+                        "map_alt" to "Explorar",
+                        "gwm" to "GWM"
                 )
 
         // Preview tracking
@@ -4901,7 +4787,9 @@ fun DisplayAppConfigDialog(
                         height = sizeH,
                         substituteIcon = selectedSubIcon,
                         iconColor = selectedIconColor,
-                        customName = if (customName.isBlank()) null else customName
+                        customName = if (customName.isBlank()) null else customName,
+                        forceFocus = forceFocus,
+                        overrideThemeDimensions = overrideThemeDimensions
                 )
         }
 
@@ -4962,6 +4850,7 @@ fun DisplayAppConfigDialog(
                 Card(
                         modifier =
                                 Modifier.fillMaxWidth(0.35f)
+                                        .heightIn(max = 550.dp)
                                         .wrapContentHeight()
                                         .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp)),
                         colors =
@@ -4974,9 +4863,9 @@ fun DisplayAppConfigDialog(
                                 modifier =
                                         Modifier.fillMaxWidth()
                                                 .wrapContentHeight()
-                                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                                                .padding(horizontal = 16.dp, vertical = 10.dp)
                                                 .verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                                 Row(
                                         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -5208,21 +5097,17 @@ fun DisplayAppConfigDialog(
                                                                                 false
                                                                 }
                                                         ) {
-                                                                TargetDisplay.entries.forEach {
-                                                                        display ->
+                                                                TargetDisplay.entries.forEach { display ->
                                                                         DropdownMenuItem(
                                                                                 text = {
                                                                                         Text(
                                                                                                 display.label,
-                                                                                                color =
-                                                                                                        Color.White
+                                                                                                color = Color.White
                                                                                         )
                                                                                 },
                                                                                 onClick = {
-                                                                                        selectedDisplay =
-                                                                                                display
-                                                                                        displayDropdownExpanded =
-                                                                                                false
+                                                                                        selectedDisplay = display
+                                                                                        displayDropdownExpanded = false
                                                                                 }
                                                                         )
                                                                 }
@@ -5231,57 +5116,126 @@ fun DisplayAppConfigDialog(
                                         }
                                 }
 
-                                // Resolution info
-                                Text(
-                                        "Resolução: ${resolution.first} x ${resolution.second} | Pos: $posX,$posY",
-                                        color = Color(0xFF808080),
-                                        fontSize = 11.sp
-                                )
+                                Spacer(Modifier.height(4.dp))
 
-                                // Position sliders
+                                // PER-APP OVERRIDES SECTION
                                 Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
-                                        Box(modifier = Modifier.weight(1f)) {
-                                                SliderWithLabel(
-                                                        label = "Posição X",
-                                                        value = posX,
-                                                        range = 0..resolution.first,
-                                                        onValueChange = { posX = it }
-                                                )
+                                        // Forçar Foco (Only for Android Auto basically, but keeping generic)
+                                        if (selectedApp?.packageName == "com.ts.androidauto.app") {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                        Text("Recuperação de Foco", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                                                        Spacer(Modifier.height(4.dp))
+                                                        Row(
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                modifier = Modifier
+                                                                        .fillMaxWidth()
+                                                                        .background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
+                                                                        .clickable { forceFocus = !forceFocus }
+                                                                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                                                        ) {
+                                                                Text("Forçar Foco", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                                                Switch(
+                                                                        checked = forceFocus,
+                                                                        onCheckedChange = { forceFocus = it },
+                                                                        modifier = Modifier.scale(0.8f),
+                                                                        colors = SwitchDefaults.colors(
+                                                                                checkedThumbColor = Color.White,
+                                                                                checkedTrackColor = Color(0xFF4A9EFF)
+                                                                        )
+                                                                )
+                                                        }
+                                                }
                                         }
-                                        Box(modifier = Modifier.weight(1f)) {
-                                                SliderWithLabel(
-                                                        label = "Posição Y",
-                                                        value = posY,
-                                                        range = 0..resolution.second,
-                                                        onValueChange = { posY = it },
-                                                        specialSnap = 135
-                                                )
+
+                                        // Override Theme Dimensions
+                                        Column(modifier = Modifier.weight(1f)) {
+                                                Text("Dimensões", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                                                Spacer(Modifier.height(4.dp))
+                                                Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
+                                                                .clickable { overrideThemeDimensions = !overrideThemeDimensions }
+                                                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                                                ) {
+                                                        Text("Customizar", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                                        Switch(
+                                                                checked = overrideThemeDimensions,
+                                                                onCheckedChange = { overrideThemeDimensions = it },
+                                                                modifier = Modifier.scale(0.8f),
+                                                                colors = SwitchDefaults.colors(
+                                                                        checkedThumbColor = Color.White,
+                                                                        checkedTrackColor = Color(0xFF4A9EFF)
+                                                                )
+                                                        )
+                                                }
                                         }
                                 }
 
-                                // Size sliders
-                                Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                                ) {
-                                        Box(modifier = Modifier.weight(1f)) {
-                                                SliderWithLabel(
-                                                        label = "Largura",
-                                                        value = sizeW,
-                                                        range = 100..resolution.first,
-                                                        onValueChange = { sizeW = it }
+                                if (overrideThemeDimensions || selectedDisplay.id != 3) {
+                                        // Show sliders if explicitly overriding OR if it's NOT Display 3 
+                                        // (Display 3 defaults to theme dimensions unless overriden)
+                                        Column(
+                                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                                // Resolution info
+                                                Text(
+                                                        "Resolução: ${resolution.first} x ${resolution.second} | Pos: $posX,$posY",
+                                                        color = Color(0xFF808080),
+                                                        fontSize = 11.sp
                                                 )
-                                        }
-                                        Box(modifier = Modifier.weight(1f)) {
-                                                SliderWithLabel(
-                                                        label = "Altura",
-                                                        value = sizeH,
-                                                        range = 100..resolution.second,
-                                                        onValueChange = { sizeH = it }
-                                                )
+
+                                                // Position sliders
+                                                Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                                ) {
+                                                        Box(modifier = Modifier.weight(1f)) {
+                                                                SliderWithLabel(
+                                                                        label = "Posição X",
+                                                                        value = posX,
+                                                                        range = 0..resolution.first,
+                                                                        onValueChange = { posX = it }
+                                                                )
+                                                        }
+                                                        Box(modifier = Modifier.weight(1f)) {
+                                                                SliderWithLabel(
+                                                                        label = "Posição Y",
+                                                                        value = posY,
+                                                                        range = 0..resolution.second,
+                                                                        onValueChange = { posY = it },
+                                                                        specialSnap = 135
+                                                                )
+                                                        }
+                                                }
+
+                                                // Size sliders
+                                                Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                                ) {
+                                                        Box(modifier = Modifier.weight(1f)) {
+                                                                SliderWithLabel(
+                                                                        label = "Largura",
+                                                                        value = sizeW,
+                                                                        range = 100..resolution.first,
+                                                                        onValueChange = { sizeW = it }
+                                                                )
+                                                        }
+                                                        Box(modifier = Modifier.weight(1f)) {
+                                                                SliderWithLabel(
+                                                                        label = "Altura",
+                                                                        value = sizeH,
+                                                                        range = 100..resolution.second,
+                                                                        onValueChange = { sizeH = it }
+                                                                )
+                                                        }
+                                                }
                                         }
                                 }
 
@@ -5361,11 +5315,15 @@ fun DisplayAppConfigDialog(
                                                                                 .padding(4.dp),
                                                                 contentAlignment = Alignment.Center
                                                         ) {
-                                                                if (id == "youtube" || id == "youtube_music") {
+                                                                if (id == "youtube" || id == "youtube_music" || id == "gwm") {
                                                                         Image(
                                                                                 painter = painterResource(
-                                                                                        id = if (id == "youtube") R.drawable.ic_youtube_default 
-                                                                                             else R.drawable.ic_youtube_music_default
+                                                                                        id = when (id) {
+                                                                                                "youtube" -> R.drawable.ic_youtube_default
+                                                                                                "youtube_music" -> R.drawable.ic_youtube_music_default
+                                                                                                "gwm" -> R.drawable.ic_gwm
+                                                                                                else -> R.drawable.ic_youtube_default
+                                                                                        }
                                                                                 ),
                                                                                 contentDescription = null,
                                                                                 modifier = Modifier.size(32.dp)
@@ -5787,7 +5745,7 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                                 modifier =
                                         Modifier.fillMaxWidth()
                                                 .wrapContentHeight()
-                                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                                .padding(horizontal = 16.dp, vertical = 7.dp)
                         ) {
                                 Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -6014,7 +5972,7 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
 
                                 LazyVerticalGrid(
                                         columns = GridCells.Adaptive(minSize = 80.dp),
-                                        modifier = Modifier.heightIn(max = 350.dp),
+                                        modifier = Modifier.heightIn(max = 315.dp),
                                         contentPadding = PaddingValues(top = 8.dp),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         verticalArrangement = Arrangement.spacedBy(8.dp)

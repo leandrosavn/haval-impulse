@@ -52,14 +52,11 @@ public class ProjectorManager {
             Log.w(TAG, "InstrumentProjector2 (Mask) initialized on Display " + disp.getDisplayId());
         });
 
-        /* [DEPRECATED] Moved InstrumentProjector to Display 1 (HUD) as intended
-           Disabled to save resources as logic moved to WebView.
         projectorCreators.put(hudDisplayId, (ctx, disp) -> {
             instrumentProjector = new InstrumentProjector(ctx, disp);
             instrumentProjector.show();
             Log.w(TAG, "InstrumentProjector (HUD) initialized on Display " + disp.getDisplayId());
         });
-        */
     }
 
     public void initialize() {
@@ -160,13 +157,11 @@ public class ProjectorManager {
             Log.w(TAG, "InstrumentProjector2 (Mask) refreshed on Display " + disp.getDisplayId());
         });
 
-        /* Disabled to save resources as logic moved to WebView.
         projectorCreators.put(hudDisplayId, (ctx, disp) -> {
             instrumentProjector = new InstrumentProjector(ctx, disp);
             instrumentProjector.show();
             Log.w(TAG, "InstrumentProjector (HUD) refreshed on Display " + disp.getDisplayId());
         });
-        */
 
         initialize();
     }
