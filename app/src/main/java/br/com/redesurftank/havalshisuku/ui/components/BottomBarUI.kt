@@ -2038,18 +2038,26 @@ fun AppGridItem(
                         label = "rotation"
                 )
 
+        val baseModifier = Modifier
+                .fillMaxWidth()
+                .zIndex(if (isDragged) 1f else 0f)
+
+        val itemModifier = if (isDeleteMode || isDragged) {
+                baseModifier.graphicsLayer {
+                        rotationZ = if (isDeleteMode && !isDragged) rotation else 0f
+                        translationX = dragOffset.x
+                        translationY = dragOffset.y
+                        scaleX = 1f
+                        scaleY = 1f
+                        alpha = if (isDragged) 0.8f else 1f
+                }
+        } else {
+                baseModifier
+        }
+
         Column(
                 modifier =
-                        Modifier.fillMaxWidth()
-                                .zIndex(if (isDragged) 1f else 0f)
-                                .graphicsLayer {
-                                        rotationZ = if (isDeleteMode && !isDragged) rotation else 0f
-                                        translationX = dragOffset.x
-                                        translationY = dragOffset.y
-                                        scaleX = 1f
-                                        scaleY = 1f
-                                        alpha = if (isDragged) 0.8f else 1f
-                                }
+                        itemModifier
                                 .pointerInput(isDeleteMode) {
                                         // Container handles drag logic now
                                 }
@@ -2197,7 +2205,7 @@ fun OverrideMenuContent() {
 
         val currentSettings = overrides[pkg]
         val overscanValues = listOf(0, 15, 20, 30, 45, 60, 75, 90, 105, 120)
-        val currentOverscan = currentSettings?.get("overscan") ?: 0
+        val currentOverscan = currentSettings?.get("overscan") ?: 20
         var overscanIndex by
                 remember(pkg) {
                         mutableIntStateOf(overscanValues.indexOf(currentOverscan).coerceAtLeast(0))
@@ -2291,9 +2299,9 @@ fun OverrideMenuContent() {
                                 Button(
                                         onClick = {
                                                 // Reset everything
-                                                overscanIndex = 0
+                                                overscanIndex = overscanValues.indexOf(20).coerceAtLeast(0)
                                                 offset = 0
-                                                updateSettings(0, 0)
+                                                updateSettings(20, 0)
 
                                                 val newOverrides = overrides.toMutableMap()
                                                 newOverrides.remove(pkg)

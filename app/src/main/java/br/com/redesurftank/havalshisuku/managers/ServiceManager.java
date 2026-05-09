@@ -1718,7 +1718,7 @@ public class ServiceManager {
     public boolean isMainScreenOn() {
         try {
             String engineState = getData(CarConstants.CAR_BASIC_ENGINE_STATE.getValue());
-            return engineState != null && !engineState.equals("-1") && !engineState.equals("15");
+            return br.com.redesurftank.havalshisuku.models.EngineState.isMainScreenOn(engineState);
         } catch (Exception e) {
             return false;
         }

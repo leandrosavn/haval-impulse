@@ -84,7 +84,7 @@ public class ProjectorManager {
 
             ServiceManager.getInstance().addDataChangedListener((key, value) -> {
                 if (key.equals(CarConstants.CAR_BASIC_ENGINE_STATE.getValue())) {
-                    if ("-1".equals(value) || "15".equals(value) || "14".equals(value) || "10".equals(value)) {
+                    if (!br.com.redesurftank.havalshisuku.models.EngineState.isMainScreenOn(value)) {
                         if (instrumentProjector != null) {
                             instrumentProjector.carMainScreenOff();
                         }

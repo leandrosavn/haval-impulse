@@ -71,7 +71,7 @@ class BottomBarService : LifecycleService() {
                     )
 
     private val BOTTOM_BAR_BASE_HEIGHT_DP = 60f
-    private val REFERENCE_OVERSCAN = 60
+    private val REFERENCE_OVERSCAN = 20
 
     override fun onCreate() {
         android.util.Log.e("BottomBarService", "SERVICE ONCREATE - STARTING")
@@ -629,20 +629,35 @@ class BottomBarService : LifecycleService() {
         val mv = menuComposeView ?: return
         val mp = menuParams ?: return
 
-        if (show && !isMenuWindowAdded) {
+        if (!isMenuWindowAdded) {
             try {
+                // Initialize as hidden if first added
+                if (!show) {
+                    mp.width = 0
+                    mp.height = 0
+                    mp.flags = mp.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                }
                 wm.addView(mv, mp)
                 isMenuWindowAdded = true
             } catch (e: Exception) {
                 Log.e("BottomBarService", "Error adding menu window", e)
+                return
             }
-        } else if (!show && isMenuWindowAdded) {
-            try {
-                wm.removeView(mv)
-                isMenuWindowAdded = false
-            } catch (e: Exception) {
-                Log.e("BottomBarService", "Error removing menu window", e)
+        }
+
+        try {
+            if (show) {
+                mp.width = WindowManager.LayoutParams.MATCH_PARENT
+                mp.height = WindowManager.LayoutParams.MATCH_PARENT
+                mp.flags = mp.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+            } else {
+                mp.width = 0
+                mp.height = 0
+                mp.flags = mp.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
             }
+            wm.updateViewLayout(mv, mp)
+        } catch (e: Exception) {
+            Log.e("BottomBarService", "Error updating menu window layout", e)
         }
     }
 

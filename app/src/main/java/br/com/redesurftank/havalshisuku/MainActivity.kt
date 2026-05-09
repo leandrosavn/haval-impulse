@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -1315,15 +1314,31 @@ fun BasicSettingsTab() {
                                                                                 SharedPreferencesKeys
                                                                                         .PERSISTENT_BOTTOM_BAR_OVERSCAN
                                                                                         .key,
-                                                                                60
+                                                                                20
                                                                         )
-                                                                br.com.redesurftank.havalshisuku.utils.ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,$overscan"))
+                                                                br.com.redesurftank.havalshisuku
+                                                                        .utils.ShizukuUtils
+                                                                        .runCommandAndGetOutput(
+                                                                                arrayOf(
+                                                                                        "wm",
+                                                                                        "overscan",
+                                                                                        "0,0,0,$overscan"
+                                                                                )
+                                                                        )
                                                         }
                                                         .start()
                                         } else {
                                                 context.stopService(serviceIntent)
                                                 Thread {
-                                                                br.com.redesurftank.havalshisuku.utils.ShizukuUtils.runCommandAndGetOutput(arrayOf("wm", "overscan", "0,0,0,0"))
+                                                                br.com.redesurftank.havalshisuku
+                                                                        .utils.ShizukuUtils
+                                                                        .runCommandAndGetOutput(
+                                                                                arrayOf(
+                                                                                        "wm",
+                                                                                        "overscan",
+                                                                                        "0,0,0,0"
+                                                                                )
+                                                                        )
                                                         }
                                                         .start()
                                         }
@@ -2324,8 +2339,7 @@ fun BasicSettingsTab() {
                         dialog.show()
                 }
         }
-
-        }
+}
 
 @Composable
 fun FridaHooksTab() {
@@ -2941,7 +2955,6 @@ fun TelasTab() {
                                                         )
                                         )
                                 }
-
                         }
                 }
 
@@ -3018,7 +3031,6 @@ fun TelasTab() {
                                         )
                                 }
 
-
                                 if (enableMask && allClusterFunctionsEnabled) {
                                         HorizontalDivider(
                                                 color = Color(0xFF3A3F47),
@@ -3029,8 +3041,6 @@ fun TelasTab() {
                                                 modifier = Modifier.fillMaxWidth(),
                                                 verticalAlignment = Alignment.CenterVertically
                                         ) {
-
-
                                                 Spacer(modifier = Modifier.width(16.dp))
 
                                                 // Default App Selection
@@ -3916,7 +3926,9 @@ fun TelasTab() {
                                                                         ) {
                                                                                 Column {
                                                                                         Text(
-                                                                                                if (entry.km != 0) {
+                                                                                                if (entry.km !=
+                                                                                                                0
+                                                                                                ) {
                                                                                                         "${String.format("%,d", entry.km) } km"
                                                                                                 } else {
                                                                                                         "Data de Compra"
@@ -4164,9 +4176,14 @@ fun DisplayAppConfigSection() {
                         }
                 } else {
                         configs.forEach { config ->
-                                val appInfo = remember(config.packageName, config.customName) {
-                                        DisplayAppLauncher.resolveAppInfo(context, config.packageName, config.customName)
-                                }
+                                val appInfo =
+                                        remember(config.packageName, config.customName) {
+                                                DisplayAppLauncher.resolveAppInfo(
+                                                        context,
+                                                        config.packageName,
+                                                        config.customName
+                                                )
+                                        }
                                 val displayLabel =
                                         TargetDisplay.fromId(config.displayId)?.label
                                                 ?: "Display ${config.displayId}"
@@ -4202,53 +4219,112 @@ fun DisplayAppConfigSection() {
                                                                 contentAlignment = Alignment.Center
                                                         ) {
                                                                 if (config.substituteIcon != null) {
-                                                                        if (config.substituteIcon == "youtube" || config.substituteIcon == "youtube_music" || config.substituteIcon == "gwm") {
+                                                                        if (config.substituteIcon ==
+                                                                                        "youtube" ||
+                                                                                        config.substituteIcon ==
+                                                                                                "youtube_music" ||
+                                                                                        config.substituteIcon ==
+                                                                                                "gwm"
+                                                                        ) {
                                                                                 Image(
-                                                                                        painter = painterResource(
-                                                                                                id = when (config.substituteIcon) {
-                                                                                                        "youtube" -> R.drawable.ic_youtube_default
-                                                                                                        "youtube_music" -> R.drawable.ic_youtube_music_default
-                                                                                                        "gwm" -> R.drawable.ic_gwm
-                                                                                                        else -> R.drawable.ic_youtube_default
-                                                                                                }
-                                                                                        ),
-                                                                                        contentDescription = null,
-                                                                                        modifier = Modifier.size(32.dp)
+                                                                                        painter =
+                                                                                                painterResource(
+                                                                                                        id =
+                                                                                                                when (config.substituteIcon
+                                                                                                                ) {
+                                                                                                                        "youtube" ->
+                                                                                                                                R.drawable
+                                                                                                                                        .ic_youtube_default
+                                                                                                                        "youtube_music" ->
+                                                                                                                                R.drawable
+                                                                                                                                        .ic_youtube_music_default
+                                                                                                                        "gwm" ->
+                                                                                                                                R.drawable
+                                                                                                                                        .ic_gwm
+                                                                                                                        else ->
+                                                                                                                                R.drawable
+                                                                                                                                        .ic_youtube_default
+                                                                                                                }
+                                                                                                ),
+                                                                                        contentDescription =
+                                                                                                null,
+                                                                                        modifier =
+                                                                                                Modifier.size(
+                                                                                                        32.dp
+                                                                                                )
                                                                                 )
                                                                         } else {
                                                                                 Icon(
                                                                                         imageVector =
-                                                                                                when (config.substituteIcon) {
-                                                                                                        "nav" -> Icons.Default.Place
-                                                                                                        "music" -> Icons.Default.PlayArrow
-                                                                                                        "video" -> Icons.Default.Movie
-                                                                                                        "settings" -> Icons.Default.Settings
-                                                                                                        "haval" -> Icons.Default.DirectionsCar
-                                                                                                        "game" -> Icons.Default.SportsEsports
-                                                                                                        "tv" -> Icons.Default.Tv
-                                                                                                        "phone" -> Icons.Default.Phone
-                                                                                                        "chat" -> Icons.Default.Chat
-                                                                                                        "map_alt" -> Icons.Default.Map
-                                                                                                        else -> Icons.Default.Android
+                                                                                                when (config.substituteIcon
+                                                                                                ) {
+                                                                                                        "nav" ->
+                                                                                                                Icons.Default
+                                                                                                                        .Place
+                                                                                                        "music" ->
+                                                                                                                Icons.Default
+                                                                                                                        .PlayArrow
+                                                                                                        "video" ->
+                                                                                                                Icons.Default
+                                                                                                                        .Movie
+                                                                                                        "settings" ->
+                                                                                                                Icons.Default
+                                                                                                                        .Settings
+                                                                                                        "haval" ->
+                                                                                                                Icons.Default
+                                                                                                                        .DirectionsCar
+                                                                                                        "game" ->
+                                                                                                                Icons.Default
+                                                                                                                        .SportsEsports
+                                                                                                        "tv" ->
+                                                                                                                Icons.Default
+                                                                                                                        .Tv
+                                                                                                        "phone" ->
+                                                                                                                Icons.Default
+                                                                                                                        .Phone
+                                                                                                        "chat" ->
+                                                                                                                Icons.Default
+                                                                                                                        .Chat
+                                                                                                        "map_alt" ->
+                                                                                                                Icons.Default
+                                                                                                                        .Map
+                                                                                                        else ->
+                                                                                                                Icons.Default
+                                                                                                                        .Android
                                                                                                 },
-                                                                                        contentDescription = null,
-                                                                                        tint = Color.White,
-                                                                                        modifier = Modifier.size(32.dp)
+                                                                                        contentDescription =
+                                                                                                null,
+                                                                                        tint =
+                                                                                                Color.White,
+                                                                                        modifier =
+                                                                                                Modifier.size(
+                                                                                                        32.dp
+                                                                                                )
                                                                                 )
                                                                         }
                                                                 } else if (appInfo.icon != null) {
                                                                         AsyncImage(
-                                                                                model = appInfo.icon,
-                                                                                contentDescription = null,
-                                                                                modifier = Modifier.fillMaxSize(),
-                                                                                contentScale = ContentScale.Fit
+                                                                                model =
+                                                                                        appInfo.icon,
+                                                                                contentDescription =
+                                                                                        null,
+                                                                                modifier =
+                                                                                        Modifier.fillMaxSize(),
+                                                                                contentScale =
+                                                                                        ContentScale
+                                                                                                .Fit
                                                                         )
                                                                 } else {
                                                                         Icon(
-                                                                                Icons.Default.Android,
-                                                                                contentDescription = null,
+                                                                                Icons.Default
+                                                                                        .Android,
+                                                                                contentDescription =
+                                                                                        null,
                                                                                 tint = Color.White,
-                                                                                modifier = Modifier.size(32.dp)
+                                                                                modifier =
+                                                                                        Modifier.size(
+                                                                                                32.dp
+                                                                                        )
                                                                         )
                                                                 }
                                                         }
@@ -4725,6 +4801,15 @@ fun DisplayAppConfigDialog(
         var selectedApp by remember { mutableStateOf<InstalledAppInfo?>(null) }
         var showAppPicker by remember { mutableStateOf(false) }
 
+        val configuredPackages = remember {
+                val all = DisplayAppLauncher.getAllConfigs().map { it.packageName }.toSet()
+                if (existingConfig != null) {
+                        all - existingConfig.packageName
+                } else {
+                        all
+                }
+        }
+
         // Display selection
         var selectedDisplay by remember {
                 mutableStateOf(
@@ -4747,7 +4832,9 @@ fun DisplayAppConfigDialog(
         var sizeW by remember { mutableIntStateOf(existingConfig?.width ?: resolution.first) }
         var sizeH by remember { mutableIntStateOf(existingConfig?.height ?: resolution.second) }
         var forceFocus by remember { mutableStateOf(existingConfig?.forceFocus ?: false) }
-        var overrideThemeDimensions by remember { mutableStateOf(existingConfig?.overrideThemeDimensions ?: false) }
+        var overrideThemeDimensions by remember {
+                mutableStateOf(existingConfig?.overrideThemeDimensions ?: false)
+        }
         var selectedSubIcon by remember { mutableStateOf(existingConfig?.substituteIcon) }
 
         val substituteIcons =
@@ -4773,6 +4860,7 @@ fun DisplayAppConfigDialog(
 
         var customName by remember { mutableStateOf(existingConfig?.customName ?: "") }
         var showRenameDialog by remember { mutableStateOf(false) }
+        var showInterconnectionConfirmDialog by remember { mutableStateOf<InstalledAppInfo?>(null) }
 
         // Helper to build config from current state
         fun currentConfig(): DisplayAppConfig? {
@@ -4796,11 +4884,12 @@ fun DisplayAppConfigDialog(
         // Load existing app info and auto-launch preview
         LaunchedEffect(existingConfig) {
                 if (existingConfig != null) {
-                        val appInfo = DisplayAppLauncher.resolveAppInfo(
-                                context,
-                                existingConfig.packageName,
-                                existingConfig.customName
-                        )
+                        val appInfo =
+                                DisplayAppLauncher.resolveAppInfo(
+                                        context,
+                                        existingConfig.packageName,
+                                        existingConfig.customName
+                                )
                         selectedApp =
                                 InstalledAppInfo(
                                         existingConfig.packageName,
@@ -5097,17 +5186,21 @@ fun DisplayAppConfigDialog(
                                                                                 false
                                                                 }
                                                         ) {
-                                                                TargetDisplay.entries.forEach { display ->
+                                                                TargetDisplay.entries.forEach {
+                                                                        display ->
                                                                         DropdownMenuItem(
                                                                                 text = {
                                                                                         Text(
                                                                                                 display.label,
-                                                                                                color = Color.White
+                                                                                                color =
+                                                                                                        Color.White
                                                                                         )
                                                                                 },
                                                                                 onClick = {
-                                                                                        selectedDisplay = display
-                                                                                        displayDropdownExpanded = false
+                                                                                        selectedDisplay =
+                                                                                                display
+                                                                                        displayDropdownExpanded =
+                                                                                                false
                                                                                 }
                                                                         )
                                                                 }
@@ -5123,28 +5216,66 @@ fun DisplayAppConfigDialog(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
-                                        // Forçar Foco (Only for Android Auto basically, but keeping generic)
+                                        // Forçar Foco (Only for Android Auto basically, but keeping
+                                        // generic)
                                         if (selectedApp?.packageName == "com.ts.androidauto.app") {
                                                 Column(modifier = Modifier.weight(1f)) {
-                                                        Text("Recuperação de Foco", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                                                        Text(
+                                                                "Recuperação de Foco",
+                                                                color = Color(0xFFB0B8C4),
+                                                                fontSize = 12.sp
+                                                        )
                                                         Spacer(Modifier.height(4.dp))
                                                         Row(
-                                                                verticalAlignment = Alignment.CenterVertically,
-                                                                modifier = Modifier
-                                                                        .fillMaxWidth()
-                                                                        .background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
-                                                                        .clickable { forceFocus = !forceFocus }
-                                                                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                                                                verticalAlignment =
+                                                                        Alignment.CenterVertically,
+                                                                modifier =
+                                                                        Modifier.fillMaxWidth()
+                                                                                .background(
+                                                                                        Color(
+                                                                                                0xFF2A2F37
+                                                                                        ),
+                                                                                        RoundedCornerShape(
+                                                                                                8.dp
+                                                                                        )
+                                                                                )
+                                                                                .clickable {
+                                                                                        forceFocus =
+                                                                                                !forceFocus
+                                                                                }
+                                                                                .padding(
+                                                                                        horizontal =
+                                                                                                12.dp,
+                                                                                        vertical =
+                                                                                                8.dp
+                                                                                )
                                                         ) {
-                                                                Text("Forçar Foco", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                                                Text(
+                                                                        "Forçar Foco",
+                                                                        color = Color.White,
+                                                                        fontSize = 14.sp,
+                                                                        modifier =
+                                                                                Modifier.weight(1f)
+                                                                )
                                                                 Switch(
                                                                         checked = forceFocus,
-                                                                        onCheckedChange = { forceFocus = it },
-                                                                        modifier = Modifier.scale(0.8f),
-                                                                        colors = SwitchDefaults.colors(
-                                                                                checkedThumbColor = Color.White,
-                                                                                checkedTrackColor = Color(0xFF4A9EFF)
-                                                                        )
+                                                                        onCheckedChange = {
+                                                                                forceFocus = it
+                                                                        },
+                                                                        modifier =
+                                                                                Modifier.scale(
+                                                                                        0.8f
+                                                                                ),
+                                                                        colors =
+                                                                                SwitchDefaults
+                                                                                        .colors(
+                                                                                                checkedThumbColor =
+                                                                                                        Color.White,
+                                                                                                checkedTrackColor =
+                                                                                                        Color(
+                                                                                                                0xFF4A9EFF
+                                                                                                        )
+                                                                                        )
                                                                 )
                                                         }
                                                 }
@@ -5152,35 +5283,65 @@ fun DisplayAppConfigDialog(
 
                                         // Override Theme Dimensions
                                         Column(modifier = Modifier.weight(1f)) {
-                                                Text("Dimensões", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                                                Text(
+                                                        "Dimensões",
+                                                        color = Color(0xFFB0B8C4),
+                                                        fontSize = 12.sp
+                                                )
                                                 Spacer(Modifier.height(4.dp))
                                                 Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        modifier = Modifier
-                                                                .fillMaxWidth()
-                                                                .background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
-                                                                .clickable { overrideThemeDimensions = !overrideThemeDimensions }
-                                                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                                                        verticalAlignment =
+                                                                Alignment.CenterVertically,
+                                                        modifier =
+                                                                Modifier.fillMaxWidth()
+                                                                        .background(
+                                                                                Color(0xFF2A2F37),
+                                                                                RoundedCornerShape(
+                                                                                        8.dp
+                                                                                )
+                                                                        )
+                                                                        .clickable {
+                                                                                overrideThemeDimensions =
+                                                                                        !overrideThemeDimensions
+                                                                        }
+                                                                        .padding(
+                                                                                horizontal = 12.dp,
+                                                                                vertical = 8.dp
+                                                                        )
                                                 ) {
-                                                        Text("Customizar", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                                        Text(
+                                                                "Override de Dimensões",
+                                                                color = Color.White,
+                                                                fontSize = 14.sp,
+                                                                modifier = Modifier.weight(1f)
+                                                        )
                                                         Switch(
                                                                 checked = overrideThemeDimensions,
-                                                                onCheckedChange = { overrideThemeDimensions = it },
+                                                                onCheckedChange = {
+                                                                        overrideThemeDimensions = it
+                                                                },
                                                                 modifier = Modifier.scale(0.8f),
-                                                                colors = SwitchDefaults.colors(
-                                                                        checkedThumbColor = Color.White,
-                                                                        checkedTrackColor = Color(0xFF4A9EFF)
-                                                                )
+                                                                colors =
+                                                                        SwitchDefaults.colors(
+                                                                                checkedThumbColor =
+                                                                                        Color.White,
+                                                                                checkedTrackColor =
+                                                                                        Color(
+                                                                                                0xFF4A9EFF
+                                                                                        )
+                                                                        )
                                                         )
                                                 }
                                         }
                                 }
 
                                 if (overrideThemeDimensions || selectedDisplay.id != 3) {
-                                        // Show sliders if explicitly overriding OR if it's NOT Display 3 
+                                        // Show sliders if explicitly overriding OR if it's NOT
+                                        // Display 3
                                         // (Display 3 defaults to theme dimensions unless overriden)
                                         Column(
-                                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                                modifier =
+                                                        Modifier.fillMaxWidth().padding(top = 4.dp),
                                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                                         ) {
                                                 // Resolution info
@@ -5193,22 +5354,29 @@ fun DisplayAppConfigDialog(
                                                 // Position sliders
                                                 Row(
                                                         modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                                        horizontalArrangement =
+                                                                Arrangement.spacedBy(16.dp)
                                                 ) {
                                                         Box(modifier = Modifier.weight(1f)) {
                                                                 SliderWithLabel(
                                                                         label = "Posição X",
                                                                         value = posX,
                                                                         range = 0..resolution.first,
-                                                                        onValueChange = { posX = it }
+                                                                        onValueChange = {
+                                                                                posX = it
+                                                                        }
                                                                 )
                                                         }
                                                         Box(modifier = Modifier.weight(1f)) {
                                                                 SliderWithLabel(
                                                                         label = "Posição Y",
                                                                         value = posY,
-                                                                        range = 0..resolution.second,
-                                                                        onValueChange = { posY = it },
+                                                                        range =
+                                                                                0..resolution
+                                                                                                .second,
+                                                                        onValueChange = {
+                                                                                posY = it
+                                                                        },
                                                                         specialSnap = 135
                                                                 )
                                                         }
@@ -5217,22 +5385,31 @@ fun DisplayAppConfigDialog(
                                                 // Size sliders
                                                 Row(
                                                         modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                                        horizontalArrangement =
+                                                                Arrangement.spacedBy(16.dp)
                                                 ) {
                                                         Box(modifier = Modifier.weight(1f)) {
                                                                 SliderWithLabel(
                                                                         label = "Largura",
                                                                         value = sizeW,
-                                                                        range = 100..resolution.first,
-                                                                        onValueChange = { sizeW = it }
+                                                                        range =
+                                                                                100..resolution
+                                                                                                .first,
+                                                                        onValueChange = {
+                                                                                sizeW = it
+                                                                        }
                                                                 )
                                                         }
                                                         Box(modifier = Modifier.weight(1f)) {
                                                                 SliderWithLabel(
                                                                         label = "Altura",
                                                                         value = sizeH,
-                                                                        range = 100..resolution.second,
-                                                                        onValueChange = { sizeH = it }
+                                                                        range =
+                                                                                100..resolution
+                                                                                                .second,
+                                                                        onValueChange = {
+                                                                                sizeH = it
+                                                                        }
                                                                 )
                                                         }
                                                 }
@@ -5315,18 +5492,37 @@ fun DisplayAppConfigDialog(
                                                                                 .padding(4.dp),
                                                                 contentAlignment = Alignment.Center
                                                         ) {
-                                                                if (id == "youtube" || id == "youtube_music" || id == "gwm") {
+                                                                if (id == "youtube" ||
+                                                                                id ==
+                                                                                        "youtube_music" ||
+                                                                                id == "gwm"
+                                                                ) {
                                                                         Image(
-                                                                                painter = painterResource(
-                                                                                        id = when (id) {
-                                                                                                "youtube" -> R.drawable.ic_youtube_default
-                                                                                                "youtube_music" -> R.drawable.ic_youtube_music_default
-                                                                                                "gwm" -> R.drawable.ic_gwm
-                                                                                                else -> R.drawable.ic_youtube_default
-                                                                                        }
-                                                                                ),
-                                                                                contentDescription = null,
-                                                                                modifier = Modifier.size(32.dp)
+                                                                                painter =
+                                                                                        painterResource(
+                                                                                                id =
+                                                                                                        when (id
+                                                                                                        ) {
+                                                                                                                "youtube" ->
+                                                                                                                        R.drawable
+                                                                                                                                .ic_youtube_default
+                                                                                                                "youtube_music" ->
+                                                                                                                        R.drawable
+                                                                                                                                .ic_youtube_music_default
+                                                                                                                "gwm" ->
+                                                                                                                        R.drawable
+                                                                                                                                .ic_gwm
+                                                                                                                else ->
+                                                                                                                        R.drawable
+                                                                                                                                .ic_youtube_default
+                                                                                                        }
+                                                                                        ),
+                                                                                contentDescription =
+                                                                                        null,
+                                                                                modifier =
+                                                                                        Modifier.size(
+                                                                                                32.dp
+                                                                                        )
                                                                         )
                                                                 } else {
                                                                         Icon(
@@ -5366,10 +5562,13 @@ fun DisplayAppConfigDialog(
                                                                                                         Icons.Default
                                                                                                                 .Android
                                                                                         },
-                                                                                contentDescription = null,
+                                                                                contentDescription =
+                                                                                        null,
                                                                                 tint = Color.White,
                                                                                 modifier =
-                                                                                        Modifier.size(24.dp)
+                                                                                        Modifier.size(
+                                                                                                24.dp
+                                                                                        )
                                                                         )
                                                                 }
                                                         }
@@ -5493,24 +5692,145 @@ fun DisplayAppConfigDialog(
 
         if (showAppPicker) {
                 AppPickerDialog(
+                        alreadyConfigured = configuredPackages,
                         onDismiss = { showAppPicker = false },
                         onAppSelected = { app ->
-                                selectedApp = app
-                                showAppPicker = false
-                                // Auto-launch full screen on target display for visual reference
-                                previewActive = true
-                                scope.launch {
-                                        DisplayAppLauncher.launchApp(
-                                                DisplayAppConfig(
-                                                        packageName = app.packageName,
-                                                        activityName = app.activityName,
-                                                        displayId = selectedDisplay.id,
-                                                        x = posX,
-                                                        y = posY,
-                                                        width = sizeW,
-                                                        height = sizeH
+                                if (app.packageName == "com.ts.androidauto.app" || app.packageName == "com.ts.carplay.app") {
+                                        showInterconnectionConfirmDialog = app
+                                        showAppPicker = false
+                                } else {
+                                        selectedApp = app
+                                        showAppPicker = false
+                                        // Auto-launch full screen on target display for visual reference
+                                        previewActive = true
+                                        scope.launch {
+                                                DisplayAppLauncher.launchApp(
+                                                        DisplayAppConfig(
+                                                                packageName = app.packageName,
+                                                                activityName = app.activityName,
+                                                                displayId = selectedDisplay.id,
+                                                                x = posX,
+                                                                y = posY,
+                                                                width = sizeW,
+                                                                height = sizeH
+                                                        )
                                                 )
-                                        )
+                                        }
+                                }
+                        }
+                )
+        }
+
+        if (showInterconnectionConfirmDialog != null) {
+                val app = showInterconnectionConfirmDialog!!
+                AlertDialog(
+                        onDismissRequest = { showInterconnectionConfirmDialog = null },
+                        containerColor = Color(0xFF1E2228),
+                        titleContentColor = Color.White,
+                        textContentColor = Color.White,
+                        title = {
+                                Text(
+                                        text = "Aviso de Compatibilidade",
+                                        color = Color.White,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold
+                                )
+                        },
+                        text = {
+                                Column(
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                        if (app.packageName == "com.ts.androidauto.app") {
+                                                Text(
+                                                        text = "O suporte ao Android Auto é experimental e possui algumas limitações importantes:",
+                                                        color = Color(0xFFB0B8C4),
+                                                        fontSize = 13.sp,
+                                                        lineHeight = 18.sp
+                                                )
+                                                Column(
+                                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                                        modifier = Modifier.padding(start = 4.dp)
+                                                ) {
+                                                        Row(
+                                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                                verticalAlignment = Alignment.Top
+                                                        ) {
+                                                                Text("•", color = Color(0xFF4A9EFF), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                                Text(
+                                                                        text = "O conteúdo do Android Auto não se redimensiona, apenas é recortado (crop).",
+                                                                        color = Color(0xFFB0B8C4),
+                                                                        fontSize = 12.sp,
+                                                                        lineHeight = 16.sp
+                                                                )
+                                                        }
+                                                        Row(
+                                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                                verticalAlignment = Alignment.Top
+                                                        ) {
+                                                                Text("•", color = Color(0xFF4A9EFF), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                                Text(
+                                                                        text = "Ao clicar em qualquer lugar na MMI, o Android Auto perde o foco e a tela fica preta. Temos uma solução alternativa para tentar restaurar o foco automaticamente, mas ela pode falhar às vezes, exigindo que você clique no ícone do Android Auto no carro para restaurar seu foco.",
+                                                                        color = Color(0xFFB0B8C4),
+                                                                        fontSize = 12.sp,
+                                                                        lineHeight = 16.sp
+                                                                )
+                                                        }
+                                                }
+                                                Text(
+                                                        text = "Deseja prosseguir assim mesmo?",
+                                                        color = Color(0xFFB0B8C4),
+                                                        fontSize = 13.sp,
+                                                        lineHeight = 18.sp
+                                                )
+                                        } else {
+                                                Text(
+                                                        text = "O suporte ao Apple CarPlay ainda não foi testado nesta versão e não garantimos seu correto funcionamento. Tem certeza que deseja continuar?",
+                                                        color = Color(0xFFB0B8C4),
+                                                        fontSize = 13.sp,
+                                                        lineHeight = 18.sp
+                                                )
+                                        }
+                                }
+                        },
+                        confirmButton = {
+                                Button(
+                                        onClick = {
+                                                selectedApp = app
+                                                showInterconnectionConfirmDialog = null
+                                                if (app.packageName == "com.ts.androidauto.app") {
+                                                        forceFocus = true
+                                                }
+                                                // Auto-launch full screen on target display for visual reference
+                                                previewActive = true
+                                                scope.launch {
+                                                        DisplayAppLauncher.launchApp(
+                                                                DisplayAppConfig(
+                                                                        packageName = app.packageName,
+                                                                        activityName = app.activityName,
+                                                                        displayId = selectedDisplay.id,
+                                                                        x = posX,
+                                                                        y = posY,
+                                                                        width = sizeW,
+                                                                        height = sizeH
+                                                                )
+                                                        )
+                                                }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                                containerColor = Color(0xFF4A9EFF)
+                                        ),
+                                        shape = RoundedCornerShape(8.dp)
+                                ) {
+                                        Text("Prosseguir", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                }
+                        },
+                        dismissButton = {
+                                TextButton(
+                                        onClick = {
+                                                showInterconnectionConfirmDialog = null
+                                        }
+                                ) {
+                                        Text("Abortar", color = Color(0xFFFF4B4B), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                 }
                         }
                 )
@@ -5682,12 +6002,21 @@ fun AppPickerItem(app: InstalledAppInfo, onClick: (InstalledAppInfo) -> Unit) {
 }
 
 @Composable
-fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> Unit) {
+fun AppPickerDialog(
+        alreadyConfigured: Set<String> = emptySet(),
+        onDismiss: () -> Unit,
+        onAppSelected: (InstalledAppInfo) -> Unit
+) {
         val context = LocalContext.current
         var searchQuery by remember { mutableStateOf("") }
         val predefinedApps = remember {
                 DisplayAppLauncher.PREDEFINED_APPS.map { config ->
-                        val resolved = DisplayAppLauncher.resolveAppInfo(context, config.packageName, config.customName)
+                        val resolved =
+                                DisplayAppLauncher.resolveAppInfo(
+                                        context,
+                                        config.packageName,
+                                        config.customName
+                                )
                         InstalledAppInfo(
                                 packageName = config.packageName,
                                 activityName = config.activityName,
@@ -5952,9 +6281,15 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                                         }
                                 }
 
-                                val allAvailableApps = remember(predefinedApps, installedApps) {
-                                        predefinedApps + installedApps
-                                }
+                                val allAvailableApps =
+                                        remember(predefinedApps, installedApps, alreadyConfigured) {
+                                                val combined = predefinedApps + installedApps
+                                                if (alreadyConfigured.isNotEmpty()) {
+                                                        combined.filter { it.packageName !in alreadyConfigured }
+                                                } else {
+                                                        combined
+                                                }
+                                        }
 
                                 val filteredApps =
                                         if (searchQuery.isBlank()) allAvailableApps
