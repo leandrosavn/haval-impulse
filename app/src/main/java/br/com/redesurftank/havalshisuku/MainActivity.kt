@@ -96,13 +96,14 @@ fun MainScreen(modifier: Modifier = Modifier) {
         val advancedUse = prefs.getBoolean(SharedPreferencesKeys.ADVANCE_USE.key, false)
 
         val menuItems = buildList {
-                add(DrawerMenuItem("Configurações", Icons.Default.Settings))
-                add(DrawerMenuItem("Telas", Icons.Default.SmartDisplay))
-                add(DrawerMenuItem("Valores Atuais", Icons.Default.DeveloperMode))
-                add(DrawerMenuItem("Instalar Apps", Icons.Default.ShoppingCart))
-                add(DrawerMenuItem("Informações", Icons.Default.Info))
+                add(DrawerMenuItem("Configurações", Icons.Default.Settings, "settings"))
+                add(DrawerMenuItem("Telas", Icons.Default.SmartDisplay, "screens"))
+                add(DrawerMenuItem("Valores Atuais", Icons.Default.DeveloperMode, "values"))
+                add(DrawerMenuItem("Instalar Apps", Icons.Default.ShoppingCart, "apps"))
+                add(DrawerMenuItem("Recursos", Icons.Default.Apps, "features"))
+                add(DrawerMenuItem("Informações", Icons.Default.Info, "info"))
                 if (advancedUse) {
-                        add(DrawerMenuItem("Frida Hooks", Icons.Default.Build))
+                        add(DrawerMenuItem("Frida Hooks", Icons.Default.Build, "frida"))
                 }
         }
 
@@ -260,13 +261,15 @@ fun MainScreen(modifier: Modifier = Modifier) {
                 ) {
                         // Content Area
                         ContentArea {
-                                when (selectedItem) {
-                                        0 -> BasicSettingsTab()
-                                        1 -> TelasTab()
-                                        2 -> CurrentValuesTab()
-                                        3 -> InstallAppsTab()
-                                        4 -> InformacoesTab()
-                                        5 -> FridaHooksTab()
+                                when (menuItems.getOrNull(selectedItem)?.route) {
+                                        "settings" -> BasicSettingsTab()
+                                        "screens" -> TelasTab()
+                                        "values" -> CurrentValuesTab()
+                                        "apps" -> InstallAppsTab()
+                                        "features" -> FeaturesHubScreen()
+                                        "info" -> InformacoesTab()
+                                        "frida" -> FridaHooksTab()
+                                        else -> BasicSettingsTab()
                                 }
                         }
                 }
@@ -275,7 +278,8 @@ fun MainScreen(modifier: Modifier = Modifier) {
 
 data class DrawerMenuItem(
         val title: String,
-        val icon: androidx.compose.ui.graphics.vector.ImageVector
+        val icon: androidx.compose.ui.graphics.vector.ImageVector,
+        val route: String
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -2543,25 +2547,21 @@ fun ThemeCard(
                         Card(
                                 modifier =
                                         Modifier.width(160.dp)
-                                                .height(80.dp)
+                                                .height(60.dp)
                                                 .clip(RoundedCornerShape(8.dp)),
                                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2228))
                         ) {
-                                if (theme.name == "Básico") {
-                                        Box(
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentAlignment = Alignment.Center
-                                        ) {
-                                                Icon(
-                                                        Icons.Default.Style,
-                                                        contentDescription = null,
-                                                        tint = Color.Gray,
-                                                        modifier = Modifier.size(40.dp)
-                                                )
+                                val context = LocalContext.current
+                                val model = remember(theme.thumbnailUrl) {
+                                        if (theme.thumbnailUrl.isNotEmpty() && !theme.thumbnailUrl.startsWith("http") && !theme.thumbnailUrl.startsWith("/")) {
+                                                context.resources.getIdentifier(theme.thumbnailUrl, "drawable", context.packageName).let { if (it != 0) it else theme.thumbnailUrl }
+                                        } else {
+                                                theme.thumbnailUrl
                                         }
-                                } else {
-                                        AsyncImage(
-                                                model = theme.thumbnailUrl,
+                                }
+
+                                AsyncImage(
+                                        model = model,
                                                 contentDescription = theme.name,
                                                 modifier = Modifier.fillMaxSize(),
                                                 contentScale = ContentScale.Crop,
@@ -2575,8 +2575,7 @@ fun ThemeCard(
                                                                         .drawable
                                                                         .ic_menu_report_image
                                                         )
-                                        )
-                                }
+                                )
                         }
 
                         Spacer(modifier = Modifier.width(16.dp))
@@ -2592,7 +2591,7 @@ fun ThemeCard(
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                         )
-                                        if (isDownloaded && theme.name != "Básico") {
+                                        if (isDownloaded && theme.name != "Default") {
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Surface(
                                                         color =
@@ -2677,7 +2676,7 @@ fun ThemeCard(
                                 }
                         }
 
-                        if (isDownloaded && onDelete != null && theme.name != "Básico") {
+                        if (isDownloaded && onDelete != null && theme.name != "Default") {
                                 IconButton(onClick = onDelete) {
                                         Icon(
                                                 imageVector = Icons.Default.Delete,
@@ -2739,6 +2738,14 @@ fun TelasTab() {
         var allClusterFunctionsEnabled by remember {
                 mutableStateOf(enableProjector || enableCustomIntegration || enableCustomMenu)
         }
+        var clusterFuelDisplayUnit by remember {
+                mutableStateOf(
+                        prefs.getString(
+                                SharedPreferencesKeys.CLUSTER_FUEL_DISPLAY_UNIT.key,
+                                "liters"
+                        ) ?: "liters"
+                )
+        }
 
         // Revision History States
         var revisionHistory by remember { mutableStateOf(getRevisionHistory(prefs)) }
@@ -2751,8 +2758,8 @@ fun TelasTab() {
         // Virtual Cluster States
         var selectedTheme by remember {
                 mutableStateOf(
-                        prefs.getString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Básico")
-                                ?: "Básico"
+                        prefs.getString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Default")
+                                ?: "Default"
                 )
         }
         var defaultApp by remember {
@@ -2954,6 +2961,126 @@ fun TelasTab() {
                                                                         Color.Transparent
                                                         )
                                         )
+                                }
+                        }
+                }
+
+                val personalizationAlpha = if (allClusterFunctionsEnabled) 1f else 0.4f
+                StyledCard(
+                        modifier = Modifier.padding(horizontal = 8.dp).alpha(personalizationAlpha)
+                ) {
+                        Column(
+                                modifier = Modifier.padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                                Text(
+                                        "Personalizações",
+                                        color = Color.White,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                        "Ajustes visuais usados no cluster quando as funções estão habilitadas",
+                                        color = Color(0xFFB0B8C4),
+                                        fontSize = 14.sp
+                                )
+
+                                HorizontalDivider(color = Color(0xFF3A3F47), thickness = 1.dp)
+
+                                Text(
+                                        "Exibição do combustível",
+                                        color = Color.White,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Medium
+                                )
+
+                                Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                        listOf("liters" to "Litros", "percent" to "Percentual")
+                                                .forEach { (value, label) ->
+                                                        Row(
+                                                                modifier =
+                                                                        Modifier.weight(1f)
+                                                                                .clip(
+                                                                                        RoundedCornerShape(
+                                                                                                12.dp
+                                                                                        )
+                                                                                )
+                                                                                .background(
+                                                                                        if (clusterFuelDisplayUnit ==
+                                                                                                        value
+                                                                                        )
+                                                                                                Color(0xFF2563EB)
+                                                                                                        .copy(
+                                                                                                                alpha =
+                                                                                                                        0.25f
+                                                                                                        )
+                                                                                        else Color(
+                                                                                                0xFF1F2430
+                                                                                        )
+                                                                                )
+                                                                                .clickable(
+                                                                                        enabled =
+                                                                                                allClusterFunctionsEnabled
+                                                                                ) {
+                                                                                        clusterFuelDisplayUnit =
+                                                                                                value
+                                                                                        prefs.edit {
+                                                                                                putString(
+                                                                                                        SharedPreferencesKeys
+                                                                                                                .CLUSTER_FUEL_DISPLAY_UNIT
+                                                                                                                .key,
+                                                                                                        value
+                                                                                                )
+                                                                                        }
+                                                                                        Log.d(
+                                                                                                "TelasTab",
+                                                                                                "[HavalDev] Cluster fuel display unit set to $value"
+                                                                                        )
+                                                                                }
+                                                                                .padding(
+                                                                                        horizontal =
+                                                                                                12.dp,
+                                                                                        vertical =
+                                                                                                10.dp
+                                                                                ),
+                                                                verticalAlignment =
+                                                                        Alignment.CenterVertically
+                                                        ) {
+                                                                RadioButton(
+                                                                        selected =
+                                                                                clusterFuelDisplayUnit ==
+                                                                                        value,
+                                                                        enabled =
+                                                                                allClusterFunctionsEnabled,
+                                                                        onClick = {
+                                                                                clusterFuelDisplayUnit =
+                                                                                        value
+                                                                                prefs.edit {
+                                                                                        putString(
+                                                                                                SharedPreferencesKeys
+                                                                                                        .CLUSTER_FUEL_DISPLAY_UNIT
+                                                                                                        .key,
+                                                                                                value
+                                                                                        )
+                                                                                }
+                                                                                Log.d(
+                                                                                        "TelasTab",
+                                                                                        "[HavalDev] Cluster fuel display unit set to $value"
+                                                                                )
+                                                                        }
+                                                                )
+                                                                Text(
+                                                                        label,
+                                                                        color = Color.White,
+                                                                        fontSize = 15.sp,
+                                                                        fontWeight =
+                                                                                FontWeight.Medium
+                                                                )
+                                                        }
+                                                }
                                 }
                         }
                 }
@@ -3340,11 +3467,11 @@ fun TelasTab() {
 
                                                 val basicoTheme = remember {
                                                         ThemeMetadata(
-                                                                name = "Básico",
+                                                                name = "Default",
                                                                 description =
-                                                                        "Tema padrão do Impulse",
+                                                                        "Tema principal com o novo design Sport.",
                                                                 version = "1.0.0",
-                                                                thumbnailUrl = "",
+                                                                thumbnailUrl = "thumb_default",
                                                                 isLocal = true,
                                                                 isDownloaded = true
                                                         )
@@ -3358,9 +3485,9 @@ fun TelasTab() {
                                                                 list.add(basicoTheme)
 
                                                                 // 1. Add all local themes (except
-                                                                // "Básico")
+                                                                // "Default" and "Básico")
                                                                 localThemes.forEach { local ->
-                                                                        if (local.name != "Básico"
+                                                                        if (local.name != "Default"
                                                                         ) {
                                                                                 // Look for a newer
                                                                                 // version in
@@ -3390,8 +3517,7 @@ fun TelasTab() {
                                                                 // 2. Add GitHub themes that are NOT
                                                                 // local
                                                                 githubThemes.forEach { github ->
-                                                                        if (github.name !=
-                                                                                        "Básico" &&
+                                                                        if (github.name != "Default" &&
                                                                                         list.none {
                                                                                                 it.name ==
                                                                                                         github.name
@@ -3406,12 +3532,12 @@ fun TelasTab() {
                                                                         }
                                                                 }
 
-                                                                // Sort: Básico first, then
+                                                                // Sort: Default/Básico first, then
                                                                 // installed ones, then the rest
                                                                 list.sortedWith(
                                                                         compareByDescending<
                                                                                         ThemeMetadata> {
-                                                                                it.name == "Básico"
+                                                                                it.name == "Default"
                                                                         }
                                                                                 .thenByDescending {
                                                                                         it.isDownloaded
@@ -3436,7 +3562,7 @@ fun TelasTab() {
                                                                 localThemes.isEmpty()
                                                 ) {
                                                         // Only show error if we have NO themes at
-                                                        // all (unlikely since Básico is
+                                                        // all (unlikely since Default is
                                                         // hardcoded)
                                                         Text(
                                                                 "Nenhum tema encontrado ou erro ao carregar.",
@@ -3466,7 +3592,7 @@ fun TelasTab() {
                                                                         val isDownloaded =
                                                                                 theme.isDownloaded ||
                                                                                         theme.name ==
-                                                                                                "Básico"
+                                                                                                "Default"
                                                                         val isSelected =
                                                                                 selectedTheme ==
                                                                                         theme.name
@@ -3514,7 +3640,7 @@ fun TelasTab() {
                                                                                                                         theme.name
                                                                                                                 )
                                                                                                                 if (theme.name ==
-                                                                                                                                "Básico"
+                                                                                                                                "Default"
                                                                                                                 ) {
                                                                                                                         putString(
                                                                                                                                 SharedPreferencesKeys
@@ -3626,7 +3752,7 @@ fun TelasTab() {
                                                                                 onDelete =
                                                                                         if (isDownloaded &&
                                                                                                         theme.name !=
-                                                                                                                "Básico"
+                                                                                                                "Default"
                                                                                         ) {
                                                                                                 {
                                                                                                         scope
@@ -3648,14 +3774,14 @@ fun TelasTab() {
                                                                                                                                                 theme.name
                                                                                                                                 ) {
                                                                                                                                         selectedTheme =
-                                                                                                                                                "Básico"
+                                                                                                                                                "Default"
                                                                                                                                         prefs
                                                                                                                                                 .edit {
                                                                                                                                                         putString(
                                                                                                                                                                 SharedPreferencesKeys
                                                                                                                                                                         .VIRTUAL_CLUSTER_THEME
                                                                                                                                                                         .key,
-                                                                                                                                                                "Básico"
+                                                                                                                                                                "Default"
                                                                                                                                                         )
                                                                                                                                                         putString(
                                                                                                                                                                 SharedPreferencesKeys

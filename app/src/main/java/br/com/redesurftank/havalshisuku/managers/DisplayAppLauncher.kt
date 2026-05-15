@@ -280,7 +280,7 @@ object DisplayAppLauncher {
 
         if (!config.overrideThemeDimensions && virtualClusterEnabled && config.displayId == 3) {
             val themeFolderName = prefs.getString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Básico") ?: "Básico"
-            if (themeFolderName == "Básico" || themeFolderName == "Light") {
+            if (themeFolderName == "Default" || themeFolderName == "Básico" || themeFolderName == "Light") {
                 x = 0
                 y = 62
                 width = 1920
