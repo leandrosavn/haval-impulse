@@ -2550,7 +2550,7 @@ fun ThemeCard(
                         Card(
                                 modifier =
                                         Modifier.width(160.dp)
-                                                .height(80.dp)
+                                                .height(60.dp)
                                                 .clip(RoundedCornerShape(8.dp)),
                                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2228))
                         ) {
@@ -2578,8 +2578,7 @@ fun ThemeCard(
                                                                         .drawable
                                                                         .ic_menu_report_image
                                                         )
-                                        )
-                                }
+                                )
                         }
 
                         Spacer(modifier = Modifier.width(16.dp))
