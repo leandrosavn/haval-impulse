@@ -194,15 +194,11 @@ enum class SharedPreferencesKeys(val key: String, val description: String) {
     INSTRUMENT_REVISION_HISTORY("instrumentRevisionHistory", "Histórico de revisões realizadas"),
     VIRTUAL_CLUSTER_THEME("virtualClusterTheme", "Tema do Virtual Cluster"),
     VIRTUAL_CLUSTER_NIGHT_MODE("virtualClusterNightMode", "Modo Noturno do Virtual Cluster"),
-<<<<<<< HEAD
     PERSISTENT_BOTTOM_BAR_OVERSCAN(
             "persistentBottomBarOverscan",
             "Ajuste de margem inferior para a barra (overscan)"
     ),
-=======
     CLUSTER_FUEL_DISPLAY_UNIT("clusterFuelDisplayUnit", "Unidade de exibição do combustível no cluster"),
-    PERSISTENT_BOTTOM_BAR_OVERSCAN("persistentBottomBarOverscan", "Ajuste de margem inferior para a barra (overscan)"),
->>>>>>> theme-revision
     CUSTOM_THEME_REPO_URL_PROD("customThemeRepoUrlProd", "URL do Repositório de Temas (Prod)"),
     CUSTOM_THEME_REPO_URL_DEV("customThemeRepoUrlDev", "URL do Repositório de Temas (Dev)"),
     CUSTOM_THEME_REPO_ENV("customThemeRepoEnv", "Ambiente do Repositório (Prod/Dev)"),
