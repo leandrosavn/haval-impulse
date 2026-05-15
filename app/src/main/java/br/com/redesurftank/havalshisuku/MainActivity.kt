@@ -4430,28 +4430,33 @@ fun DisplayAppConfigSection() {
                                                                         }
                                                                 } else if (appInfo.icon != null) {
                                                                         AsyncImage(
-                                                                                model =
-                                                                                        appInfo.icon,
-                                                                                contentDescription =
-                                                                                        null,
-                                                                                modifier =
-                                                                                        Modifier.fillMaxSize(),
-                                                                                contentScale =
-                                                                                        ContentScale
-                                                                                                .Fit
+                                                                                model = appInfo.icon,
+                                                                                contentDescription = null,
+                                                                                modifier = Modifier.fillMaxSize(),
+                                                                                contentScale = ContentScale.Fit
                                                                         )
                                                                 } else {
-                                                                        Icon(
-                                                                                Icons.Default
-                                                                                        .Android,
-                                                                                contentDescription =
-                                                                                        null,
-                                                                                tint = Color.White,
-                                                                                modifier =
-                                                                                        Modifier.size(
-                                                                                                32.dp
-                                                                                        )
-                                                                        )
+                                                                        val fallbackIcon = when {
+                                                                                config.packageName.contains("androidauto") -> R.drawable.ic_android_auto_default
+                                                                                config.packageName.contains("carplay") -> R.drawable.ic_carplay_default
+                                                                                else -> null
+                                                                        }
+                                                                        
+                                                                        if (fallbackIcon != null) {
+                                                                                AsyncImage(
+                                                                                        model = fallbackIcon,
+                                                                                        contentDescription = null,
+                                                                                        modifier = Modifier.fillMaxSize(),
+                                                                                        contentScale = ContentScale.Fit
+                                                                                )
+                                                                        } else {
+                                                                                Icon(
+                                                                                        Icons.Default.Android,
+                                                                                        contentDescription = null,
+                                                                                        tint = Color.White,
+                                                                                        modifier = Modifier.size(32.dp)
+                                                                                )
+                                                                        }
                                                                 }
                                                         }
                                                         Spacer(Modifier.width(16.dp))
@@ -6106,12 +6111,33 @@ fun AppPickerItem(app: InstalledAppInfo, onClick: (InstalledAppInfo) -> Unit) {
                                 contentScale = ContentScale.Fit
                         )
                 } else {
-                        Icon(
-                                imageVector = Icons.Default.Apps,
-                                contentDescription = app.label,
-                                modifier = Modifier.size(44.dp),
-                                tint = Color.White
-                        )
+                        when {
+                                app.packageName.contains("androidauto") -> {
+                                        AsyncImage(
+                                                model = R.drawable.ic_android_auto_default,
+                                                contentDescription = app.label,
+                                                modifier = Modifier.size(44.dp),
+                                                contentScale = ContentScale.Fit
+                                        )
+                                }
+                                app.packageName.contains("carplay") -> {
+                                        AsyncImage(
+                                                model = R.drawable.ic_carplay_default,
+                                                contentDescription = app.label,
+                                                modifier = Modifier.size(44.dp),
+                                                contentScale = ContentScale.Fit
+                                        )
+                                }
+                                else -> {
+                                        Icon(
+                                                imageVector = Icons.Default.Apps,
+                                                contentDescription = app.label,
+                                                modifier = Modifier.size(44.dp),
+                                                tint = Color.White
+                                        )
+                                }
+                        }
+
                 }
 
                 Text(

@@ -1997,7 +1997,6 @@ fun AppGridItem(
                                 pkg
                         )
                 }
-
         val appInfo =
                 remember(pkg) {
                         br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.resolveAppInfo(
