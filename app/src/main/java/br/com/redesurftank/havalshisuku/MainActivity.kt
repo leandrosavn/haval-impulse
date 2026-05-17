@@ -2550,25 +2550,21 @@ fun ThemeCard(
                         Card(
                                 modifier =
                                         Modifier.width(160.dp)
-                                                .height(80.dp)
+                                                .height(60.dp)
                                                 .clip(RoundedCornerShape(8.dp)),
                                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2228))
                         ) {
-                                if (theme.name == "Básico") {
-                                        Box(
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentAlignment = Alignment.Center
-                                        ) {
-                                                Icon(
-                                                        Icons.Default.Style,
-                                                        contentDescription = null,
-                                                        tint = Color.Gray,
-                                                        modifier = Modifier.size(40.dp)
-                                                )
+                                val context = LocalContext.current
+                                val model = remember(theme.thumbnailUrl) {
+                                        if (theme.thumbnailUrl.isNotEmpty() && !theme.thumbnailUrl.startsWith("http") && !theme.thumbnailUrl.startsWith("/")) {
+                                                context.resources.getIdentifier(theme.thumbnailUrl, "drawable", context.packageName).let { if (it != 0) it else theme.thumbnailUrl }
+                                        } else {
+                                                theme.thumbnailUrl
                                         }
-                                } else {
-                                        AsyncImage(
-                                                model = theme.thumbnailUrl,
+                                }
+
+                                AsyncImage(
+                                        model = model,
                                                 contentDescription = theme.name,
                                                 modifier = Modifier.fillMaxSize(),
                                                 contentScale = ContentScale.Crop,
@@ -2582,8 +2578,7 @@ fun ThemeCard(
                                                                         .drawable
                                                                         .ic_menu_report_image
                                                         )
-                                        )
-                                }
+                                )
                         }
 
                         Spacer(modifier = Modifier.width(16.dp))
@@ -2599,7 +2594,7 @@ fun ThemeCard(
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                         )
-                                        if (isDownloaded && theme.name != "Básico") {
+                                        if (isDownloaded && theme.name != "Default") {
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Surface(
                                                         color =
@@ -2684,7 +2679,7 @@ fun ThemeCard(
                                 }
                         }
 
-                        if (isDownloaded && onDelete != null && theme.name != "Básico") {
+                        if (isDownloaded && onDelete != null && theme.name != "Default") {
                                 IconButton(onClick = onDelete) {
                                         Icon(
                                                 imageVector = Icons.Default.Delete,
@@ -2766,8 +2761,8 @@ fun TelasTab() {
         // Virtual Cluster States
         var selectedTheme by remember {
                 mutableStateOf(
-                        prefs.getString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Básico")
-                                ?: "Básico"
+                        prefs.getString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Default")
+                                ?: "Default"
                 )
         }
         var alwaysUseThemeDimensions by remember {
@@ -3648,11 +3643,11 @@ fun TelasTab() {
 
                                                 val basicoTheme = remember {
                                                         ThemeMetadata(
-                                                                name = "Básico",
+                                                                name = "Default",
                                                                 description =
-                                                                        "Tema padrão do Impulse",
+                                                                        "Tema principal com o novo design Sport.",
                                                                 version = "1.0.0",
-                                                                thumbnailUrl = "",
+                                                                thumbnailUrl = "thumb_default",
                                                                 isLocal = true,
                                                                 isDownloaded = true
                                                         )
@@ -3666,9 +3661,9 @@ fun TelasTab() {
                                                                 list.add(basicoTheme)
 
                                                                 // 1. Add all local themes (except
-                                                                // "Básico")
+                                                                // "Default" and "Básico")
                                                                 localThemes.forEach { local ->
-                                                                        if (local.name != "Básico"
+                                                                        if (local.name != "Default"
                                                                         ) {
                                                                                 // Look for a newer
                                                                                 // version in
@@ -3698,8 +3693,7 @@ fun TelasTab() {
                                                                 // 2. Add GitHub themes that are NOT
                                                                 // local
                                                                 githubThemes.forEach { github ->
-                                                                        if (github.name !=
-                                                                                        "Básico" &&
+                                                                        if (github.name != "Default" &&
                                                                                         list.none {
                                                                                                 it.name ==
                                                                                                         github.name
@@ -3714,12 +3708,12 @@ fun TelasTab() {
                                                                         }
                                                                 }
 
-                                                                // Sort: Básico first, then
+                                                                // Sort: Default/Básico first, then
                                                                 // installed ones, then the rest
                                                                 list.sortedWith(
                                                                         compareByDescending<
                                                                                         ThemeMetadata> {
-                                                                                it.name == "Básico"
+                                                                                it.name == "Default"
                                                                         }
                                                                                 .thenByDescending {
                                                                                         it.isDownloaded
@@ -3744,7 +3738,7 @@ fun TelasTab() {
                                                                 localThemes.isEmpty()
                                                 ) {
                                                         // Only show error if we have NO themes at
-                                                        // all (unlikely since Básico is
+                                                        // all (unlikely since Default is
                                                         // hardcoded)
                                                         Text(
                                                                 "Nenhum tema encontrado ou erro ao carregar.",
@@ -3774,7 +3768,7 @@ fun TelasTab() {
                                                                         val isDownloaded =
                                                                                 theme.isDownloaded ||
                                                                                         theme.name ==
-                                                                                                "Básico"
+                                                                                                "Default"
                                                                         val isSelected =
                                                                                 selectedTheme ==
                                                                                         theme.name
@@ -3822,7 +3816,7 @@ fun TelasTab() {
                                                                                                                         theme.name
                                                                                                                 )
                                                                                                                 if (theme.name ==
-                                                                                                                                "Básico"
+                                                                                                                                "Default"
                                                                                                                 ) {
                                                                                                                         putString(
                                                                                                                                 SharedPreferencesKeys
@@ -3934,7 +3928,7 @@ fun TelasTab() {
                                                                                 onDelete =
                                                                                         if (isDownloaded &&
                                                                                                         theme.name !=
-                                                                                                                "Básico"
+                                                                                                                "Default"
                                                                                         ) {
                                                                                                 {
                                                                                                         scope
@@ -3956,14 +3950,14 @@ fun TelasTab() {
                                                                                                                                                 theme.name
                                                                                                                                 ) {
                                                                                                                                         selectedTheme =
-                                                                                                                                                "Básico"
+                                                                                                                                                "Default"
                                                                                                                                         prefs
                                                                                                                                                 .edit {
                                                                                                                                                         putString(
                                                                                                                                                                 SharedPreferencesKeys
                                                                                                                                                                         .VIRTUAL_CLUSTER_THEME
                                                                                                                                                                         .key,
-                                                                                                                                                                "Básico"
+                                                                                                                                                                "Default"
                                                                                                                                                         )
                                                                                                                                                         putString(
                                                                                                                                                                 SharedPreferencesKeys
