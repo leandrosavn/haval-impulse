@@ -159,42 +159,6 @@ fun CompactThemeCard(
                             modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(20.dp)
                     )
                 }
-
-                // Update available indicator overlay badge
-                if (hasUpdate) {
-                    Box(
-                            modifier =
-                                    Modifier.align(Alignment.TopStart)
-                                            .padding(6.dp)
-                                            .background(
-                                                    color =
-                                                            Color(
-                                                                    0xFFE5A93B
-                                                            ), // Elegant amber/orange color for
-                                                    // updates
-                                                    shape = RoundedCornerShape(4.dp)
-                                            )
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(
-                                    imageVector = Icons.Default.Update,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(10.dp)
-                            )
-                            Text(
-                                    text = "ATUALIZAR",
-                                    color = Color.White,
-                                    fontSize = 8.sp,
-                                    fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
             }
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -216,66 +180,94 @@ fun CompactThemeCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
             ) {
-                if (isDownloading) {
-                    CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
-                            color = Color(0xFF4A9EFF),
-                            strokeWidth = 1.5.dp
-                    )
-                } else if (hasUpdate) {
-                    Row(
+                Column {
+                    if (isDownloading) {
+                        Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
-                            modifier = Modifier.clickable { onUpdate() }
-                    ) {
-                        Icon(
-                                imageVector = Icons.Default.Update,
-                                contentDescription = "Atualizar",
-                                tint = Color(0xFF4A9EFF),
-                                modifier = Modifier.size(12.dp)
-                        )
-                        Text(
-                                text = "Atualizar",
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                    modifier = Modifier.size(12.dp),
+                                    color = Color(0xFF4A9EFF),
+                                    strokeWidth = 1.5.dp
+                            )
+                            Text(
+                                text = "Baixando...",
                                 color = Color(0xFF4A9EFF),
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                        )
-                    }
-                } else if (!isDownloaded) {
-                    Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
-                            modifier = Modifier.clickable { onAction() }
-                    ) {
-                        Icon(
-                                imageVector = Icons.Default.Download,
-                                contentDescription = null,
-                                tint = Color(0xFF4A9EFF),
-                                modifier = Modifier.size(12.dp)
-                        )
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    } else if (!isDownloaded) {
+                        Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.clickable { onAction() }
+                        ) {
+                            Icon(
+                                    imageVector = Icons.Default.Download,
+                                    contentDescription = null,
+                                    tint = Color(0xFF4A9EFF),
+                                    modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                    text = "Baixar",
+                                    color = Color(0xFF4A9EFF),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                            )
+                        }
+                    } else {
                         Text(
-                                text = "Baixar",
-                                color = Color(0xFF4A9EFF),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
+                                text = if (theme.name == "Default") "Original" else "Instalado",
+                                color = if (isSelected) Color(0xFF4A9EFF) else Color(0xFFB0B8C4),
+                                fontSize = 11.sp
                         )
                     }
-                } else {
-                    Text(
-                            text = if (theme.name == "Default") "Original" else "Instalado",
-                            color = if (isSelected) Color(0xFF4A9EFF) else Color(0xFFB0B8C4),
-                            fontSize = 11.sp
-                    )
                 }
 
-                // Delete button for custom installed themes
-                if (canDelete) {
-                    Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Excluir",
-                            tint = Color(0xFFFF4B4B).copy(alpha = 0.8f),
-                            modifier = Modifier.size(16.dp).clickable { onDelete() }
-                    )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Update Button in bottom right if update is available
+                    if (hasUpdate && !isDownloading) {
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFFE5A93B), RoundedCornerShape(6.dp))
+                                .clickable { onUpdate() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Update,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = "Atualizar",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    // Delete button for custom installed themes
+                    if (canDelete) {
+                        Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Excluir",
+                                tint = Color(0xFFFF4B4B).copy(alpha = 0.8f),
+                                modifier = Modifier.size(20.dp).clickable { onDelete() }
+                        )
+                    }
                 }
             }
         }
@@ -813,352 +805,461 @@ fun TelasTab() {
                                 )
                             }
                         }
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(16.dp))
                     }
 
                     HorizontalDivider(color = Color(0xFF2C3139))
+                    Spacer(Modifier.height(16.dp))
 
-                    // Default screen/app when cluster initializes
-                    Column {
-                        Text(
-                                "App Padrão na Inicialização",
-                                color = Color(0xFFB0B8C4),
-                                fontSize = 12.sp
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Box(
-                                modifier =
-                                        Modifier.fillMaxWidth()
-                                                .height(46.dp)
-                                                .background(
-                                                        Color(0xFF2A2F37),
-                                                        RoundedCornerShape(8.dp)
-                                                )
-                                                .clickable(enabled = allClusterFunctionsEnabled) {
-                                                    appExpanded = true
-                                                }
-                                                .padding(horizontal = 16.dp),
-                                contentAlignment = Alignment.CenterStart
+                    // Default screen/app when cluster initializes and fuel consumption unit merged
+                    Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.Top
+                    ) {
+                        // 1. Default screen/app when cluster initializes
+                        Column(
+                            modifier = Modifier.weight(1f)
                         ) {
-                            val resolvedAppLabel =
-                                    if (defaultApp.isEmpty()) "Nenhum"
-                                    else
-                                            DisplayAppLauncher.PREDEFINED_APPS
-                                                    .firstOrNull { it.packageName == defaultApp }
-                                                    ?.customName
-                                                    ?: defaultApp
-
-                            Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(resolvedAppLabel, color = Color.White, fontSize = 14.sp)
-                                Icon(
-                                        Icons.Default.ArrowDropDown,
-                                        contentDescription = "Expandir",
-                                        tint = Color.White
-                                )
-                            }
-
-                            DropdownMenu(
-                                    expanded = appExpanded && allClusterFunctionsEnabled,
-                                    onDismissRequest = { appExpanded = false },
+                            Text(
+                                    "App Padrão na Inicialização",
+                                    color = Color(0xFFB0B8C4),
+                                    fontSize = 12.sp
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Box(
                                     modifier =
-                                            Modifier.fillMaxWidth(0.5f)
-                                                    .background(Color(0xFF1E2228))
-                            ) {
-                                DropdownMenuItem(
-                                        text = { Text("Nenhum", color = Color.White) },
-                                        onClick = {
-                                            defaultApp = ""
-                                            prefs.edit {
-                                                putString(
-                                                        SharedPreferencesKeys
-                                                                .DEFAULT_DISPLAY_APP_PACKAGE
-                                                                .key,
-                                                        ""
-                                                )
-                                            }
-                                            appExpanded = false
-                                        }
-                                )
-                                configs.forEach { config ->
-                                    val displayLabel =
-                                            DisplayAppLauncher.PREDEFINED_APPS
-                                                    .firstOrNull {
-                                                        it.packageName == config.packageName
+                                            Modifier.fillMaxWidth()
+                                                    .height(46.dp)
+                                                    .background(
+                                                            Color(0xFF2A2F37),
+                                                            RoundedCornerShape(8.dp)
+                                                    )
+                                                    .clickable(enabled = allClusterFunctionsEnabled) {
+                                                        appExpanded = true
                                                     }
-                                                    ?.customName
-                                                    ?: config.packageName
+                                                    .padding(horizontal = 16.dp),
+                                    contentAlignment = Alignment.CenterStart
+                            ) {
+                                val resolvedApp = remember(defaultApp, configs) {
+                                    if (defaultApp.isEmpty()) {
+                                        br.com.redesurftank.havalshisuku.managers.ResolvedAppInfo("Nenhum", null)
+                                    } else {
+                                        val config = configs.firstOrNull { it.packageName == defaultApp }
+                                        if (config != null) {
+                                            DisplayAppLauncher.resolveAppInfo(context, config.packageName, config.customName)
+                                        } else {
+                                            val predefined = DisplayAppLauncher.PREDEFINED_APPS.firstOrNull { it.packageName == defaultApp }
+                                            DisplayAppLauncher.resolveAppInfo(context, defaultApp, predefined?.customName)
+                                        }
+                                    }
+                                }
+
+                                Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (resolvedApp.icon != null) {
+                                            AsyncImage(
+                                                model = resolvedApp.icon,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = if (defaultApp.isEmpty()) Icons.Default.Block else Icons.Default.Apps,
+                                                contentDescription = null,
+                                                tint = if (defaultApp.isEmpty()) Color(0xFFB0B8C4) else Color(0xFF4A9EFF),
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
+                                        Text(resolvedApp.label, color = Color.White, fontSize = 14.sp)
+                                    }
+                                    Icon(
+                                            Icons.Default.ArrowDropDown,
+                                            contentDescription = "Expandir",
+                                            tint = Color.White
+                                    )
+                                }
+
+                                DropdownMenu(
+                                        expanded = appExpanded && allClusterFunctionsEnabled,
+                                        onDismissRequest = { appExpanded = false },
+                                        modifier =
+                                                Modifier.fillMaxWidth(0.45f)
+                                                        .background(Color(0xFF1E2228))
+                                ) {
                                     DropdownMenuItem(
-                                            text = { Text(displayLabel, color = Color.White) },
+                                            text = { Text("Nenhum", color = Color.White, fontSize = 14.sp) },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Default.Block,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFFB0B8C4),
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            },
                                             onClick = {
-                                                defaultApp = config.packageName
+                                                defaultApp = ""
                                                 prefs.edit {
                                                     putString(
                                                             SharedPreferencesKeys
                                                                     .DEFAULT_DISPLAY_APP_PACKAGE
                                                                     .key,
-                                                            config.packageName
+                                                            ""
                                                     )
                                                 }
                                                 appExpanded = false
                                             }
                                     )
-                                }
-                            }
-                        }
-                    }
-
-                    HorizontalDivider(color = Color(0xFF2C3139))
-
-                    // Personalizações de Exibição (Unidade de Consumo)
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                                "Unidade de Consumo de Combustível",
-                                color = Color(0xFFB0B8C4),
-                                fontSize = 12.sp
-                        )
-                        Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            val units = listOf("liters" to "Litros", "percent" to "Porcentagem")
-                            units.forEach { (unitId, label) ->
-                                val isSelected = clusterFuelDisplayUnit == unitId
-                                Box(
-                                        modifier =
-                                                Modifier.weight(1f)
-                                                        .height(40.dp)
-                                                        .background(
-                                                                if (isSelected) Color(0xFF4A9EFF)
-                                                                else Color(0xFF2A2F37),
-                                                                RoundedCornerShape(8.dp)
+                                    configs.forEach { config ->
+                                        val resolved = remember(config.packageName, config.customName) {
+                                            DisplayAppLauncher.resolveAppInfo(context, config.packageName, config.customName)
+                                        }
+                                        DropdownMenuItem(
+                                                text = { Text(resolved.label, color = Color.White, fontSize = 14.sp) },
+                                                leadingIcon = if (resolved.icon != null) {
+                                                    {
+                                                        AsyncImage(
+                                                            model = resolved.icon,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(20.dp)
                                                         )
-                                                        .clickable(
-                                                                enabled = allClusterFunctionsEnabled
-                                                        ) {
-                                                            clusterFuelDisplayUnit = unitId
-                                                            prefs.edit {
-                                                                putString(
-                                                                        SharedPreferencesKeys
-                                                                                .CLUSTER_FUEL_DISPLAY_UNIT
-                                                                                .key,
-                                                                        unitId
-                                                                )
+                                                    }
+                                                } else {
+                                                    {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Apps,
+                                                            contentDescription = null,
+                                                            tint = Color(0xFF4A9EFF),
+                                                            modifier = Modifier.size(20.dp)
+                                                        )
+                                                    }
+                                                },
+                                                onClick = {
+                                                    defaultApp = config.packageName
+                                                    prefs.edit {
+                                                        putString(
+                                                                SharedPreferencesKeys
+                                                                        .DEFAULT_DISPLAY_APP_PACKAGE
+                                                                        .key,
+                                                                config.packageName
+                                                        )
+                                                    }
+                                                    appExpanded = false
+                                                }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // 2. Personalizações de Exibição (Unidade de Consumo)
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                    "Unidade de Consumo de Combustível",
+                                    color = Color(0xFFB0B8C4),
+                                    fontSize = 12.sp
+                            )
+                            Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val units = listOf("liters" to "Litros", "percent" to "Porcentagem")
+                                units.forEach { (unitId, label) ->
+                                    val isSelected = clusterFuelDisplayUnit == unitId
+                                    Box(
+                                            modifier =
+                                                    Modifier.weight(1f)
+                                                            .height(46.dp)
+                                                            .background(
+                                                                    if (isSelected) Color(0xFF4A9EFF)
+                                                                    else Color(0xFF2A2F37),
+                                                                    RoundedCornerShape(8.dp)
+                                                            )
+                                                            .clickable(
+                                                                    enabled = allClusterFunctionsEnabled
+                                                            ) {
+                                                                clusterFuelDisplayUnit = unitId
+                                                                prefs.edit {
+                                                                    putString(
+                                                                            SharedPreferencesKeys
+                                                                                    .CLUSTER_FUEL_DISPLAY_UNIT
+                                                                                    .key,
+                                                                            unitId
+                                                                    )
+                                                                }
                                                             }
-                                                        }
-                                                        .padding(horizontal = 12.dp),
-                                        contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                            label,
-                                            color = Color.White,
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold
-                                    )
+                                                            .padding(horizontal = 12.dp),
+                                            contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                                label,
+                                                color = Color.White,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
 
+                    Spacer(Modifier.height(16.dp))
                     HorizontalDivider(color = Color(0xFF2C3139))
+                    Spacer(Modifier.height(16.dp))
 
                     // Odômetro e Aviso de Revisão
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                        "Exibir Odômetro e Aviso de Revisão",
-                                        color = Color.White,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                        "Exibir total do veículo e acompanhamento de próxima revisão no painel",
-                                        color = Color(0xFFB0B8C4),
-                                        fontSize = 12.sp
-                                )
-                            }
-                            Switch(
-                                    checked = enableOdometerAndRevision,
-                                    enabled = allClusterFunctionsEnabled,
-                                    onCheckedChange = {
-                                        enableOdometerAndRevision = it
+                            // Column 1 (Left Card): Switch & Title inside card (40% width)
+                            val leftWeight = 0.40f
+
+                            Row(
+                                modifier = Modifier
+                                    .weight(leftWeight)
+                                    .height(104.dp)
+                                    .background(
+                                        Color(0xFF2A2F37),
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable(enabled = allClusterFunctionsEnabled) {
+                                        val next = !enableOdometerAndRevision
+                                        enableOdometerAndRevision = next
                                         prefs.edit {
                                             putBoolean(
-                                                    SharedPreferencesKeys
-                                                            .ENABLE_INSTRUMENT_ODOMETER_AND_REVISION
-                                                            .key,
-                                                    it
+                                                SharedPreferencesKeys
+                                                    .ENABLE_INSTRUMENT_ODOMETER_AND_REVISION
+                                                    .key,
+                                                next
                                             )
                                         }
-                                    },
-                                    colors =
-                                            SwitchDefaults.colors(
-                                                    checkedThumbColor = Color.White,
-                                                    checkedTrackColor = Color(0xFF4A9EFF)
-                                            ),
-                                    modifier = Modifier.scale(0.8f)
-                            )
-                        }
-
-                        if (enableOdometerAndRevision && allClusterFunctionsEnabled) {
-                            Row(
-                                    modifier =
-                                            Modifier.fillMaxWidth()
-                                                    .background(
-                                                            Color(0xFF1E2228),
-                                                            RoundedCornerShape(8.dp)
-                                                    )
-                                                    .padding(12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    }
+                                    .padding(horizontal = 20.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                            "Próxima Revisão",
+                                            "Exibir Odômetro e Aviso de Revisão",
+                                            color = Color.White,
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                            "Exibir total do veículo e acompanhamento de próxima revisão no painel",
                                             color = Color(0xFFB0B8C4),
                                             fontSize = 12.sp
                                     )
-                                    Spacer(modifier = Modifier.height(2.dp))
+                                }
+                                Switch(
+                                        checked = enableOdometerAndRevision,
+                                        enabled = allClusterFunctionsEnabled,
+                                        onCheckedChange = null,
+                                        colors =
+                                                SwitchDefaults.colors(
+                                                        checkedThumbColor = Color.White,
+                                                        checkedTrackColor = Color(0xFF4A9EFF)
+                                                ),
+                                        modifier = Modifier
+                                            .padding(start = 16.dp, end = 8.dp)
+                                            .scale(1.0f)
+                                )
+                            }
+
+                            // Column 2 (Right Card): Next Revision inside card (60% width, always visible but disabled if toggle off)
+                            val isCard2Enabled = enableOdometerAndRevision && allClusterFunctionsEnabled
+                            val textDisabledColor = Color(0xFF6B7280)
+
+                            Row(
+                                modifier = Modifier
+                                    .weight(0.60f)
+                                    .height(104.dp)
+                                    .background(
+                                        if (isCard2Enabled) Color(0xFF2A2F37) else Color(0xFF1E2229),
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable(enabled = isCard2Enabled) {
+                                        tempKm = ServiceManager.getInstance().totalOdometer.toString()
+                                        tempDate = System.currentTimeMillis()
+                                        showRegisterDialog = true
+                                    }
+                                    .padding(horizontal = 20.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Column 1: Alterar Button inside Box to ensure symmetry
+                                Box(
+                                    modifier = Modifier.width(210.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    Button(
+                                        onClick = {
+                                            tempKm = ServiceManager.getInstance().totalOdometer.toString()
+                                            tempDate = System.currentTimeMillis()
+                                            showRegisterDialog = true
+                                        },
+                                        enabled = isCard2Enabled,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFF4A9EFF),
+                                            disabledContainerColor = Color(0xFF2C3139)
+                                        ),
+                                        shape = RoundedCornerShape(6.dp),
+                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                                        modifier = Modifier.height(38.dp).fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            if (revisionHistory.isEmpty()) "Registrar compra ou revisão" else "Registrar revisão",
+                                            color = if (isCard2Enabled) Color.White else textDisabledColor,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+
+                                // Column 2: Centered "Próxima Revisão" details
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        "Próxima Revisão",
+                                        color = if (isCard2Enabled) Color(0xFFB0B8C4) else textDisabledColor,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     if (nextKm == 0) {
                                         Text(
-                                                "N/D - Cadastrar revisão para acompanhar",
-                                                color = Color(0xFFFFB74D),
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Medium
+                                            "N/D - Cadastrar",
+                                            color = if (isCard2Enabled) Color(0xFFFFB74D) else textDisabledColor,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Medium
                                         )
                                     } else {
                                         val nextKmLabel = String.format("%,d", nextKm) + " km"
                                         val nextDateLabel = dateFormatter.format(nextDate)
                                         Text(
-                                                "$nextKmLabel ou $nextDateLabel",
-                                                color = Color.White,
-                                                fontSize = 18.sp,
-                                                fontWeight = FontWeight.Bold
+                                            "$nextKmLabel ou $nextDateLabel",
+                                            color = if (isCard2Enabled) Color.White else textDisabledColor,
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.Bold
                                         )
                                     }
                                 }
 
-                                Button(
-                                        onClick = {
-                                            tempKm =
-                                                    ServiceManager.getInstance()
-                                                            .totalOdometer
-                                                            .toString()
-                                            tempDate = System.currentTimeMillis()
-                                            showRegisterDialog = true
-                                        },
-                                        enabled = allClusterFunctionsEnabled,
-                                        colors =
-                                                ButtonDefaults.buttonColors(
-                                                        containerColor = Color(0xFF4A9EFF)
-                                                ),
-                                        shape = RoundedCornerShape(6.dp),
-                                        contentPadding =
-                                                PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                ) {
-                                    Text(
-                                            if (nextKm == 0) "Registrar" else "Alterar",
-                                            color = Color.White,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold
-                                    )
-                                }
+                                // Column 3: Spacer to perfectly balance the button width on the right
+                                Spacer(modifier = Modifier.width(210.dp))
                             }
                         }
 
                         // Collapsible History
-                        Row(
-                                modifier =
-                                        Modifier.fillMaxWidth()
-                                                .clickable { expandedHistory = !expandedHistory }
-                                                .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                        // Collapsible History Card
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 20.dp, vertical = 16.dp)
                         ) {
-                            Text(
-                                    "Histórico de Revisões (${revisionHistory.size})",
-                                    color = Color(0xFF4A9EFF),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.weight(1f)
-                            )
-                            Icon(
-                                    imageVector =
-                                            if (expandedHistory) Icons.Default.ExpandLess
-                                            else Icons.Default.ExpandMore,
-                                    contentDescription = null,
-                                    tint = Color(0xFF4A9EFF),
-                                    modifier = Modifier.size(20.dp)
-                            )
-                        }
-
-                        AnimatedVisibility(visible = expandedHistory) {
-                            Column(
-                                    modifier = Modifier.padding(top = 4.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                            // Header Row
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { expandedHistory = !expandedHistory }
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                if (revisionHistory.isEmpty()) {
-                                    Text(
+                                Text(
+                                    "Histórico de Revisões (${revisionHistory.size})",
+                                    color = Color.White,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Icon(
+                                    imageVector = if (expandedHistory) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+
+                            AnimatedVisibility(visible = expandedHistory) {
+                                Column(
+                                    modifier = Modifier.padding(top = 16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    if (revisionHistory.isEmpty()) {
+                                        Text(
                                             "Nenhuma revisão registrada",
                                             color = Color(0xFF636D77),
-                                            fontSize = 12.sp,
+                                            fontSize = 13.sp,
                                             modifier = Modifier.padding(vertical = 4.dp)
-                                    )
-                                } else {
-                                    revisionHistory.sortedByDescending { it.km }.forEach { entry ->
-                                        Row(
-                                                modifier =
-                                                        Modifier.fillMaxWidth()
-                                                                .background(
-                                                                        Color(0xFF1E2228),
-                                                                        RoundedCornerShape(8.dp)
-                                                                )
-                                                                .padding(
-                                                                        horizontal = 12.dp,
-                                                                        vertical = 8.dp
-                                                                ),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                        )
+                                    } else {
+                                        revisionHistory.sortedByDescending { it.km }.forEach { entry ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(
+                                                        Color(0xFF1E2228),
+                                                        RoundedCornerShape(8.dp)
+                                                    )
+                                                    .padding(horizontal = 16.dp, vertical = 12.dp),
                                                 verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column {
-                                                Text(
-                                                        if (entry.km != 0) {
-                                                            "${String.format("%,d", entry.km)} km"
-                                                        } else {
-                                                            "Data de Compra"
-                                                        },
-                                                        color = Color.White,
-                                                        fontSize = 14.sp,
-                                                        fontWeight = FontWeight.Bold
-                                                )
-                                                Text(
-                                                        dateFormatter.format(entry.date),
-                                                        color = Color(0xFFB0B8C4),
-                                                        fontSize = 11.sp
-                                                )
-                                            }
-                                            IconButton(
+                                            ) {
+                                                // Column 1: Delete icon on the LEFT
+                                                IconButton(
                                                     onClick = {
-                                                        val newHistory =
-                                                                revisionHistory.filter {
-                                                                    it != entry
-                                                                }
+                                                        val newHistory = revisionHistory.filter { it != entry }
                                                         revisionHistory = newHistory
                                                         saveRevisionHistory(prefs, newHistory)
                                                     },
-                                                    modifier = Modifier.size(32.dp)
-                                            ) {
-                                                Icon(
+                                                    modifier = Modifier.size(36.dp)
+                                                ) {
+                                                    Icon(
                                                         Icons.Default.Delete,
                                                         contentDescription = "Excluir",
-                                                        tint = Color(0xFFFF4B4B),
-                                                        modifier = Modifier.size(18.dp)
+                                                        tint = Color(0xFFFF5252),
+                                                        modifier = Modifier.size(22.dp)
+                                                    )
+                                                }
+
+                                                Spacer(modifier = Modifier.width(12.dp))
+
+                                                // Column 2: Entry description (mileage or compra) - increased font size
+                                                Text(
+                                                    text = if (entry.km != 0) {
+                                                        "${String.format("%,d", entry.km)} km"
+                                                    } else {
+                                                        "Data de Compra"
+                                                    },
+                                                    color = Color.White,
+                                                    fontSize = 16.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+
+                                                Spacer(modifier = Modifier.weight(1f))
+
+                                                // Column 3: Date on the RIGHT - increased font size
+                                                Text(
+                                                    text = dateFormatter.format(entry.date),
+                                                    color = Color(0xFFB0B8C4),
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Medium
                                                 )
                                             }
                                         }
