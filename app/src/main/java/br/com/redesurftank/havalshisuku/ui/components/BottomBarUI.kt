@@ -25,6 +25,8 @@ import androidx.compose.ui.*
 import androidx.compose.ui.draw.*
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -45,6 +47,12 @@ import br.com.redesurftank.havalshisuku.utils.*
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.*
+import kotlin.math.roundToInt
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+private const val recycleOut = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8BAMAAADI0sRBAAAAJFBMVEV5pf57o/57nvd4ke1bjPJpfupvbH9HcExnlfhejfJhkfU9/+4C6j87AAAADHRSTlMiFQwG/gMBAFrOlQHp+XlJAAAC1ElEQVQ4y32VsU4jMRCGx9IVC5VtURA6777BrvIAJ02RpI3gDUhDfxQ0QUoBVEFKcXRBShHuAWh4uftnbK8dTrqRQGt/nvHMZGZM90l+3a0g11luZPV5T4k+yPL2uhIcuPtK+NdXVh1UpvKJrYQ/75Quh1GmyiN+iHQ4EeERx3t1s2vbth85FbqMsGt7/Osjp1q3B8jSdcLpflWo7oeQD2CLYjKWSTUAeue8T5zGa5UCAboQueCKeqUqwSmnRGVRoJoQ85RoP1JrbTqAC6jcCwV3vmPmt7c/RwP72KRiOYBylvkj9IFTHgOga5hPuBfcZZ/tgedrImqeXj6UB0/RtOi6s0hVcM3cuJYkWUHTQTveElV84TyN6bBnvCiUDPjW0ZisS+Y11fyZ54IV2ubAM9l9UpGD8PSRNKbmA+kQv5pdiktOTgTD7IfubA3RgQu254LDlWq8HSViXhTjdAYcnNg9rska2aid+8GGAjw+GusMWWwsTrEjN+G9NVFoM/sHb9gYq1K0z9fZuDssBMF4dXejyRfXLM+cg13r4Nvo+U74Fb/SJb9agrpql7g1SfwTR95NliprBa9FV6mVUijGGxifABdtql2b8Dv+UlgptiqwDTy/4Kxr6Zsc8Htf8JGcuG4r4/EGhAzXUEMIvPjMvBf6zPwKPSwRmt3UNa66KFVPqBSeWUdcy14yyntUKip8h+sPKEutOQR/xYs1lNFmLfmA8heRpoIPkn91YyY9iloLVpbb1Nf4aWInxh5rtRbnv23pfGNedvO9djBK8XQqJBPSztLfbeYezVKf9DodpAPRKRhYQb/aTIOOniFOOt+maefT0AtxcJ1MyiReDbdDN6TpkGWovnVo6qRVA32c01083+nMp/gA9In1yocO87iTF4HKA9EN378wz08eEChM69fkRmZqPDAdn6jlNC1vVlQ9bfIy1Uu8ZJR39NlLcjuepdV/5S/ikFxpmirRgwAAAABJRU5ErkJggg=="
+private const val recycleIn = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8BAMAAADI0sRBAAAAJ1BMVEV6pf97nfh7o/12kO5bjPJlf+leVZZlk/ZHcExejvJgj/P//+0A/9FP0Or/AAAADXRSTlMeDBMG/QMBVQDLlQEBuyPuOwAAAtFJREFUOMt9Vc1q20AQHpaAcU6VdOpttQRMchPCL1AWjHw18RtYl/ZgjCEkTxBoDyEITG+mGIzzALkk51z6Uv1m9kerFvfDyDv7zcyORrMz9Ojw4+21BW4DLix9PNLj93dZ/cZjdZuAFT7ovX1tv7bRsnaY8hp79NE6rBISWEyFp7a3XNQD8AGgl6uULASBp8GZVeZRVY6ntrcsiqwqooLwBM8LYSORKpAzraLbsiyNccuCaWY9lefG4AeFsoTI1otgCiOQeSkKePBeTT5e2UuRs4OCxJa9emitw1JoPlgkpUhddtba5ufLURk5H9ZZTkIq0pc2oFmzf9BZ9snu4ZJIjWyPZgP7jGCsoUuMg1uM7h5OnicO+t7OmR0HNXjCMQ3OJ45LH+wTjDp+BoCfm5xgrDWYNW2dDw8F/gnWiJp1G8S1jqTGS_7bRmiOeotgZ9HSqRzshtg3jU78LsFY+/9r0Mi0I1PfTmsM2uibTtJw6iM7uj+hDdjmZc1JmXv77U4iuLCKDCLeud0OaneMrdu5sIbMtd17n6OuT/ku0FsbgwkxRhrOuzRXo9Q5h6b7bES40OjGPtMk/Q7DFyP7BSp7Ogeh1+fYEZxfn6VReb/+Q+MrbujKxi80hKIDvveVPZ49emboM2oKJT7IKL8LisU+G6SFRSXlEmvc17xCzpHoGemJTbHnjNo9qhDXp8PxKGUtkBqer3HZlDYZas2MxWLj7iFfUgljhksGOnfijinlLvClV8cd44s/OTU7lVx99dA1ezZmGrw2/yCXBkRJa8jzPDNeKtkW3aGSZmXEVexdxvWuoqbat6w8k2bFbMaauXQuik1tANHkvlYXKZ+0x6KoxLryW9yFpdGGjomhQK4ZV9KhK9eXnVTwyHA9ldd1kY6C0M//mhHTab/kabAK3X4aR9Ri6sVlS8lou20Hk44nGYWdpWchuNkjgh9UPb6lwtsfbTVCnXvwUeQAAAAASUVORK5CYII="
 
 private val commonTextStyle =
         TextStyle(
@@ -152,6 +160,11 @@ fun BottomBarContent() {
                         serviceManager.getData(CarConstants.CAR_HVAC_AUTO_ENABLE.getValue()) ?: "0"
                 )
         }
+        var acRecirc by remember {
+                mutableStateOf(
+                        serviceManager.getData(CarConstants.CAR_HVAC_CYCLE_MODE.getValue()) ?: "0"
+                )
+        }
 
         // Update states when data changes
         DisposableEffect(Unit) {
@@ -184,6 +197,8 @@ fun BottomBarContent() {
                                                         acSync = value
                                                 CarConstants.CAR_HVAC_AUTO_ENABLE.getValue() ->
                                                         acAuto = value
+                                                CarConstants.CAR_HVAC_CYCLE_MODE.getValue() ->
+                                                        acRecirc = value
                                         }
                                 }
                         }
@@ -327,7 +342,8 @@ fun BottomBarContent() {
                                                         TempControlSection(
                                                                 "Motorista",
                                                                 driverTemp,
-                                                                isACEnabled
+                                                                isACEnabled,
+                                                                BottomBarState.SliderType.DRIVER_TEMP
                                                         ) { delta ->
                                                                 val newTemp =
                                                                         (driverTemp.toFloatOrNull()
@@ -356,7 +372,7 @@ fun BottomBarContent() {
                                                         modifier = Modifier.weight(0.14f),
                                                         contentAlignment = Alignment.Center
                                                 ) {
-                                                        FanControlSection(fanSpeed, true) { delta ->
+                                                        FanControlSection(fanSpeed, true, BottomBarState.SliderType.FAN) { delta ->
                                                                 val calculatedSpeed =
                                                                         (fanSpeed + delta).coerceIn(
                                                                                 0,
@@ -391,17 +407,34 @@ fun BottomBarContent() {
                                                         }
                                                 }
 
-                                                // 5. AC Sync/Auto (14%)
+                                                // 5. AC Recirc/Sync/Auto (14%)
                                                 Box(
                                                         modifier = Modifier.weight(0.14f),
                                                         contentAlignment = Alignment.Center
                                                 ) {
                                                         Row(
                                                                 horizontalArrangement =
-                                                                        Arrangement.spacedBy(20.dp),
+                                                                        Arrangement.spacedBy(6.dp),
                                                                 verticalAlignment =
                                                                         Alignment.CenterVertically
                                                         ) {
+                                                                ACControlButton(
+                                                                        icon = if (acRecirc == "1") recycleIn else recycleOut,
+                                                                        label = "Recirc",
+                                                                        isActive = acRecirc == "1",
+                                                                        isEnabled = isACEnabled
+                                                                ) {
+                                                                        val next =
+                                                                                if (acRecirc == "1")
+                                                                                        "0"
+                                                                                else "1"
+                                                                        serviceManager.updateData(
+                                                                                CarConstants
+                                                                                        .CAR_HVAC_CYCLE_MODE
+                                                                                        .getValue(),
+                                                                                next
+                                                                        )
+                                                                }
                                                                 ACControlButton(
                                                                         icon = Icons.Default.Sync,
                                                                         label = "Sync",
@@ -448,7 +481,8 @@ fun BottomBarContent() {
                                                 ) {
                                                         VolumeControlSection(
                                                                 label = "Volume",
-                                                                volume
+                                                                volume,
+                                                                BottomBarState.SliderType.VOLUME
                                                         ) { delta ->
                                                                 val newVol =
                                                                         (volume + delta).coerceIn(
@@ -472,7 +506,8 @@ fun BottomBarContent() {
                                                         TempControlSection(
                                                                 "Passageiro",
                                                                 passTemp,
-                                                                isACEnabled
+                                                                isACEnabled,
+                                                                BottomBarState.SliderType.PASS_TEMP
                                                         ) { delta ->
                                                                 val newTemp =
                                                                         (passTemp.toFloatOrNull()
@@ -682,26 +717,47 @@ fun AppSwitcherSection() {
         val substituteIconVector = getSubstituteIconVector(selectedConfig?.substituteIcon)
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(
-                        onClick = {
-                                scope.launch {
-                                        br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
-                                                .getOrCreateDefaultConfig(context, selectedPackage, save = false)
-                                                ?.let {
-                                                        br.com.redesurftank.havalshisuku.managers
-                                                                .DisplayAppLauncher.sendToDisplay(
-                                                                it
-                                                        )
-                                                }
+                val leftNavInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                val leftNavPressed by leftNavInteraction.collectIsPressedAsState()
+                val leftNavColor by animateColorAsState(
+                        targetValue = if (leftNavPressed) Color(0xFF2196F3).copy(alpha = 0.35f) else Color.Transparent,
+                        animationSpec = tween(durationMillis = if (leftNavPressed) 50 else 300)
+                )
+                Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                                .width(70.dp)
+                                .fillMaxHeight()
+                                .clickable(
+                                        interactionSource = leftNavInteraction,
+                                        indication = null
+                                ) {
+                                        scope.launch {
+                                                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                                                        .getOrCreateDefaultConfig(context, selectedPackage, save = false)
+                                                        ?.let {
+                                                                br.com.redesurftank.havalshisuku.managers
+                                                                        .DisplayAppLauncher.sendToDisplay(
+                                                                        it
+                                                                )
+                                                        }
+                                        }
                                 }
-                        },
-                        modifier = Modifier.width(70.dp).fillMaxHeight()
                 ) {
-                        Icon(
-                                Icons.Default.KeyboardArrowLeft,
-                                contentDescription = "Cluster",
-                                tint = Color.White
-                        )
+                        Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(leftNavColor)
+                        ) {
+                                Icon(
+                                        Icons.Default.KeyboardArrowLeft,
+                                        contentDescription = "Cluster",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(24.dp)
+                                )
+                        }
                 }
                 Box(
                         modifier =
@@ -808,34 +864,55 @@ fun AppSwitcherSection() {
                         }
                 }
 
-                IconButton(
-                        onClick = {
-                                scope.launch {
-                                        br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
-                                                .bringAllToMainDisplay()
-                                        if (selectedPackage.isNotEmpty()) {
-                                                br.com.redesurftank.havalshisuku.managers
-                                                        .DisplayAppLauncher
-                                                        .getOrCreateDefaultConfig(
+                val rightNavInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                val rightNavPressed by rightNavInteraction.collectIsPressedAsState()
+                val rightNavColor by animateColorAsState(
+                        targetValue = if (rightNavPressed) Color(0xFF2196F3).copy(alpha = 0.35f) else Color.Transparent,
+                        animationSpec = tween(durationMillis = if (rightNavPressed) 50 else 300)
+                )
+                Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                                .width(70.dp)
+                                .fillMaxHeight()
+                                .clickable(
+                                        interactionSource = rightNavInteraction,
+                                        indication = null
+                                ) {
+                                        scope.launch {
+                                                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                                                        .bringAllToMainDisplay()
+                                                if (selectedPackage.isNotEmpty()) {
+                                                        br.com.redesurftank.havalshisuku.managers
+                                                                .DisplayAppLauncher
+                                                                .getOrCreateDefaultConfig(
+                                                                        context,
+                                                                        selectedPackage,
+                                                                        save = false
+                                                                )
+                                                        br.com.redesurftank.havalshisuku.managers
+                                                                .DisplayAppLauncher.launchAnyApp(
                                                                 context,
-                                                                selectedPackage,
-                                                                save = false
+                                                                selectedPackage
                                                         )
-                                                br.com.redesurftank.havalshisuku.managers
-                                                        .DisplayAppLauncher.launchAnyApp(
-                                                        context,
-                                                        selectedPackage
-                                                )
+                                                }
                                         }
                                 }
-                        },
-                        modifier = Modifier.width(70.dp).fillMaxHeight()
                 ) {
-                        Icon(
-                                Icons.Default.KeyboardArrowRight,
-                                contentDescription = "MMI",
-                                tint = Color.White
-                        )
+                        Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(rightNavColor)
+                        ) {
+                                Icon(
+                                        Icons.Default.KeyboardArrowRight,
+                                        contentDescription = "MMI",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(24.dp)
+                                )
+                        }
                 }
         }
 }
@@ -974,17 +1051,31 @@ fun AppMenuContent() {
                                                 }
                                         }
                                 }
-                                IconButton(
-                                        onClick = {
-                                                BottomBarState.isMenuExpanded = false
-                                                BottomBarState.isDeleteModeEnabled = false
-                                        },
-                                        modifier = Modifier.size(24.dp)
+                                val closeInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                                val closePressed by closeInteraction.collectIsPressedAsState()
+                                val closeGlow by animateColorAsState(
+                                        targetValue = if (closePressed) Color(0xFF2196F3).copy(alpha = 0.35f) else Color.Transparent,
+                                        animationSpec = tween(durationMillis = if (closePressed) 50 else 300)
+                                )
+                                Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                                .size(36.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(closeGlow)
+                                                .clickable(
+                                                        interactionSource = closeInteraction,
+                                                        indication = null
+                                                ) {
+                                                        BottomBarState.isMenuExpanded = false
+                                                        BottomBarState.isDeleteModeEnabled = false
+                                                }
                                 ) {
                                         Icon(
                                                 imageVector = Icons.Default.Close,
                                                 contentDescription = "Fechar",
-                                                tint = Color.White.copy(alpha = 0.7f)
+                                                tint = Color.White.copy(alpha = 0.7f),
+                                                modifier = Modifier.size(24.dp)
                                         )
                                 }
                         }
@@ -1523,6 +1614,7 @@ fun BottomBarMenus() {
                                         BottomBarState.isSettingsMenuExpanded = false
                                         BottomBarState.isOverrideMenuExpanded = false
                                         BottomBarState.isDeleteModeEnabled = false
+                                        BottomBarState.activeSliderType = null
                                 },
                 contentAlignment = Alignment.BottomCenter
         ) {
@@ -1530,6 +1622,11 @@ fun BottomBarMenus() {
                 Box(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 60.dp),
                 ) {
+                        // Custom Vertical Slider Overlay
+                        if (BottomBarState.activeSliderType != null) {
+                                VerticalSliderOverlay()
+                        }
+
                         // App Menu (Left side)
                         if (br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded) {
                                 Box(
@@ -1728,19 +1825,36 @@ fun TempControlSection(
         label: String,
         temp: String,
         isEnabled: Boolean,
+        sliderType: BottomBarState.SliderType? = null,
         onValueChange: (Float) -> Unit
 ) {
-        val alpha = if (isEnabled) 1f else 0.4f
+        val floatTemp = temp.toFloatOrNull() ?: -200f
+        val isAbnormal = floatTemp >= 85f || floatTemp <= -40f || floatTemp == -1f || temp == "--"
+        val isTempValid = isEnabled && !isAbnormal
+        val alpha = if (isTempValid) 1f else 0.4f
+        var centerX by remember { mutableFloatStateOf(0f) }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.alpha(alpha)) {
-                SmallButton(Icons.Default.Remove, isEnabled) { onValueChange(-0.5f) }
+                SmallButton(Icons.Default.Remove, isTempValid) { onValueChange(-0.5f) }
                 Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.width(120.dp)
+                        modifier = Modifier
+                                .width(120.dp)
+                                .onGloballyPositioned { coordinates ->
+                                        centerX = coordinates.positionInRoot().x + coordinates.size.width / 2f
+                                }
+                                .clickable(
+                                        enabled = isTempValid && sliderType != null,
+                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                        indication = null
+                                ) {
+                                        if (sliderType != null) {
+                                                BottomBarState.sliderPositionX = centerX
+                                                BottomBarState.activeSliderType = sliderType
+                                        }
+                                }
                 ) {
                         Text(text = label, style = labelStyle)
-                        val floatTemp = temp.toFloatOrNull() ?: -200f
-                        val isAbnormal = floatTemp >= 85f || floatTemp <= -40f || floatTemp == -1f
-                        val displayTemp = if (!isEnabled || isAbnormal) "--" else temp
+                        val displayTemp = if (!isTempValid) "--" else temp
                         val tempColor = if (floatTemp > 30f) Color.Red else Color.White
                         Text(
                                 text =
@@ -1754,18 +1868,38 @@ fun TempControlSection(
                                 modifier = Modifier.padding(horizontal = 4.dp)
                         )
                 }
-                SmallButton(Icons.Default.Add, isEnabled) { onValueChange(0.5f) }
+                SmallButton(Icons.Default.Add, isTempValid) { onValueChange(0.5f) }
         }
 }
 
 @Composable
-fun FanControlSection(speed: Int, isEnabled: Boolean, onValueChange: (Int) -> Unit) {
+fun FanControlSection(
+        speed: Int,
+        isEnabled: Boolean,
+        sliderType: BottomBarState.SliderType? = null,
+        onValueChange: (Int) -> Unit
+) {
         val alpha = if (isEnabled) 1f else 0.4f
+        var centerX by remember { mutableFloatStateOf(0f) }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.alpha(alpha)) {
                 SmallButton(Icons.Default.Remove, isEnabled) { onValueChange(-1) }
                 Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.width(120.dp)
+                        modifier = Modifier
+                                .width(120.dp)
+                                .onGloballyPositioned { coordinates ->
+                                        centerX = coordinates.positionInRoot().x + coordinates.size.width / 2f
+                                }
+                                .clickable(
+                                        enabled = isEnabled && sliderType != null,
+                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                        indication = null
+                                ) {
+                                        if (sliderType != null) {
+                                                BottomBarState.sliderPositionX = centerX
+                                                BottomBarState.activeSliderType = sliderType
+                                        }
+                                }
                 ) {
                         Text(text = "Ventilação", style = labelStyle.copy(fontSize = 10.sp))
                         Text(
@@ -1813,12 +1947,32 @@ fun FanSpeedIcon(speed: Int) {
 }
 
 @Composable
-fun VolumeControlSection(label: String, volume: Int, onValueChange: (Int) -> Unit) {
+fun VolumeControlSection(
+        label: String,
+        volume: Int,
+        sliderType: BottomBarState.SliderType? = null,
+        onValueChange: (Int) -> Unit
+) {
+        var centerX by remember { mutableFloatStateOf(0f) }
         Row(verticalAlignment = Alignment.CenterVertically) {
                 SmallButton(Icons.Default.Remove) { onValueChange(-1) }
                 Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.width(60.dp)
+                        modifier = Modifier
+                                .width(60.dp)
+                                .onGloballyPositioned { coordinates ->
+                                        centerX = coordinates.positionInRoot().x + coordinates.size.width / 2f
+                                }
+                                .clickable(
+                                        enabled = sliderType != null,
+                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                        indication = null
+                                ) {
+                                        if (sliderType != null) {
+                                                BottomBarState.sliderPositionX = centerX
+                                                BottomBarState.activeSliderType = sliderType
+                                        }
+                                }
                 ) {
                         Text(text = label, style = labelStyle)
                         Text(
@@ -1835,18 +1989,31 @@ fun VolumeControlSection(label: String, volume: Int, onValueChange: (Int) -> Uni
 fun ControlsSection(scope: CoroutineScope) {
         Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(20.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
+                val voltarInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                val voltarPressed by voltarInteraction.collectIsPressedAsState()
+                val voltarColor by animateColorAsState(
+                        targetValue = if (voltarPressed) Color(0xFF2196F3).copy(alpha = 0.35f) else Color.Transparent,
+                        animationSpec = tween(durationMillis = if (voltarPressed) 50 else 300)
+                )
                 Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier =
-                                Modifier.clickable {
+                        modifier = Modifier
+                                .width(80.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(voltarColor)
+                                .clickable(
+                                        interactionSource = voltarInteraction,
+                                        indication = null
+                                ) {
                                         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                                 ShizukuUtils.runCommandAndGetOutput(
                                                         arrayOf("input", "keyevent", "4")
                                                 )
                                         }
                                 }
+                                .padding(vertical = 6.dp)
                 ) {
                         Text(
                                 text = "Voltar",
@@ -1856,17 +2023,30 @@ fun ControlsSection(scope: CoroutineScope) {
                                 Icons.AutoMirrored.Filled.Undo,
                                 contentDescription = null,
                                 tint = Color.White.copy(alpha = 0.8f),
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(24.dp)
                         )
                 }
 
                 val showSettings = BottomBarState.isSettingsMenuExpanded
+                val conducaoInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                val conducaoPressed by conducaoInteraction.collectIsPressedAsState()
+                val conducaoColor by animateColorAsState(
+                        targetValue = if (conducaoPressed) Color(0xFF2196F3).copy(alpha = 0.35f) else Color.Transparent,
+                        animationSpec = tween(durationMillis = if (conducaoPressed) 50 else 300)
+                )
                 Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier =
-                                Modifier.clickable {
+                        modifier = Modifier
+                                .width(80.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(conducaoColor)
+                                .clickable(
+                                        interactionSource = conducaoInteraction,
+                                        indication = null
+                                ) {
                                         BottomBarState.isSettingsMenuExpanded = !showSettings
                                 }
+                                .padding(vertical = 6.dp)
                 ) {
                         Text(
                                 text = "Condução",
@@ -1878,33 +2058,13 @@ fun ControlsSection(scope: CoroutineScope) {
                                                         else Color.White
                                         )
                         )
-                        Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
+                        Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
                                 Icon(
-                                        imageVector = Icons.Default.DirectionsCar,
+                                        imageVector = Icons.Default.Settings,
                                         contentDescription = null,
                                         tint = if (showSettings) Color(0xFF2196F3) else Color.White,
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(24.dp)
                                 )
-                                Box(
-                                        modifier =
-                                                Modifier.size(10.dp)
-                                                        .offset(x = 6.dp, y = 6.dp)
-                                                        .background(
-                                                                Color.Black,
-                                                                RoundedCornerShape(2.dp)
-                                                        )
-                                                        .padding(0.5.dp),
-                                        contentAlignment = Alignment.Center
-                                ) {
-                                        Icon(
-                                                imageVector = Icons.Default.Tune,
-                                                contentDescription = null,
-                                                tint =
-                                                        if (showSettings) Color(0xFF2196F3)
-                                                        else Color.White,
-                                                modifier = Modifier.size(8.dp)
-                                        )
-                                }
                         }
                 }
         }
@@ -1912,14 +2072,83 @@ fun ControlsSection(scope: CoroutineScope) {
 
 @Composable
 fun NavIcon(icon: ImageVector, onClick: () -> Unit) {
-        IconButton(onClick = onClick) {
-                Icon(icon, contentDescription = null, tint = Color.White.copy(alpha = 0.8f))
+        val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+        val isPressed by interactionSource.collectIsPressedAsState()
+        val glowColor = Color(0xFF2196F3).copy(alpha = 0.35f)
+        val animatedColor by animateColorAsState(
+                targetValue = if (isPressed) glowColor else Color.Transparent,
+                animationSpec = tween(durationMillis = if (isPressed) 50 else 300)
+        )
+
+        Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                        .size(48.dp) // standard nav icon container width/height
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(animatedColor)
+                        .clickable(
+                                interactionSource = interactionSource,
+                                indication = null
+                        ) { onClick() }
+        ) {
+                Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.8f),
+                        modifier = Modifier.size(24.dp)
+                )
+        }
+}
+
+private fun cropBitmapTransparentMargins(source: android.graphics.Bitmap): android.graphics.Bitmap {
+        var firstX = source.width
+        var firstY = source.height
+        var lastX = -1
+        var lastY = -1
+
+        for (y in 0 until source.height) {
+                for (x in 0 until source.width) {
+                        val alpha = (source.getPixel(x, y) shr 24) and 0xFF
+                        if (alpha > 10) { // non-transparent
+                                if (x < firstX) firstX = x
+                                if (y < firstY) firstY = y
+                                if (x > lastX) lastX = x
+                                if (y > lastY) lastY = y
+                        }
+                }
+        }
+
+        if (lastX < firstX || lastY < firstY) {
+                return source // empty or fully transparent
+        }
+
+        val width = lastX - firstX + 1
+        val height = lastY - firstY + 1
+        return android.graphics.Bitmap.createBitmap(source, firstX, firstY, width, height)
+}
+
+private fun decodeBase64ToBitmap(base64Str: String): ImageBitmap? {
+        return try {
+                val cleanStr = if (base64Str.startsWith("data:image")) {
+                        base64Str.substringAfter(",")
+                } else {
+                        base64Str
+                }
+                val decodedBytes = android.util.Base64.decode(cleanStr, android.util.Base64.DEFAULT)
+                val bitmap = android.graphics.BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+                if (bitmap != null) {
+                        cropBitmapTransparentMargins(bitmap).asImageBitmap()
+                } else {
+                        null
+                }
+        } catch (e: Exception) {
+                null
         }
 }
 
 @Composable
 fun ACControlButton(
-        icon: ImageVector,
+        icon: Any,
         label: String,
         isActive: Boolean,
         isEnabled: Boolean,
@@ -1930,9 +2159,27 @@ fun ACControlButton(
         val activeColor = Color(0xFF2196F3) // Vibrant blue for active state
         val contentColor = if (isActive && isEnabled) activeColor else Color.White
 
+        val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+        val isPressed by interactionSource.collectIsPressedAsState()
+        val glowColor = Color(0xFF2196F3).copy(alpha = 0.35f)
+        val animatedColor by animateColorAsState(
+                targetValue = if (isPressed) glowColor else Color.Transparent,
+                animationSpec = tween(durationMillis = if (isPressed) 50 else 300)
+        )
+
         Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.alpha(alpha).clickable(enabled = isEnabled) { onClick() }
+                modifier = Modifier
+                        .alpha(alpha)
+                        .width(68.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(animatedColor)
+                        .clickable(
+                                interactionSource = interactionSource,
+                                indication = null,
+                                enabled = isEnabled
+                        ) { onClick() }
+                        .padding(vertical = 6.dp)
         ) {
                 Text(
                         text = label,
@@ -1944,12 +2191,24 @@ fun ACControlButton(
                                                 if (isActive) FontWeight.Bold else FontWeight.Medium
                                 )
                 )
-                Icon(
-                        icon,
-                        contentDescription = label,
-                        tint = contentColor,
-                        modifier = Modifier.size(20.dp)
-                )
+                if (icon is ImageVector) {
+                        Icon(
+                                icon,
+                                contentDescription = label,
+                                tint = contentColor,
+                                modifier = Modifier.size(24.dp)
+                        )
+                } else if (icon is String) {
+                        val bitmap = remember(icon) { decodeBase64ToBitmap(icon) }
+                        if (bitmap != null) {
+                                Image(
+                                        bitmap = bitmap,
+                                        contentDescription = label,
+                                        colorFilter = ColorFilter.tint(contentColor),
+                                        modifier = Modifier.size(width = 36.dp, height = 24.dp)
+                                )
+                        }
+                }
         }
 }
 
@@ -1961,19 +2220,46 @@ fun SmallButton(
         iconSize: androidx.compose.ui.unit.Dp = 20.dp,
         onClick: () -> Unit
 ) {
-        Surface(
-                onClick = if (enabled) onClick else ({}),
-                shape = RoundedCornerShape(0.dp),
-                color = Color.Black.copy(alpha = 0.95f),
-                modifier = Modifier.size(70.dp, 60.dp)
+        val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+        val isPressed by interactionSource.collectIsPressedAsState()
+        val glowColor = Color(0xFF2196F3).copy(alpha = 0.35f)
+        val animatedColor by animateColorAsState(
+                targetValue = if (isPressed) glowColor else Color.Transparent,
+                animationSpec = tween(durationMillis = if (isPressed) 50 else 300)
+        )
+
+        Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                        .size(70.dp, 60.dp)
+                        .background(Color.Black.copy(alpha = 0.95f))
+                        .clickable(
+                                enabled = enabled,
+                                interactionSource = interactionSource,
+                                indication = null
+                        ) { onClick() }
         ) {
-                Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                                icon,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(iconSize)
-                        )
+                val alpha = if (enabled) 1f else 0.4f
+                Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                                .fillMaxSize()
+                                .alpha(alpha)
+                ) {
+                        Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(animatedColor)
+                        ) {
+                                Icon(
+                                        icon,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(iconSize)
+                                )
+                        }
                 }
         }
 }
@@ -2366,5 +2652,366 @@ fun OverrideControlRow(
                                         activeTrackColor = Color.White
                                 )
                 )
+        }
+}
+
+enum class VisualAidType {
+        TEMP,
+        FAN,
+        VOLUME
+}
+
+@Composable
+fun VerticalSliderOverlay() {
+        val activeSlider = BottomBarState.activeSliderType ?: return
+        val positionX = BottomBarState.sliderPositionX
+        val serviceManager = ServiceManager.getInstance()
+        val isACEnabled = serviceManager.getData(CarConstants.CAR_HVAC_POWER_MODE.getValue()) == "1"
+
+        val density = LocalDensity.current
+        val sliderWidthDp = 80.dp
+        val sliderWidthPx = with(density) { sliderWidthDp.toPx() }
+        val screenWidthPx = LocalConfiguration.current.screenWidthDp * density.density
+        val finalX = (positionX - sliderWidthPx / 2f).coerceIn(0f, screenWidthPx - sliderWidthPx)
+        val finalXDp = with(density) { finalX.toDp() }
+
+        Box(
+                modifier = Modifier.fillMaxSize()
+        ) {
+                Box(
+                        modifier = Modifier
+                                .offset(x = finalXDp)
+                                .align(Alignment.BottomStart)
+                                .padding(bottom = 8.dp)
+                ) {
+                        when (activeSlider) {
+                                BottomBarState.SliderType.DRIVER_TEMP -> {
+                                        var tempStr by remember {
+                                                mutableStateOf(
+                                                        serviceManager.getData(CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.getValue())
+                                                                ?: "22.0"
+                                                )
+                                        }
+                                        DisposableEffect(Unit) {
+                                                val listener = object : br.com.redesurftank.havalshisuku.listeners.IDataChanged {
+                                                        override fun onDataChanged(key: String, value: String?) {
+                                                                if (key == CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.getValue() && value != null) {
+                                                                        tempStr = value
+                                                                }
+                                                        }
+                                                }
+                                                serviceManager.addDataChangedListener(listener)
+                                                onDispose { serviceManager.removeDataChangedListener(listener) }
+                                        }
+                                        val tempVal = tempStr.toFloatOrNull() ?: 22.0f
+                                        VerticalSlider(
+                                                label = "Motorista",
+                                                value = tempVal.coerceIn(16.0f, 32.0f),
+                                                range = 16.0f..32.0f,
+                                                step = 0.5f,
+                                                displayValue = if (!isACEnabled || tempStr == "--" || tempVal <= -1) "--" else String.format(java.util.Locale.US, "%.1f°C", tempVal),
+                                                visualAidType = VisualAidType.TEMP,
+                                                modifier = Modifier.height(320.dp),
+                                                isEnabled = isACEnabled,
+                                                onValueChange = { newValue ->
+                                                        serviceManager.updateData(
+                                                                CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.getValue(),
+                                                                String.format(java.util.Locale.US, "%.1f", newValue)
+                                                        )
+                                                }
+                                        )
+                                }
+                                BottomBarState.SliderType.PASS_TEMP -> {
+                                        var tempStr by remember {
+                                                mutableStateOf(
+                                                        serviceManager.getData(CarConstants.CAR_HVAC_PASS_TEMPERATURE.getValue())
+                                                                ?: "22.0"
+                                                )
+                                        }
+                                        DisposableEffect(Unit) {
+                                                val listener = object : br.com.redesurftank.havalshisuku.listeners.IDataChanged {
+                                                        override fun onDataChanged(key: String, value: String?) {
+                                                                if (key == CarConstants.CAR_HVAC_PASS_TEMPERATURE.getValue() && value != null) {
+                                                                        tempStr = value
+                                                                }
+                                                        }
+                                                }
+                                                serviceManager.addDataChangedListener(listener)
+                                                onDispose { serviceManager.removeDataChangedListener(listener) }
+                                        }
+                                        val tempVal = tempStr.toFloatOrNull() ?: 22.0f
+                                        VerticalSlider(
+                                                label = "Passageiro",
+                                                value = tempVal.coerceIn(16.0f, 32.0f),
+                                                range = 16.0f..32.0f,
+                                                step = 0.5f,
+                                                displayValue = if (!isACEnabled || tempStr == "--" || tempVal <= -1) "--" else String.format(java.util.Locale.US, "%.1f°C", tempVal),
+                                                visualAidType = VisualAidType.TEMP,
+                                                modifier = Modifier.height(320.dp),
+                                                isEnabled = isACEnabled,
+                                                onValueChange = { newValue ->
+                                                        serviceManager.updateData(
+                                                                CarConstants.CAR_HVAC_PASS_TEMPERATURE.getValue(),
+                                                                String.format(java.util.Locale.US, "%.1f", newValue)
+                                                        )
+                                                }
+                                        )
+                                }
+                                BottomBarState.SliderType.FAN -> {
+                                        var speedVal by remember {
+                                                mutableIntStateOf(
+                                                        serviceManager.getData(CarConstants.CAR_HVAC_FAN_SPEED.getValue())?.toIntOrNull()
+                                                                ?: 1
+                                                )
+                                        }
+                                        var hvacPower by remember {
+                                                mutableStateOf(
+                                                        serviceManager.getData(CarConstants.CAR_HVAC_POWER_MODE.getValue()) ?: "1"
+                                                )
+                                        }
+                                        DisposableEffect(Unit) {
+                                                val listener = object : br.com.redesurftank.havalshisuku.listeners.IDataChanged {
+                                                        override fun onDataChanged(key: String, value: String?) {
+                                                                if (value == null) return
+                                                                if (key == CarConstants.CAR_HVAC_FAN_SPEED.getValue()) {
+                                                                        speedVal = value.toIntOrNull() ?: speedVal
+                                                                } else if (key == CarConstants.CAR_HVAC_POWER_MODE.getValue()) {
+                                                                        hvacPower = value
+                                                                }
+                                                        }
+                                                }
+                                                serviceManager.addDataChangedListener(listener)
+                                                onDispose { serviceManager.removeDataChangedListener(listener) }
+                                        }
+                                        VerticalSlider(
+                                                label = "Ventilação",
+                                                value = speedVal.toFloat(),
+                                                range = 0f..7f,
+                                                step = 1f,
+                                                displayValue = speedVal.toString(),
+                                                visualAidType = VisualAidType.FAN,
+                                                onValueChange = { newValue ->
+                                                        val calculatedSpeed = newValue.toInt().coerceIn(0, 7)
+                                                        serviceManager.updateData(
+                                                                CarConstants.CAR_HVAC_FAN_SPEED.getValue(),
+                                                                calculatedSpeed.toString()
+                                                        )
+                                                        if (calculatedSpeed == 0 && hvacPower == "1") {
+                                                                serviceManager.updateData(
+                                                                        CarConstants.CAR_HVAC_POWER_MODE.getValue(),
+                                                                        "0"
+                                                                )
+                                                        } else if (calculatedSpeed > 0 && hvacPower == "0") {
+                                                                serviceManager.updateData(
+                                                                        CarConstants.CAR_HVAC_POWER_MODE.getValue(),
+                                                                        "1"
+                                                                )
+                                                        }
+                                                }
+                                        )
+                                }
+                                BottomBarState.SliderType.VOLUME -> {
+                                        var volVal by remember {
+                                                mutableIntStateOf(
+                                                        serviceManager.getData(CarConstants.SYS_SETTINGS_AUDIO_MEDIA_VOLUME.getValue())?.toIntOrNull()
+                                                                ?: 10
+                                                )
+                                        }
+                                        DisposableEffect(Unit) {
+                                                val listener = object : br.com.redesurftank.havalshisuku.listeners.IDataChanged {
+                                                        override fun onDataChanged(key: String, value: String?) {
+                                                                if (key == CarConstants.SYS_SETTINGS_AUDIO_MEDIA_VOLUME.getValue() && value != null) {
+                                                                        volVal = value.toIntOrNull() ?: volVal
+                                                                }
+                                                        }
+                                                }
+                                                serviceManager.addDataChangedListener(listener)
+                                                onDispose { serviceManager.removeDataChangedListener(listener) }
+                                        }
+                                        VerticalSlider(
+                                                label = "Volume",
+                                                value = volVal.toFloat(),
+                                                range = 0f..30f,
+                                                step = 1f,
+                                                displayValue = volVal.toString(),
+                                                visualAidType = VisualAidType.VOLUME,
+                                                onValueChange = { newValue ->
+                                                        val calculatedVol = newValue.toInt().coerceIn(0, 30)
+                                                        serviceManager.updateData(
+                                                                CarConstants.SYS_SETTINGS_AUDIO_MEDIA_VOLUME.getValue(),
+                                                                calculatedVol.toString()
+                                                        )
+                                                }
+                                        )
+                                }
+                        }
+                }
+        }
+}
+
+@Composable
+fun VerticalSlider(
+        label: String,
+        value: Float,
+        range: ClosedFloatingPointRange<Float>,
+        step: Float,
+        displayValue: String,
+        visualAidType: VisualAidType,
+        onValueChange: (Float) -> Unit,
+        modifier: Modifier = Modifier,
+        isEnabled: Boolean = true
+) {
+        var trackHeightPx by remember { mutableFloatStateOf(0f) }
+        Box(
+                modifier = Modifier
+                        .width(80.dp)
+                        .height(240.dp)
+                        .then(modifier)
+                        .background(Color(0xFF13151A).copy(alpha = 0.95f), RoundedCornerShape(20.dp))
+                        .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(20.dp))
+                        .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+        ) {
+                Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxSize()
+                ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                        text = displayValue,
+                                        color = Color.White,
+                                        fontSize = 16.sp,
+                                        fontFamily = Michroma,
+                                        fontWeight = FontWeight.Bold
+                                )
+                        }
+
+                        Box(
+                                modifier = Modifier
+                                        .width(48.dp)
+                                        .weight(1f)
+                                        .padding(vertical = 10.dp)
+                                        .onGloballyPositioned { trackHeightPx = it.size.height.toFloat() }
+                                        .pointerInput(range, step, isEnabled) {
+                                                if (!isEnabled) return@pointerInput
+                                                awaitPointerEventScope {
+                                                        while (true) {
+                                                                val down = awaitFirstDown(requireUnconsumed = false)
+                                                                val startY = down.position.y
+                                                                val fractionStart = ((trackHeightPx - startY) / trackHeightPx).coerceIn(0f..1f)
+                                                                val rawValueStart = range.start + fractionStart * (range.endInclusive - range.start)
+                                                                val steppedStart = (rawValueStart / step).roundToInt() * step
+                                                                onValueChange(steppedStart.coerceIn(range))
+
+                                                                do {
+                                                                        val event = awaitPointerEvent()
+                                                                        val change = event.changes.firstOrNull() ?: break
+                                                                        if (change.pressed) {
+                                                                                change.consume()
+                                                                                val currentY = change.position.y
+                                                                                val fraction = ((trackHeightPx - currentY) / trackHeightPx).coerceIn(0f..1f)
+                                                                                val rawValue = range.start + fraction * (range.endInclusive - range.start)
+                                                                                val stepped = (rawValue / step).roundToInt() * step
+                                                                                onValueChange(stepped.coerceIn(range))
+                                                                        }
+                                                                } while (event.changes.any { it.pressed })
+                                                        }
+                                                }
+                                        }
+                        ) {
+                                Canvas(modifier = Modifier.fillMaxSize()) {
+                                        val w = size.width
+                                        val h = size.height
+                                        val fraction = ((value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
+
+                                        when (visualAidType) {
+                                                VisualAidType.TEMP -> {
+                                                        val trackWidth = 10.dp.toPx()
+                                                        val trackRect = Rect(
+                                                                left = (w - trackWidth) / 2f,
+                                                                top = 0f,
+                                                                right = (w + trackWidth) / 2f,
+                                                                bottom = h
+                                                        )
+                                                        drawRoundRect(
+                                                                color = Color.White.copy(alpha = 0.1f),
+                                                                topLeft = Offset(trackRect.left, trackRect.top),
+                                                                size = Size(trackRect.width, trackRect.height),
+                                                                cornerRadius = CornerRadius(trackWidth / 2f)
+                                                        )
+
+                                                        // Draw sleek step ticks flanking the temperature track
+                                                        val numTicks = 9 // every 2°C from 16 to 32
+                                                        for (i in 0 until numTicks) {
+                                                                val tickY = h - (i.toFloat() / (numTicks - 1)) * h
+                                                                // Left tick
+                                                                drawLine(
+                                                                        color = Color.White.copy(alpha = 0.25f),
+                                                                        start = Offset(trackRect.left - 8.dp.toPx(), tickY),
+                                                                        end = Offset(trackRect.left - 3.dp.toPx(), tickY),
+                                                                        strokeWidth = 1.dp.toPx()
+                                                                )
+                                                                // Right tick
+                                                                drawLine(
+                                                                        color = Color.White.copy(alpha = 0.25f),
+                                                                        start = Offset(trackRect.right + 3.dp.toPx(), tickY),
+                                                                        end = Offset(trackRect.right + 8.dp.toPx(), tickY),
+                                                                        strokeWidth = 1.dp.toPx()
+                                                                )
+                                                        }
+
+                                                        if (isEnabled) {
+                                                                val activeHeight = h * fraction
+                                                                val gradientBrush = Brush.verticalGradient(
+                                                                        colors = listOf(Color(0xFFFF4B4B), Color(0xFF4A9EFF)),
+                                                                        startY = 0f,
+                                                                        endY = h
+                                                                )
+                                                                drawRoundRect(
+                                                                        brush = gradientBrush,
+                                                                        topLeft = Offset(trackRect.left, h - activeHeight),
+                                                                        size = Size(trackRect.width, activeHeight),
+                                                                        cornerRadius = CornerRadius(trackWidth / 2f)
+                                                                )
+                                                                drawCircle(
+                                                                        color = Color.White,
+                                                                        radius = 7.dp.toPx(),
+                                                                        center = Offset(w / 2f, h - activeHeight)
+                                                                )
+                                                        }
+                                                }
+                                                VisualAidType.FAN, VisualAidType.VOLUME -> {
+                                                        val numSteps = if (visualAidType == VisualAidType.FAN) 7 else 15
+                                                        val spacing = 3.dp.toPx()
+                                                        val stepHeight = (h - (numSteps - 1) * spacing) / numSteps
+
+                                                        for (i in 0 until numSteps) {
+                                                                val active = (i + 1).toFloat() / numSteps <= fraction || (fraction == 0f && i == 0 && value > 0)
+                                                                val minStepWidth = 12.dp.toPx()
+                                                                val maxStepWidth = 36.dp.toPx()
+                                                                val stepWidth = minStepWidth + (maxStepWidth - minStepWidth) * (i.toFloat() / (numSteps - 1))
+
+                                                                val stepTop = h - (i + 1) * (stepHeight + spacing) + spacing
+                                                                val stepLeft = (w - stepWidth) / 2f
+
+                                                                val color = if (active && isEnabled) {
+                                                                        Color(0xFF2196F3)
+                                                                } else {
+                                                                        Color.White.copy(alpha = 0.15f)
+                                                                }
+
+                                                                drawRoundRect(
+                                                                        color = color,
+                                                                        topLeft = Offset(stepLeft, stepTop),
+                                                                        size = Size(stepWidth, stepHeight),
+                                                                        cornerRadius = CornerRadius(2.dp.toPx())
+                                                                )
+                                                        }
+                                                }
+                                        }
+                                }
+                        }
+                }
         }
 }

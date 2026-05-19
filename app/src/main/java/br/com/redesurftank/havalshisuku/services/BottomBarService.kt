@@ -150,7 +150,8 @@ class BottomBarService : LifecycleService() {
                         BottomBarState.isVisible,
                         BottomBarState.isMenuExpanded,
                         BottomBarState.isSettingsMenuExpanded,
-                        BottomBarState.isOverrideMenuExpanded
+                        BottomBarState.isOverrideMenuExpanded,
+                        BottomBarState.activeSliderType != null
                 )
             }
                     .collectLatest { resetAutoHideTimer() }
@@ -167,7 +168,8 @@ class BottomBarService : LifecycleService() {
                     if (BottomBarState.isVisible &&
                                     !BottomBarState.isMenuExpanded &&
                                     !BottomBarState.isSettingsMenuExpanded &&
-                                    !BottomBarState.isOverrideMenuExpanded
+                                    !BottomBarState.isOverrideMenuExpanded &&
+                                    BottomBarState.activeSliderType == null
                     ) {
                         BottomBarState.isVisible = false
                     }
@@ -434,7 +436,8 @@ class BottomBarService : LifecycleService() {
             snapshotFlow {
                 BottomBarState.isMenuExpanded ||
                         BottomBarState.isSettingsMenuExpanded ||
-                        BottomBarState.isOverrideMenuExpanded
+                        BottomBarState.isOverrideMenuExpanded ||
+                        BottomBarState.activeSliderType != null
             }
                     .collectLatest { expanded ->
                         updateMenuWindow(expanded)
@@ -719,7 +722,8 @@ class BottomBarService : LifecycleService() {
                                 val anyMenuExpanded =
                                         BottomBarState.isMenuExpanded ||
                                                 BottomBarState.isSettingsMenuExpanded ||
-                                                BottomBarState.isOverrideMenuExpanded
+                                                BottomBarState.isOverrideMenuExpanded ||
+                                                BottomBarState.activeSliderType != null
                                 Log.d(
                                         "BottomBarService",
                                         "TouchRegion[MENU] anyMenuExpanded=$anyMenuExpanded"

@@ -6,6 +6,15 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.setValue
 
 object BottomBarState {
+    enum class SliderType {
+        DRIVER_TEMP,
+        PASS_TEMP,
+        FAN,
+        VOLUME
+    }
+
+    var activeSliderType by mutableStateOf<SliderType?>(null)
+    var sliderPositionX by mutableStateOf(0f)
     var isVisible by mutableStateOf(true)
     var isMenuExpanded by mutableStateOf(false)
     var isSettingsMenuExpanded by mutableStateOf(false)
