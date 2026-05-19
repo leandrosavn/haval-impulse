@@ -141,11 +141,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                 )
                 ) {
                     ensureUi {
-                        if (key == SharedPreferencesKeys.CLUSTER_FUEL_DISPLAY_UNIT.key) {
-                            val (fuelVal, fuelUnit) = getFuelDisplayInfo()
-                            evaluateJsIfReady(webView, "control('fuelUnit', '$fuelUnit')")
-                            evaluateJsIfReady(webView, "control('fuelPercent', '$fuelVal')")
-                        }
+
                         if (key == SharedPreferencesKeys.ENABLE_INSTRUMENT_ODOMETER_AND_REVISION.key
                         ) {
                             val enabled = preferences.getBoolean(key, true)
@@ -417,9 +413,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         evaluateJsIfReady(webView, "control('odometer', '$value')")
                     }
                     CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE.value -> {
-                        val (fuelVal, fuelUnit) = getFuelDisplayInfo()
-                        evaluateJsIfReady(webView, "control('fuelUnit', '$fuelUnit')")
-                        evaluateJsIfReady(webView, "control('fuelPercent', '$fuelVal')")
+                        evaluateJsIfReady(webView, "control('fuelPercent', '$value')")
                     }
                     CarConstants.CAR_EV_INFO_CUR_BATTERY_POWER_PERCENTAGE.value -> {
                         evaluateJsIfReady(webView, "control('batteryPercent', '$value')")
@@ -622,17 +616,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         }
     }
 
-    private fun getFuelDisplayInfo(): Pair<String, String> {
-        val sm = ServiceManager.getInstance()
-        val unit = preferences.getString(SharedPreferencesKeys.CLUSTER_FUEL_DISPLAY_UNIT.key, "percent")
-        val rawFuelPercentage = sm.getData(CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE.value)?.toIntOrNull() ?: 0
-        return if (unit == "liters") {
-            val liters = (rawFuelPercentage * 60) / 100
-            Pair(liters.toString(), " L")
-        } else {
-            Pair(rawFuelPercentage.toString(), "%")
-        }
-    }
+
 
     private fun updateValuesWebView() {
         val sm = ServiceManager.getInstance()
@@ -681,9 +665,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         .toString()
 
         // Fuel and Battery Percentages/Range
-        val (fuelVal, fuelUnit) = getFuelDisplayInfo()
-        updates["fuelPercent"] = fuelVal
-        updates["fuelUnit"] = fuelUnit
+        updates["fuelPercent"] =
+                sm.getData(CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE.value) ?: "0"
         updates["batteryPercent"] =
                 sm.getData(CarConstants.CAR_EV_INFO_CUR_BATTERY_POWER_PERCENTAGE.value) ?: "0"
         updates["fuelRange"] =

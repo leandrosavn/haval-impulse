@@ -25,6 +25,19 @@ During this transition, the classic themes lost their top status bar backgrounds
 - **Root Cause**: The light stylesheet (`basic-light/src/styles/light.style.css`) used solid white gradients (`#ffffff` and `rgba(255,255,255,0.5)`) and solid white shadows (`var(--mask-circle-bg) = #ffffff`) over a pure white page background, resulting in zero contrast.
 - **Fix**: Updated both status bars with elegant translucent overlay gradients and soft, premium shadows (`box-shadow: 0 4px 25px rgba(0, 0, 0, 0.06)`) to establish visual separation and a premium glassmorphic feel on the white backdrop.
 
+### 3. Basic-Light (Light Theme) Bottom Gauges Harmonization
+- **Issue**: The bottom fuel and battery gauges did not align correctly compared to the basic dark theme, and the fuel/battery icons were completely invisible (white-on-white). Additionally, empty progress bar tracks were invisible against the white page background.
+- **Root Causes**:
+  1. The layout elements in the light stylesheet (`basic-light/src/styles/light.style.css`) had a height of `72px` and lacked the matching negative margins (`margin-right: -40px`, `margin-left: -30px`) that are used in `night.style.css` to align gauges perfectly under the dial circles.
+  2. The SVG icons used in `dashboardInfo.js` were hardcoded to white fills (`fill="white"` / `fill="#fff"`), blending completely with the light background.
+  3. The `.segment-track` used `var(--color-white-15)`, which rendered as white on white, rendering empty track segments invisible.
+  4. The fuel quantity/unit display in `basic-light` was using a generic class name `.fuel-percent` with default styling, whereas the dark theme used `.fuel-liters` which has custom right-align, top offset, and spacing optimizations.
+- **Fixes**:
+  1. Updated the light theme's stylesheet container height to `60px` and added matching negative margins for perfect alignment.
+  2. Substituted base64 SVG fills in the light theme to `fill="black"` so the icons stand out on the white dashboard background.
+  3. Changed the `.segment-track` background color to `rgba(0, 0, 0, 0.1)` so that empty progress bar tracks are clearly visible.
+  4. Ported `.fuel-liters` CSS styles to `light.style.css` and updated `dashboardInfo.js` to utilize `.fuel-liters` instead of `.fuel-percent` for fuel display, making layouts completely identical across themes.
+
 ---
 
 ## Structural Integrity
@@ -78,6 +91,26 @@ The stylesheets (`night.style.css` / `light.style.css`) govern the exact vertica
   - `.odometer-text-wrapper.double-line`: Uses `transform: translateY(0px);` to balance the two text lines nicely.
 
 - **Basic-Light (Light Mode - `light.style.css`)**:
-  - `.odometer-text-wrapper.single-line`: Uses `transform: translateY(6px);` to center the single-line odometer.
-  - `.odometer-text-wrapper.double-line`: Uses `transform: translateY(12px);` to shift the two lines, ensuring perfect clearance and alignment with surrounding visual details.
+  - `.odometer-text-wrapper.single-line`: Uses `transform: translateY(0px);` with larger text sizing to center the single-line odometer.
+  - `.odometer-text-wrapper.double-line`: Uses `transform: translateY(6px);` to balance the two text lines nicely and prevent bottom mask collision.
+
+---
+
+## Default / Embedded Theme Update Architecture
+
+To allow seamless upgrades of the built-in sporty theme without requiring app updates, the Default theme has been unified between raw assets and the GitHub update workflow.
+
+### 1. Unified Card & Git SHA/Size Comparison
+- Previously, a hardcoded "Default (Original)" card and a remote "Default" card from GitHub were shown separately.
+- They have been merged into a single, cohesive **"Default" Card**.
+- If the Default theme is not downloaded locally in `themesDir/Default`, the app reads from raw resources (`R.raw.app` / `app.html`).
+- To check if the embedded version differs from the latest one on GitHub, the app retrieves the `size` and `sha` of the remote `index.html` file through GitHub's repo contents API.
+- The app then calculates the local Git-compatible SHA-1 blob hash:
+  `SHA-1("blob " + localSize + "\u0000" + localBytes)`
+- If either the size or the SHA-1 hash is different, the app sets `hasUpdate = true`, prompting the user to click **"Atualizar" / "Baixar"**.
+
+### 2. Selective Overriding & Fallback
+- When downloaded, the updated Default theme is placed under `files/themes/Default`.
+- The `ACTIVE_CUSTOM_THEME` preference is updated to `"Default"`, instructing `InstrumentProjector2` to load the custom HTML file from `files/themes/Default/index.html` instead of the raw resource.
+- A **Delete / Excluir** action is provided for the Default theme when it has been downloaded. Clicking it deletes the downloaded folder and resets `ACTIVE_CUSTOM_THEME` to `""`, cleanly falling back to the raw APK resource.
 

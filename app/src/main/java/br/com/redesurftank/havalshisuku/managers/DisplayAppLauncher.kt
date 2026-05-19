@@ -79,8 +79,7 @@ object DisplayAppLauncher {
             y = 0,
             width = 1920,
             height = 720,
-            customName = "Android Auto",
-            forceFocus = true
+            customName = "Android Auto"
         ),
         DisplayAppConfig(
             packageName = "com.ts.carplay.app",

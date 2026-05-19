@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.lazy.grid.*
@@ -36,36 +37,31 @@ import androidx.core.content.edit
 import br.com.redesurftank.App
 import br.com.redesurftank.havalshisuku.R
 import br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
-import br.com.redesurftank.havalshisuku.managers.ThemeManager
 import br.com.redesurftank.havalshisuku.managers.ServiceManager
+import br.com.redesurftank.havalshisuku.managers.ThemeManager
 import br.com.redesurftank.havalshisuku.models.DisplayAppConfig
 import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys
 import br.com.redesurftank.havalshisuku.models.ThemeMetadata
-import br.com.redesurftank.havalshisuku.ui.components.SettingItem
 import br.com.redesurftank.havalshisuku.ui.components.StyledCard
-import br.com.redesurftank.havalshisuku.ui.components.TwoColumnSettingsLayout
-import br.com.redesurftank.havalshisuku.ui.components.AppColors
+import br.com.redesurftank.havalshisuku.ui.components.StyledTextField
 import coil.compose.AsyncImage
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 data class RevisionEntry(val km: Int, val date: Long)
 
 data class InstalledAppInfo(
-    val packageName: String,
-    val activityName: String,
-    val label: String,
-    val icon: android.graphics.drawable.Drawable?
+        val packageName: String,
+        val activityName: String,
+        val label: String,
+        val icon: android.graphics.drawable.Drawable?
 )
 
-data class DisplayInfo(
-    val id: Int,
-    val name: String
-)
+data class DisplayInfo(val id: Int, val name: String)
 
 fun getRevisionHistory(prefs: SharedPreferences): List<RevisionEntry> {
     val json = prefs.getString(SharedPreferencesKeys.INSTRUMENT_REVISION_HISTORY.key, "[]")
@@ -85,109 +81,116 @@ fun saveRevisionHistory(prefs: SharedPreferences, history: List<RevisionEntry>) 
 
 @Composable
 fun CompactThemeCard(
-    theme: ThemeMetadata,
-    isDownloaded: Boolean,
-    isSelected: Boolean,
-    hasUpdate: Boolean,
-    isDownloading: Boolean,
-    onAction: () -> Unit,
-    onUpdate: () -> Unit,
-    onDelete: () -> Unit
+        theme: ThemeMetadata,
+        isDownloaded: Boolean,
+        isSelected: Boolean,
+        hasUpdate: Boolean,
+        isDownloading: Boolean,
+        canDelete: Boolean = true,
+        onAction: () -> Unit,
+        onUpdate: () -> Unit,
+        onDelete: () -> Unit
 ) {
     val borderColor = if (isSelected) Color(0xFF4A9EFF) else Color(0xFF2C3139)
     val backgroundColor = if (isSelected) Color(0xFF1E2638) else Color(0xFF1E2228)
     val context = LocalContext.current
 
     Card(
-        modifier = Modifier
-            .width(300.dp)
-            .clickable { onAction() }
-            .border(1.5.dp, borderColor, RoundedCornerShape(12.dp)),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        shape = RoundedCornerShape(12.dp)
+            modifier =
+                    Modifier.width(300.dp)
+                            .clickable { onAction() }
+                            .border(1.5.dp, borderColor, RoundedCornerShape(12.dp)),
+            colors = CardDefaults.cardColors(containerColor = backgroundColor),
+            shape = RoundedCornerShape(12.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
             // Thumbnail / Icon space
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(106.dp)
-                    .background(Color(0xFF13151A), RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.Center
+                    modifier =
+                            Modifier.fillMaxWidth()
+                                    .height(106.dp)
+                                    .background(Color(0xFF13151A), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
             ) {
-                val model = remember(theme.thumbnailUrl) {
-                    if (theme.thumbnailUrl.isNotEmpty() && !theme.thumbnailUrl.startsWith("http") && !theme.thumbnailUrl.startsWith("/")) {
-                        context.resources.getIdentifier(theme.thumbnailUrl, "drawable", context.packageName).let { if (it != 0) it else theme.thumbnailUrl }
-                    } else {
-                        theme.thumbnailUrl
-                    }
-                }
+                val model =
+                        remember(theme.thumbnailUrl) {
+                            if (theme.thumbnailUrl.isNotEmpty() &&
+                                            !theme.thumbnailUrl.startsWith("http") &&
+                                            !theme.thumbnailUrl.startsWith("/")
+                            ) {
+                                context.resources.getIdentifier(
+                                                theme.thumbnailUrl,
+                                                "drawable",
+                                                context.packageName
+                                        )
+                                        .let { if (it != 0) it else theme.thumbnailUrl }
+                            } else {
+                                theme.thumbnailUrl
+                            }
+                        }
 
                 if (theme.thumbnailUrl.isNotEmpty()) {
                     AsyncImage(
-                        model = model,
-                        contentDescription = theme.name,
-                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp)),
-                        contentScale = ContentScale.Crop
+                            model = model,
+                            contentDescription = theme.name,
+                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Crop
                     )
                 } else {
                     Icon(
-                        imageVector = Icons.Default.Style,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.3f),
-                        modifier = Modifier.size(32.dp)
+                            imageVector = Icons.Default.Style,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.3f),
+                            modifier = Modifier.size(32.dp)
                     )
                 }
 
                 // Selected indicator overlay
                 if (isSelected) {
                     Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color(0xFF4A9EFF).copy(alpha = 0.2f))
+                            modifier =
+                                    Modifier.fillMaxSize()
+                                            .background(Color(0xFF4A9EFF).copy(alpha = 0.2f))
                     )
                     Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = Color(0xFF4A9EFF),
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(4.dp)
-                            .size(20.dp)
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = Color(0xFF4A9EFF),
+                            modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(20.dp)
                     )
                 }
 
                 // Update available indicator overlay badge
                 if (hasUpdate) {
                     Box(
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(6.dp)
-                            .background(
-                                color = Color(0xFFE5A93B), // Elegant amber/orange color for updates
-                                shape = RoundedCornerShape(4.dp)
-                            )
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            modifier =
+                                    Modifier.align(Alignment.TopStart)
+                                            .padding(6.dp)
+                                            .background(
+                                                    color =
+                                                            Color(
+                                                                    0xFFE5A93B
+                                                            ), // Elegant amber/orange color for
+                                                    // updates
+                                                    shape = RoundedCornerShape(4.dp)
+                                            )
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Update,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(10.dp)
+                                    imageVector = Icons.Default.Update,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(10.dp)
                             )
                             Text(
-                                text = "ATUALIZAR",
-                                color = Color.White,
-                                fontSize = 8.sp,
-                                fontWeight = FontWeight.Bold
+                                    text = "ATUALIZAR",
+                                    color = Color.White,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold
                             )
                         }
                     }
@@ -198,82 +201,80 @@ fun CompactThemeCard(
 
             // Theme Name
             Text(
-                text = theme.name,
-                color = Color.White,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                    text = theme.name,
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
             )
 
             // Description / Status
             Spacer(modifier = Modifier.height(2.dp))
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isDownloading) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(14.dp),
-                        color = Color(0xFF4A9EFF),
-                        strokeWidth = 1.5.dp
+                            modifier = Modifier.size(14.dp),
+                            color = Color(0xFF4A9EFF),
+                            strokeWidth = 1.5.dp
                     )
                 } else if (hasUpdate) {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                        modifier = Modifier.clickable { onUpdate() }
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            modifier = Modifier.clickable { onUpdate() }
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Update,
-                            contentDescription = "Atualizar",
-                            tint = Color(0xFF4A9EFF),
-                            modifier = Modifier.size(12.dp)
+                                imageVector = Icons.Default.Update,
+                                contentDescription = "Atualizar",
+                                tint = Color(0xFF4A9EFF),
+                                modifier = Modifier.size(12.dp)
                         )
                         Text(
-                            text = "Atualizar",
-                            color = Color(0xFF4A9EFF),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
+                                text = "Atualizar",
+                                color = Color(0xFF4A9EFF),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
                         )
                     }
                 } else if (!isDownloaded) {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                        modifier = Modifier.clickable { onAction() }
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            modifier = Modifier.clickable { onAction() }
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Download,
-                            contentDescription = null,
-                            tint = Color(0xFF4A9EFF),
-                            modifier = Modifier.size(12.dp)
+                                imageVector = Icons.Default.Download,
+                                contentDescription = null,
+                                tint = Color(0xFF4A9EFF),
+                                modifier = Modifier.size(12.dp)
                         )
                         Text(
-                            text = "Baixar",
-                            color = Color(0xFF4A9EFF),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
+                                text = "Baixar",
+                                color = Color(0xFF4A9EFF),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
                         )
                     }
                 } else {
                     Text(
-                        text = if (theme.name == "Default") "Original" else "Instalado",
-                        color = if (isSelected) Color(0xFF4A9EFF) else Color(0xFFB0B8C4),
-                        fontSize = 11.sp
+                            text = if (theme.name == "Default") "Original" else "Instalado",
+                            color = if (isSelected) Color(0xFF4A9EFF) else Color(0xFFB0B8C4),
+                            fontSize = 11.sp
                     )
                 }
 
                 // Delete button for custom installed themes
-                if (isDownloaded && theme.name != "Default") {
+                if (canDelete) {
                     Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Excluir",
-                        tint = Color(0xFFFF4B4B).copy(alpha = 0.8f),
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clickable { onDelete() }
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Excluir",
+                            tint = Color(0xFFFF4B4B).copy(alpha = 0.8f),
+                            modifier = Modifier.size(16.dp).clickable { onDelete() }
                     )
                 }
             }
@@ -285,18 +286,32 @@ fun CompactThemeCard(
 @Composable
 fun TelasTab() {
     val context = LocalContext.current
-    val prefs = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
+    val prefs =
+            App.getDeviceProtectedContext()
+                    .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
     val scope = rememberCoroutineScope()
 
     // Base properties
     var enableProjector by remember {
-        mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key, false))
+        mutableStateOf(
+                prefs.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key, false)
+        )
     }
     var enableOdometerAndRevision by remember {
-        mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_ODOMETER_AND_REVISION.key, true))
+        mutableStateOf(
+                prefs.getBoolean(
+                        SharedPreferencesKeys.ENABLE_INSTRUMENT_ODOMETER_AND_REVISION.key,
+                        true
+                )
+        )
     }
     var enableCustomIntegration by remember {
-        mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.key, false))
+        mutableStateOf(
+                prefs.getBoolean(
+                        SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.key,
+                        false
+                )
+        )
     }
     var enableMask by remember {
         mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, false))
@@ -308,7 +323,10 @@ fun TelasTab() {
         mutableStateOf(enableProjector || enableCustomIntegration || enableCustomMenu)
     }
     var clusterFuelDisplayUnit by remember {
-        mutableStateOf(prefs.getString(SharedPreferencesKeys.CLUSTER_FUEL_DISPLAY_UNIT.key, "liters") ?: "liters")
+        mutableStateOf(
+                prefs.getString(SharedPreferencesKeys.CLUSTER_FUEL_DISPLAY_UNIT.key, "liters")
+                        ?: "liters"
+        )
     }
 
     // Revision History States
@@ -321,18 +339,22 @@ fun TelasTab() {
 
     // Virtual Cluster States
     var selectedTheme by remember {
-        mutableStateOf(prefs.getString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Default") ?: "Default")
+        mutableStateOf(
+                prefs.getString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Default")
+                        ?: "Default"
+        )
     }
     var defaultApp by remember {
-        mutableStateOf(prefs.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "") ?: "")
+        mutableStateOf(
+                prefs.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "") ?: ""
+        )
     }
     var appExpanded by remember { mutableStateOf(false) }
     var themeExpanded by remember { mutableStateOf(false) }
-    var configs by remember {
-        mutableStateOf(DisplayAppLauncher.getAllConfigs())
-    }
+    var configs by remember { mutableStateOf(DisplayAppLauncher.getAllConfigs()) }
     var activeEditConfig by remember { mutableStateOf<DisplayAppConfig?>(null) }
     var showConfigDialog by remember { mutableStateOf(false) }
+    var showVirtualClusterWarningDialog by remember { mutableStateOf(false) }
 
     // GitHub Themes States
     var githubThemes by remember { mutableStateOf<List<ThemeMetadata>>(emptyList()) }
@@ -349,12 +371,14 @@ fun TelasTab() {
     // Auto-calculate next revision
     val latestRevision = revisionHistory.maxByOrNull { it.km }
     val nextKm = latestRevision?.let { it.km + 12000 } ?: 0
-    val nextDate = latestRevision?.let {
-        val cal = Calendar.getInstance()
-        cal.timeInMillis = it.date
-        cal.add(Calendar.YEAR, 1)
-        cal.timeInMillis
-    } ?: 0L
+    val nextDate =
+            latestRevision?.let {
+                val cal = Calendar.getInstance()
+                cal.timeInMillis = it.date
+                cal.add(Calendar.YEAR, 1)
+                cal.timeInMillis
+            }
+                    ?: 0L
 
     // Sync calculated revision to prefs for display in projector
     LaunchedEffect(nextKm, nextDate) {
@@ -378,7 +402,9 @@ fun TelasTab() {
         if (githubThemes.isEmpty()) {
             isFetchingThemes = true
             try {
-                githubThemes = ThemeManager.getInstance(context).fetchThemesFromGithub(ThemeManager.THEME_REPO_URL)
+                githubThemes =
+                        ThemeManager.getInstance(context)
+                                .fetchThemesFromGithub(ThemeManager.THEME_REPO_URL)
             } catch (e: Exception) {
                 Log.e("TelasTab", "Error fetching themes", e)
             } finally {
@@ -388,273 +414,95 @@ fun TelasTab() {
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            modifier =
+                    Modifier.fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // MASTER TOGGLE CARD - Consolidates Projector, Media Integration and Custom Menu
         StyledCard(modifier = Modifier.padding(horizontal = 8.dp)) {
             Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "Habilitar Funções do Cluster",
-                            color = Color.White,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
+                                "Habilitar Funções do Cluster",
+                                color = Color.White,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold
                         )
                         Text(
-                            "Habilitar projeção, integração de mídia e menu customizado",
-                            color = Color(0xFFB0B8C4),
-                            fontSize = 14.sp
-                        )
-                    }
-                    Switch(
-                        checked = allClusterFunctionsEnabled,
-                        onCheckedChange = {
-                            allClusterFunctionsEnabled = it
-                            enableProjector = it
-                            enableCustomIntegration = it
-                            enableCustomMenu = it
-
-                            prefs.edit {
-                                putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key, it)
-                                putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.key, it)
-                                putBoolean(SharedPreferencesKeys.ENABLE_CUSTOM_MENU.key, it)
-                            }
-
-                            if (!it) {
-                                enableOdometerAndRevision = false
-                                prefs.edit {
-                                    putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_ODOMETER_AND_REVISION.key, false)
-                                }
-                                enableMask = false
-                                prefs.edit {
-                                    putBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, false)
-                                }
-                            }
-
-                            try {
-                                ServiceManager.getInstance().ensureSystemApps()
-                                if (it) {
-                                    ServiceManager.getInstance().startClusterHeartbeat()
-                                }
-                            } catch (e: Exception) {
-                                Log.e("TelasTab", "Erro ao alterar funções do cluster: ${e.message}", e)
-                            }
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = Color(0xFF4A9EFF)
-                        )
-                    )
-                }
-            }
-        }
-
-        // ODOMETER AND REVISION SETTING CARD
-        val odometerAlpha = if (allClusterFunctionsEnabled) 1f else 0.4f
-        StyledCard(modifier = Modifier.padding(horizontal = 8.dp).alpha(odometerAlpha)) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "Odômetro e Alertas de Revisão",
-                            color = Color.White,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            "Aviso de revisão e histórico no painel",
-                            color = Color(0xFFB0B8C4),
-                            fontSize = 14.sp
-                        )
-                    }
-                    Switch(
-                        checked = enableOdometerAndRevision,
-                        enabled = allClusterFunctionsEnabled,
-                        onCheckedChange = {
-                            enableOdometerAndRevision = it
-                            prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_ODOMETER_AND_REVISION.key, it) }
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = Color(0xFF4A9EFF)
-                        )
-                    )
-                }
-
-                if (enableOdometerAndRevision) {
-                    HorizontalDivider(color = Color(0xFF2C3139))
-
-                    // Next revision target (calculated / synced)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("Próxima Revisão", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                            val warningColor = if (nextKm <= 1000 && nextKm > 0) Color(0xFFFFB300) else Color(0xFF4A9EFF)
-                            Text(
-                                text = if (nextKm > 0) "Alvo: ${nextKm} KM ou até ${if (nextDate > 0L) dateFormatter.format(nextDate) else "Sem data"}" else "Aguardando primeira revisão...",
-                                color = warningColor,
-                                fontSize = 13.sp
-                            )
-                        }
-                        Button(
-                            onClick = { showRegisterDialog = true },
-                            enabled = allClusterFunctionsEnabled,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF)),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text("Registrar", color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                    }
-
-                    // Revision History List
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(enabled = allClusterFunctionsEnabled) { expandedHistory = !expandedHistory }
-                                .padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "Histórico de Revisões (${revisionHistory.size})",
+                                "Habilitar projeção de um menu customizado no cluster de instrumentos.",
                                 color = Color(0xFFB0B8C4),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Icon(
-                                imageVector = if (expandedHistory) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                contentDescription = "Expandir",
-                                tint = Color(0xFFB0B8C4)
-                            )
-                        }
+                                fontSize = 14.sp
+                        )
+                    }
+                    Switch(
+                            checked = allClusterFunctionsEnabled,
+                            onCheckedChange = {
+                                allClusterFunctionsEnabled = it
+                                enableProjector = it
+                                enableCustomIntegration = it
+                                enableCustomMenu = it
 
-                        AnimatedVisibility(visible = expandedHistory) {
-                            if (revisionHistory.isEmpty()) {
-                                Text(
-                                    "Nenhuma revisão cadastrada. Para registrar a data de compra (0 KM) do veículo, insira a KM como zero (0) ao registrar.",
-                                    color = Color(0xFF808080),
-                                    fontSize = 13.sp,
-                                    modifier = Modifier.padding(vertical = 8.dp)
-                                )
-                            } else {
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                                    modifier = Modifier.padding(vertical = 4.dp)
-                                ) {
-                                    revisionHistory.sortedByDescending { it.km }.forEach { entry ->
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .background(Color(0xFF2A2F37), RoundedCornerShape(6.dp))
-                                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column {
-                                                val label = if (entry.km == 0) "Data da Compra" else "${entry.km} KM"
-                                                Text(label, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                                Text(dateFormatter.format(entry.date), color = Color(0xFFB0B8C4), fontSize = 12.sp)
-                                            }
-                                            IconButton(
-                                                onClick = {
-                                                    val updated = revisionHistory.filterNot { it.km == entry.km && it.date == entry.date }
-                                                    revisionHistory = updated
-                                                    saveRevisionHistory(prefs, updated)
-                                                },
-                                                enabled = allClusterFunctionsEnabled,
-                                                modifier = Modifier.size(28.dp)
-                                            ) {
-                                                Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = Color(0xFFFF4B4B), modifier = Modifier.size(18.dp))
-                                            }
-                                        }
+                                prefs.edit {
+                                    putBoolean(
+                                            SharedPreferencesKeys.ENABLE_INSTRUMENT_PROJECTOR.key,
+                                            it
+                                    )
+                                    putBoolean(
+                                            SharedPreferencesKeys
+                                                    .ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION
+                                                    .key,
+                                            it
+                                    )
+                                    putBoolean(SharedPreferencesKeys.ENABLE_CUSTOM_MENU.key, it)
+                                }
+
+                                if (!it) {
+                                    enableOdometerAndRevision = false
+                                    prefs.edit {
+                                        putBoolean(
+                                                SharedPreferencesKeys
+                                                        .ENABLE_INSTRUMENT_ODOMETER_AND_REVISION
+                                                        .key,
+                                                false
+                                        )
+                                    }
+                                    enableMask = false
+                                    prefs.edit {
+                                        putBoolean(
+                                                SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key,
+                                                false
+                                        )
                                     }
                                 }
-                            }
-                        }
-                    }
-                }
-            }
-        }
 
-        // PERSONALIZAÇÃO CARD
-        val personalizationAlpha = if (allClusterFunctionsEnabled) 1f else 0.4f
-        StyledCard(modifier = Modifier.padding(horizontal = 8.dp).alpha(personalizationAlpha)) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "Personalizações do Painel",
-                            color = Color.White,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            "Configurações de exibição de informações",
-                            color = Color(0xFFB0B8C4),
-                            fontSize = 14.sp
-                        )
-                    }
-                }
-
-                HorizontalDivider(color = Color(0xFF2C3139))
-
-                // Fuel display mode (Liters or Percentage)
-                Column {
-                    Text("Unidade de Consumo de Combustível", color = Color(0xFFB0B8C4), fontSize = 12.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val units = listOf("liters" to "Litros", "percent" to "Porcentagem")
-                        units.forEach { (unitId, label) ->
-                            val isSelected = clusterFuelDisplayUnit == unitId
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(40.dp)
-                                    .background(
-                                        if (isSelected) Color(0xFF4A9EFF) else Color(0xFF2A2F37),
-                                        RoundedCornerShape(8.dp)
-                                    )
-                                    .clickable(enabled = allClusterFunctionsEnabled) {
-                                        clusterFuelDisplayUnit = unitId
-                                        prefs.edit { putString(SharedPreferencesKeys.CLUSTER_FUEL_DISPLAY_UNIT.key, unitId) }
+                                try {
+                                    ServiceManager.getInstance().ensureSystemApps()
+                                    if (it) {
+                                        ServiceManager.getInstance().startClusterHeartbeat()
                                     }
-                                    .padding(horizontal = 12.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
+                                } catch (e: Exception) {
+                                    Log.e(
+                                            "TelasTab",
+                                            "Erro ao alterar funções do cluster: ${e.message}",
+                                            e
+                                    )
+                                }
+                            },
+                            colors =
+                                    SwitchDefaults.colors(
+                                            checkedThumbColor = Color.White,
+                                            checkedTrackColor = Color(0xFF4A9EFF)
+                                    )
+                    )
                 }
             }
         }
@@ -663,37 +511,44 @@ fun TelasTab() {
         val virtualClusterAlpha = if (allClusterFunctionsEnabled) 1f else 0.4f
         StyledCard(modifier = Modifier.padding(horizontal = 8.dp).alpha(virtualClusterAlpha)) {
             Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "Painel Virtual (Cluster Mask)",
-                            color = Color.White,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
+                                "Painel Virtual",
+                                color = Color.White,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
                         )
                         Text(
-                            "Configuração visual do painel customizado",
-                            color = Color(0xFFB0B8C4),
-                            fontSize = 14.sp
+                                "Extende as funções do cluster para renderizar um painel customizado com suporte a temas.",
+                                color = Color(0xFFB0B8C4),
+                                fontSize = 14.sp
                         )
                     }
                     Switch(
-                        checked = enableMask,
-                        enabled = allClusterFunctionsEnabled,
-                        onCheckedChange = {
-                            enableMask = it
-                            prefs.edit { putBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, it) }
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = Color(0xFF4A9EFF)
-                        )
+                            checked = enableMask,
+                            enabled = allClusterFunctionsEnabled,
+                            onCheckedChange = { checked ->
+                                if (checked) {
+                                    showVirtualClusterWarningDialog = true
+                                } else {
+                                    enableMask = false
+                                    prefs.edit {
+                                        putBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, false)
+                                    }
+                                }
+                            },
+                            colors =
+                                    SwitchDefaults.colors(
+                                            checkedThumbColor = Color.White,
+                                            checkedTrackColor = Color(0xFF4A9EFF)
+                                    )
                     )
                 }
 
@@ -702,105 +557,259 @@ fun TelasTab() {
 
                     // Theme Selector - Horizontal compact carousel
                     Column {
-                        Text("Tema do Painel (Toque para selecionar)", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                        Text(
+                                "Tema do Painel (Toque para selecionar)",
+                                color = Color(0xFFB0B8C4),
+                                fontSize = 12.sp
+                        )
                         Spacer(Modifier.height(8.dp))
-                        val allThemes = remember(githubThemes, localThemes) {
-                            val merged = mutableListOf<ThemeMetadata>()
-                            merged.add(
-                                ThemeMetadata(
-                                    name = "Default",
-                                    description = "Visual clássico do carro",
-                                    version = "1.0.0",
-                                    thumbnailUrl = "",
-                                    mainFile = "",
-                                    folderName = "Default",
-                                    isLocal = true,
-                                    isDownloaded = true
-                                )
-                            )
+                        val allThemes =
+                                remember(githubThemes, localThemes) {
+                                    val merged = mutableListOf<ThemeMetadata>()
 
-                            githubThemes.forEach { remote ->
-                                val local = localThemes.firstOrNull { it.folderName == remote.folderName }
-                                if (local != null) {
-                                    val hasUpdate = ThemeManager.getInstance(context).isNewerVersion(local.version, remote.version)
-                                    merged.add(remote.copy(isLocal = true, isDownloaded = true, hasUpdate = hasUpdate))
-                                } else {
-                                    merged.add(remote.copy(isLocal = false, isDownloaded = false))
-                                }
-                            }
+                                    // Find remote "Default" and local "Default"
+                                    val remoteDefault =
+                                            githubThemes.firstOrNull {
+                                                it.folderName == "Default" || it.name == "Default"
+                                            }
+                                    val localDefault =
+                                            localThemes.firstOrNull {
+                                                it.folderName == "Default" || it.name == "Default"
+                                            }
 
-                            localThemes.forEach { local ->
-                                if (local.name != "Default" && githubThemes.none { it.folderName == local.folderName }) {
-                                    merged.add(local.copy(isLocal = true, isDownloaded = true))
-                                }
-                            }
+                                    if (localDefault != null) {
+                                        // Default theme is downloaded locally
+                                        val hasUpdate =
+                                                if (remoteDefault != null) {
+                                                    ThemeManager.getInstance(context)
+                                                            .isNewerVersion(
+                                                                    localDefault.version,
+                                                                    remoteDefault.version
+                                                            )
+                                                } else false
 
-                            merged
-                        }
+                                        merged.add(
+                                                ThemeMetadata(
+                                                        name = "Default",
+                                                        description =
+                                                                localDefault.description.ifEmpty {
+                                                                    remoteDefault?.description
+                                                                            ?: "Visual clássico do carro"
+                                                                },
+                                                        version = localDefault.version,
+                                                        thumbnailUrl =
+                                                                localDefault.thumbnailUrl.ifEmpty {
+                                                                    remoteDefault?.thumbnailUrl
+                                                                            ?: ""
+                                                                },
+                                                        mainFile = localDefault.mainFile,
+                                                        folderName = "Default",
+                                                        isLocal = true,
+                                                        isDownloaded = true,
+                                                        hasUpdate = hasUpdate
+                                                )
+                                        )
+                                    } else {
+                                        // Default theme is not downloaded locally, using embedded
+                                        val hasUpdate =
+                                                if (remoteDefault != null) {
+                                                    ThemeManager.getInstance(context)
+                                                            .isEmbeddedDifferent(
+                                                                    remoteDefault.remoteSha,
+                                                                    remoteDefault.remoteSize
+                                                            )
+                                                } else false
 
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState())
-                                .padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            allThemes.forEach { theme ->
-                                CompactThemeCard(
-                                    theme = theme,
-                                    isDownloaded = theme.isDownloaded,
-                                    isSelected = selectedTheme == theme.name,
-                                    hasUpdate = theme.hasUpdate,
-                                    isDownloading = downloadingThemeName == theme.folderName,
-                                    onAction = {
-                                        if (allClusterFunctionsEnabled) {
-                                            if (theme.isDownloaded) {
-                                                selectedTheme = theme.name
-                                                prefs.edit {
-                                                    putString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, theme.name)
-                                                    putString(
-                                                        SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key,
-                                                        if (theme.folderName == "Default" || theme.name == "Default") "" else theme.folderName
-                                                    )
-                                                }
+                                        merged.add(
+                                                ThemeMetadata(
+                                                        name = "Default",
+                                                        description = remoteDefault?.description
+                                                                        ?: "Visual clássico do carro",
+                                                        version = remoteDefault?.version ?: "1.0.0",
+                                                        thumbnailUrl = remoteDefault?.thumbnailUrl
+                                                                        ?: "",
+                                                        mainFile = remoteDefault?.mainFile ?: "",
+                                                        folderName = "Default",
+                                                        isLocal = true,
+                                                        isDownloaded = true,
+                                                        hasUpdate = hasUpdate
+                                                )
+                                        )
+                                    }
+
+                                    // Now add rest of remote themes (excluding Default)
+                                    githubThemes.forEach { remote ->
+                                        if (remote.folderName != "Default" &&
+                                                        remote.name != "Default"
+                                        ) {
+                                            val local =
+                                                    localThemes.firstOrNull {
+                                                        it.folderName == remote.folderName
+                                                    }
+                                            if (local != null) {
+                                                val hasUpdate =
+                                                        ThemeManager.getInstance(context)
+                                                                .isNewerVersion(
+                                                                        local.version,
+                                                                        remote.version
+                                                                )
+                                                merged.add(
+                                                        remote.copy(
+                                                                isLocal = true,
+                                                                isDownloaded = true,
+                                                                hasUpdate = hasUpdate
+                                                        )
+                                                )
                                             } else {
-                                                downloadingThemeName = theme.folderName
-                                                scope.launch {
-                                                    val ok = ThemeManager.getInstance(context).downloadTheme(theme)
-                                                    downloadingThemeName = null
-                                                    if (ok) {
-                                                        localThemes = ThemeManager.getInstance(context).getLocalThemes()
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    },
-                                    onUpdate = {
-                                        if (allClusterFunctionsEnabled) {
-                                            downloadingThemeName = theme.folderName
-                                            scope.launch {
-                                                val ok = ThemeManager.getInstance(context).downloadTheme(theme)
-                                                downloadingThemeName = null
-                                                if (ok) {
-                                                    localThemes = ThemeManager.getInstance(context).getLocalThemes()
-                                                }
-                                            }
-                                        }
-                                    },
-                                    onDelete = {
-                                        if (allClusterFunctionsEnabled) {
-                                            if (ThemeManager.getInstance(context).deleteTheme(theme.folderName)) {
-                                                if (selectedTheme == theme.name) {
-                                                    selectedTheme = "Default"
-                                                    prefs.edit {
-                                                        putString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Default")
-                                                        putString(SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key, "")
-                                                    }
-                                                }
-                                                localThemes = ThemeManager.getInstance(context).getLocalThemes()
+                                                merged.add(
+                                                        remote.copy(
+                                                                isLocal = false,
+                                                                isDownloaded = false
+                                                        )
+                                                )
                                             }
                                         }
                                     }
+
+                                    // Now add rest of local themes (excluding Default)
+                                    localThemes.forEach { local ->
+                                        if (local.name != "Default" &&
+                                                        local.folderName != "Default" &&
+                                                        githubThemes.none {
+                                                            it.folderName == local.folderName
+                                                        }
+                                        ) {
+                                            merged.add(
+                                                    local.copy(isLocal = true, isDownloaded = true)
+                                            )
+                                        }
+                                    }
+
+                                    merged
+                                }
+
+                        Row(
+                                modifier =
+                                        Modifier.fillMaxWidth()
+                                                .horizontalScroll(rememberScrollState())
+                                                .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            allThemes.forEach { theme ->
+                                val isDefaultDownloaded =
+                                        localThemes.any { it.folderName == "Default" }
+                                CompactThemeCard(
+                                        theme = theme,
+                                        isDownloaded = theme.isDownloaded,
+                                        isSelected = selectedTheme == theme.name,
+                                        hasUpdate = theme.hasUpdate,
+                                        isDownloading = downloadingThemeName == theme.folderName,
+                                        canDelete =
+                                                if (theme.folderName == "Default")
+                                                        isDefaultDownloaded
+                                                else
+                                                        (theme.isDownloaded &&
+                                                                theme.name != "Default"),
+                                        onAction = {
+                                            if (allClusterFunctionsEnabled) {
+                                                if (theme.isDownloaded) {
+                                                    selectedTheme = theme.name
+                                                    prefs.edit {
+                                                        putString(
+                                                                SharedPreferencesKeys
+                                                                        .VIRTUAL_CLUSTER_THEME
+                                                                        .key,
+                                                                theme.name
+                                                        )
+                                                        putString(
+                                                                SharedPreferencesKeys
+                                                                        .ACTIVE_CUSTOM_THEME
+                                                                        .key,
+                                                                if (theme.folderName == "Default" ||
+                                                                                theme.name ==
+                                                                                        "Default"
+                                                                ) {
+                                                                    if (isDefaultDownloaded)
+                                                                            "Default"
+                                                                    else ""
+                                                                } else theme.folderName
+                                                        )
+                                                    }
+                                                } else {
+                                                    downloadingThemeName = theme.folderName
+                                                    scope.launch {
+                                                        val ok =
+                                                                ThemeManager.getInstance(context)
+                                                                        .downloadTheme(theme)
+                                                        downloadingThemeName = null
+                                                        if (ok) {
+                                                            localThemes =
+                                                                    ThemeManager.getInstance(
+                                                                                    context
+                                                                            )
+                                                                            .getLocalThemes()
+                                                            if (selectedTheme == theme.name) {
+                                                                prefs.edit {
+                                                                    putString(
+                                                                            SharedPreferencesKeys
+                                                                                    .ACTIVE_CUSTOM_THEME
+                                                                                    .key,
+                                                                            theme.folderName
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        onUpdate = {
+                                            if (allClusterFunctionsEnabled) {
+                                                downloadingThemeName = theme.folderName
+                                                scope.launch {
+                                                    val ok =
+                                                            ThemeManager.getInstance(context)
+                                                                    .downloadTheme(theme)
+                                                    downloadingThemeName = null
+                                                    if (ok) {
+                                                        localThemes =
+                                                                ThemeManager.getInstance(context)
+                                                                        .getLocalThemes()
+                                                        if (selectedTheme == theme.name) {
+                                                            prefs.edit {
+                                                                putString(
+                                                                        SharedPreferencesKeys
+                                                                                .ACTIVE_CUSTOM_THEME
+                                                                                .key,
+                                                                        theme.folderName
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        onDelete = {
+                                            if (allClusterFunctionsEnabled) {
+                                                if (ThemeManager.getInstance(context)
+                                                                .deleteTheme(theme.folderName)
+                                                ) {
+                                                    if (selectedTheme == theme.name) {
+                                                        prefs.edit {
+                                                            putString(
+                                                                    SharedPreferencesKeys
+                                                                            .ACTIVE_CUSTOM_THEME
+                                                                            .key,
+                                                                    ""
+                                                            )
+                                                        }
+                                                    }
+                                                    localThemes =
+                                                            ThemeManager.getInstance(context)
+                                                                    .getLocalThemes()
+                                                }
+                                            }
+                                        }
                                 )
                             }
                         }
@@ -811,55 +820,349 @@ fun TelasTab() {
 
                     // Default screen/app when cluster initializes
                     Column {
-                        Text("App Padrão na Inicialização", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+                        Text(
+                                "App Padrão na Inicialização",
+                                color = Color(0xFFB0B8C4),
+                                fontSize = 12.sp
+                        )
                         Spacer(Modifier.height(4.dp))
                         Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(46.dp)
-                                .background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
-                                .clickable(enabled = allClusterFunctionsEnabled) { appExpanded = true }
-                                .padding(horizontal = 16.dp),
-                            contentAlignment = Alignment.CenterStart
+                                modifier =
+                                        Modifier.fillMaxWidth()
+                                                .height(46.dp)
+                                                .background(
+                                                        Color(0xFF2A2F37),
+                                                        RoundedCornerShape(8.dp)
+                                                )
+                                                .clickable(enabled = allClusterFunctionsEnabled) {
+                                                    appExpanded = true
+                                                }
+                                                .padding(horizontal = 16.dp),
+                                contentAlignment = Alignment.CenterStart
                         ) {
-                            val resolvedAppLabel = if (defaultApp.isEmpty()) "Nenhum"
-                            else DisplayAppLauncher.PREDEFINED_APPS.firstOrNull { it.packageName == defaultApp }?.customName ?: defaultApp
+                            val resolvedAppLabel =
+                                    if (defaultApp.isEmpty()) "Nenhum"
+                                    else
+                                            DisplayAppLauncher.PREDEFINED_APPS
+                                                    .firstOrNull { it.packageName == defaultApp }
+                                                    ?.customName
+                                                    ?: defaultApp
 
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(resolvedAppLabel, color = Color.White, fontSize = 14.sp)
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Expandir", tint = Color.White)
+                                Icon(
+                                        Icons.Default.ArrowDropDown,
+                                        contentDescription = "Expandir",
+                                        tint = Color.White
+                                )
                             }
 
                             DropdownMenu(
-                                expanded = appExpanded && allClusterFunctionsEnabled,
-                                onDismissRequest = { appExpanded = false },
-                                modifier = Modifier
-                                    .fillMaxWidth(0.5f)
-                                    .background(Color(0xFF1E2228))
+                                    expanded = appExpanded && allClusterFunctionsEnabled,
+                                    onDismissRequest = { appExpanded = false },
+                                    modifier =
+                                            Modifier.fillMaxWidth(0.5f)
+                                                    .background(Color(0xFF1E2228))
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("Nenhum", color = Color.White) },
-                                    onClick = {
-                                        defaultApp = ""
-                                        prefs.edit { putString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "") }
-                                        appExpanded = false
-                                    }
-                                )
-                                configs.forEach { config ->
-                                    val displayLabel = DisplayAppLauncher.PREDEFINED_APPS.firstOrNull { it.packageName == config.packageName }?.customName
-                                        ?: config.packageName
-                                    DropdownMenuItem(
-                                        text = { Text(displayLabel, color = Color.White) },
+                                        text = { Text("Nenhum", color = Color.White) },
                                         onClick = {
-                                            defaultApp = config.packageName
-                                            prefs.edit { putString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, config.packageName) }
+                                            defaultApp = ""
+                                            prefs.edit {
+                                                putString(
+                                                        SharedPreferencesKeys
+                                                                .DEFAULT_DISPLAY_APP_PACKAGE
+                                                                .key,
+                                                        ""
+                                                )
+                                            }
                                             appExpanded = false
                                         }
+                                )
+                                configs.forEach { config ->
+                                    val displayLabel =
+                                            DisplayAppLauncher.PREDEFINED_APPS
+                                                    .firstOrNull {
+                                                        it.packageName == config.packageName
+                                                    }
+                                                    ?.customName
+                                                    ?: config.packageName
+                                    DropdownMenuItem(
+                                            text = { Text(displayLabel, color = Color.White) },
+                                            onClick = {
+                                                defaultApp = config.packageName
+                                                prefs.edit {
+                                                    putString(
+                                                            SharedPreferencesKeys
+                                                                    .DEFAULT_DISPLAY_APP_PACKAGE
+                                                                    .key,
+                                                            config.packageName
+                                                    )
+                                                }
+                                                appExpanded = false
+                                            }
                                     )
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = Color(0xFF2C3139))
+
+                    // Personalizações de Exibição (Unidade de Consumo)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                                "Unidade de Consumo de Combustível",
+                                color = Color(0xFFB0B8C4),
+                                fontSize = 12.sp
+                        )
+                        Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val units = listOf("liters" to "Litros", "percent" to "Porcentagem")
+                            units.forEach { (unitId, label) ->
+                                val isSelected = clusterFuelDisplayUnit == unitId
+                                Box(
+                                        modifier =
+                                                Modifier.weight(1f)
+                                                        .height(40.dp)
+                                                        .background(
+                                                                if (isSelected) Color(0xFF4A9EFF)
+                                                                else Color(0xFF2A2F37),
+                                                                RoundedCornerShape(8.dp)
+                                                        )
+                                                        .clickable(
+                                                                enabled = allClusterFunctionsEnabled
+                                                        ) {
+                                                            clusterFuelDisplayUnit = unitId
+                                                            prefs.edit {
+                                                                putString(
+                                                                        SharedPreferencesKeys
+                                                                                .CLUSTER_FUEL_DISPLAY_UNIT
+                                                                                .key,
+                                                                        unitId
+                                                                )
+                                                            }
+                                                        }
+                                                        .padding(horizontal = 12.dp),
+                                        contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                            label,
+                                            color = Color.White,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = Color(0xFF2C3139))
+
+                    // Odômetro e Aviso de Revisão
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                        "Exibir Odômetro e Aviso de Revisão",
+                                        color = Color.White,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                        "Exibir total do veículo e acompanhamento de próxima revisão no painel",
+                                        color = Color(0xFFB0B8C4),
+                                        fontSize = 12.sp
+                                )
+                            }
+                            Switch(
+                                    checked = enableOdometerAndRevision,
+                                    enabled = allClusterFunctionsEnabled,
+                                    onCheckedChange = {
+                                        enableOdometerAndRevision = it
+                                        prefs.edit {
+                                            putBoolean(
+                                                    SharedPreferencesKeys
+                                                            .ENABLE_INSTRUMENT_ODOMETER_AND_REVISION
+                                                            .key,
+                                                    it
+                                            )
+                                        }
+                                    },
+                                    colors =
+                                            SwitchDefaults.colors(
+                                                    checkedThumbColor = Color.White,
+                                                    checkedTrackColor = Color(0xFF4A9EFF)
+                                            ),
+                                    modifier = Modifier.scale(0.8f)
+                            )
+                        }
+
+                        if (enableOdometerAndRevision && allClusterFunctionsEnabled) {
+                            Row(
+                                    modifier =
+                                            Modifier.fillMaxWidth()
+                                                    .background(
+                                                            Color(0xFF1E2228),
+                                                            RoundedCornerShape(8.dp)
+                                                    )
+                                                    .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                            "Próxima Revisão",
+                                            color = Color(0xFFB0B8C4),
+                                            fontSize = 12.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    if (nextKm == 0) {
+                                        Text(
+                                                "N/D - Cadastrar revisão para acompanhar",
+                                                color = Color(0xFFFFB74D),
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Medium
+                                        )
+                                    } else {
+                                        val nextKmLabel = String.format("%,d", nextKm) + " km"
+                                        val nextDateLabel = dateFormatter.format(nextDate)
+                                        Text(
+                                                "$nextKmLabel ou $nextDateLabel",
+                                                color = Color.White,
+                                                fontSize = 18.sp,
+                                                fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+
+                                Button(
+                                        onClick = {
+                                            tempKm =
+                                                    ServiceManager.getInstance()
+                                                            .totalOdometer
+                                                            .toString()
+                                            tempDate = System.currentTimeMillis()
+                                            showRegisterDialog = true
+                                        },
+                                        enabled = allClusterFunctionsEnabled,
+                                        colors =
+                                                ButtonDefaults.buttonColors(
+                                                        containerColor = Color(0xFF4A9EFF)
+                                                ),
+                                        shape = RoundedCornerShape(6.dp),
+                                        contentPadding =
+                                                PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                            if (nextKm == 0) "Registrar" else "Alterar",
+                                            color = Color.White,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        // Collapsible History
+                        Row(
+                                modifier =
+                                        Modifier.fillMaxWidth()
+                                                .clickable { expandedHistory = !expandedHistory }
+                                                .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                    "Histórico de Revisões (${revisionHistory.size})",
+                                    color = Color(0xFF4A9EFF),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.weight(1f)
+                            )
+                            Icon(
+                                    imageVector =
+                                            if (expandedHistory) Icons.Default.ExpandLess
+                                            else Icons.Default.ExpandMore,
+                                    contentDescription = null,
+                                    tint = Color(0xFF4A9EFF),
+                                    modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        AnimatedVisibility(visible = expandedHistory) {
+                            Column(
+                                    modifier = Modifier.padding(top = 4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (revisionHistory.isEmpty()) {
+                                    Text(
+                                            "Nenhuma revisão registrada",
+                                            color = Color(0xFF636D77),
+                                            fontSize = 12.sp,
+                                            modifier = Modifier.padding(vertical = 4.dp)
+                                    )
+                                } else {
+                                    revisionHistory.sortedByDescending { it.km }.forEach { entry ->
+                                        Row(
+                                                modifier =
+                                                        Modifier.fillMaxWidth()
+                                                                .background(
+                                                                        Color(0xFF1E2228),
+                                                                        RoundedCornerShape(8.dp)
+                                                                )
+                                                                .padding(
+                                                                        horizontal = 12.dp,
+                                                                        vertical = 8.dp
+                                                                ),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column {
+                                                Text(
+                                                        if (entry.km != 0) {
+                                                            "${String.format("%,d", entry.km)} km"
+                                                        } else {
+                                                            "Data de Compra"
+                                                        },
+                                                        color = Color.White,
+                                                        fontSize = 14.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                )
+                                                Text(
+                                                        dateFormatter.format(entry.date),
+                                                        color = Color(0xFFB0B8C4),
+                                                        fontSize = 11.sp
+                                                )
+                                            }
+                                            IconButton(
+                                                    onClick = {
+                                                        val newHistory =
+                                                                revisionHistory.filter {
+                                                                    it != entry
+                                                                }
+                                                        revisionHistory = newHistory
+                                                        saveRevisionHistory(prefs, newHistory)
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                        Icons.Default.Delete,
+                                                        contentDescription = "Excluir",
+                                                        tint = Color(0xFFFF4B4B),
+                                                        modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -872,31 +1175,35 @@ fun TelasTab() {
         val coordinatorsAlpha = if (allClusterFunctionsEnabled) 1f else 0.4f
         StyledCard(modifier = Modifier.padding(horizontal = 8.dp).alpha(coordinatorsAlpha)) {
             Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    "Configuração de Telas Secundárias",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
+                        "Configuração de Telas Secundárias",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
                 )
 
                 HorizontalDivider(color = Color(0xFF2C3139))
 
                 Button(
-                    onClick = {
-                        activeEditConfig = null
-                        showConfigDialog = true
-                    },
-                    enabled = allClusterFunctionsEnabled,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF)),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp)
+                        onClick = {
+                            activeEditConfig = null
+                            showConfigDialog = true
+                        },
+                        enabled = allClusterFunctionsEnabled,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF)),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
                     Spacer(Modifier.width(8.dp))
-                    Text("Adicionar Atalho de Tela", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(
+                            "Adicionar Atalho de Tela",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -906,284 +1213,562 @@ fun TelasTab() {
                 val rows = (totalItems + columns - 1) / columns
 
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     for (r in (rows - 1) downTo 0) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             for (c in 0 until columns) {
                                 val index = r * columns + c
                                 if (index < totalItems) {
                                     val config = configs[index]
-                                    val resolved = remember(config.packageName, config.customName) {
-                                        DisplayAppLauncher.resolveAppInfo(context, config.packageName, config.customName)
-                                    }
-
-                                    Card(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(185.dp)
-                                            .border(1.5.dp, Color(0xFF2C3139), RoundedCornerShape(12.dp))
-                                            .clickable(enabled = allClusterFunctionsEnabled) {
-                                                activeEditConfig = config
-                                                showConfigDialog = true
-                                            },
-                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2F37).copy(alpha = 0.5f)),
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.padding(10.dp).fillMaxSize(),
-                                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Row(
-                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    modifier = Modifier.weight(1f)
-                                                ) {
-                                                    val substituteIconVector = getSubstituteIconVector(config.substituteIcon)
-                                                    if (config.substituteIcon == "youtube" ||
-                                                        config.substituteIcon == "youtube_music" ||
-                                                        config.substituteIcon == "gwm"
-                                                    ) {
-                                                        Image(
-                                                            painter = painterResource(
-                                                                id = when (config.substituteIcon) {
-                                                                    "youtube" -> R.drawable.ic_youtube_default
-                                                                    "youtube_music" -> R.drawable.ic_youtube_music_default
-                                                                    "gwm" -> R.drawable.ic_gwm
-                                                                    else -> R.drawable.ic_youtube_default
-                                                                }
-                                                            ),
-                                                            contentDescription = "App Icon",
-                                                            modifier = Modifier.size(28.dp)
-                                                        )
-                                                    } else if (substituteIconVector != null) {
-                                                        val iconTint = config.iconColor.toComposeColor()
-                                                        Icon(
-                                                            substituteIconVector,
-                                                            contentDescription = "App Icon",
-                                                            tint = iconTint,
-                                                            modifier = Modifier.size(28.dp)
-                                                        )
-                                                    } else {
-                                                        if (resolved.icon != null) {
-                                                            AsyncImage(
-                                                                model = resolved.icon,
-                                                                contentDescription = resolved.label,
-                                                                modifier = Modifier.size(28.dp),
-                                                                contentScale = ContentScale.Fit
-                                                            )
-                                                        } else {
-                                                            when {
-                                                                config.packageName.contains("androidauto") -> {
-                                                                    AsyncImage(
-                                                                        model = R.drawable.ic_android_auto_default,
-                                                                        contentDescription = resolved.label,
-                                                                        modifier = Modifier.size(28.dp),
-                                                                        contentScale = ContentScale.Fit
-                                                                    )
-                                                                }
-                                                                config.packageName.contains("carplay") -> {
-                                                                    AsyncImage(
-                                                                        model = R.drawable.ic_carplay_default,
-                                                                        contentDescription = resolved.label,
-                                                                        modifier = Modifier.size(28.dp),
-                                                                        contentScale = ContentScale.Fit
-                                                                    )
-                                                                }
-                                                                else -> {
-                                                                    Icon(
-                                                                        imageVector = Icons.Default.Apps,
-                                                                        contentDescription = resolved.label,
-                                                                        modifier = Modifier.size(28.dp),
-                                                                        tint = Color.White
-                                                                    )
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-
-                                                    Column {
-                                                        Text(
-                                                            text = if (!config.customName.isNullOrEmpty()) config.customName else resolved.label,
-                                                            color = Color.White,
-                                                            fontSize = 13.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis
-                                                        )
-                                                        Text(
-                                                            text = "Display: ${config.displayId}",
-                                                            color = Color(0xFFB0B8C4),
-                                                            fontSize = 10.sp
-                                                        )
-                                                    }
-                                                }
-
-                                                IconButton(
-                                                    onClick = {
-                                                        DisplayAppLauncher.deleteConfig(config.packageName)
-                                                        configs = DisplayAppLauncher.getAllConfigs()
-                                                    },
-                                                    enabled = allClusterFunctionsEnabled,
-                                                    modifier = Modifier
-                                                        .size(32.dp)
-                                                        .background(Color(0xFFFF4B4B).copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Delete,
-                                                        contentDescription = "Remover",
-                                                        tint = Color(0xFFFF4B4B),
-                                                        modifier = Modifier.size(18.dp)
-                                                    )
-                                                }
-                                            }
-
-                                            Box(
-                                                modifier = Modifier
-                                                    .background(Color(0xFF13151A), RoundedCornerShape(6.dp))
-                                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                                            ) {
-                                                Text(
-                                                    text = "Pos: ${config.x},${config.y} | Dim: ${config.width}x${config.height}",
-                                                    color = Color(0xFFB0B8C4),
-                                                    fontSize = 11.sp,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
+                                    val resolved =
+                                            remember(config.packageName, config.customName) {
+                                                DisplayAppLauncher.resolveAppInfo(
+                                                        context,
+                                                        config.packageName,
+                                                        config.customName
                                                 )
                                             }
 
-                                            Spacer(modifier = Modifier.weight(1f))
-
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
+                                    Card(
+                                            modifier =
+                                                    Modifier.weight(1f)
+                                                            .height(210.dp)
+                                                            .border(
+                                                                    1.5.dp,
+                                                                    Color(0xFF2C3139),
+                                                                    RoundedCornerShape(12.dp)
+                                                            )
+                                                            .clickable(
+                                                                    enabled =
+                                                                            allClusterFunctionsEnabled
+                                                            ) {
+                                                                activeEditConfig = config
+                                                                showConfigDialog = true
+                                                            },
+                                            colors =
+                                                    CardDefaults.cardColors(
+                                                            containerColor =
+                                                                    Color(0xFF2A2F37)
+                                                                            .copy(alpha = 0.5f)
+                                                    ),
+                                            shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Box(modifier = Modifier.fillMaxSize()) {
+                                            // 1. Edge Positioning Left Button (<)
+                                            val isLeftEnabled =
+                                                    index > 0 && allClusterFunctionsEnabled
+                                            Box(
+                                                    modifier =
+                                                            Modifier.align(Alignment.CenterStart)
+                                                                    .fillMaxHeight()
+                                                                    .width(40.dp)
+                                                                    .background(
+                                                                            if (isLeftEnabled)
+                                                                                    Color(
+                                                                                                    0xFF2C3139
+                                                                                            )
+                                                                                            .copy(
+                                                                                                    alpha =
+                                                                                                            0.4f
+                                                                                            )
+                                                                            else Color.Transparent
+                                                                    )
+                                                                    .clickable(
+                                                                            enabled = isLeftEnabled
+                                                                    ) {
+                                                                        DisplayAppLauncher
+                                                                                .moveConfigUp(
+                                                                                        config.packageName
+                                                                                )
+                                                                        configs =
+                                                                                DisplayAppLauncher
+                                                                                        .getAllConfigs()
+                                                                    },
+                                                    contentAlignment = Alignment.Center
                                             ) {
-                                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                    IconButton(
-                                                        onClick = {
-                                                            DisplayAppLauncher.moveConfigUp(config.packageName)
-                                                            configs = DisplayAppLauncher.getAllConfigs()
-                                                        },
-                                                        enabled = index > 0 && allClusterFunctionsEnabled,
-                                                        modifier = Modifier
-                                                            .size(32.dp)
-                                                            .background(if (index > 0) Color(0xFF2C3139) else Color.Transparent, RoundedCornerShape(8.dp))
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.KeyboardArrowLeft,
-                                                            contentDescription = "Esquerda",
-                                                            tint = if (index > 0) Color.White else Color(0xFF404550),
-                                                            modifier = Modifier.size(20.dp)
-                                                        )
-                                                    }
-                                                    IconButton(
-                                                        onClick = {
-                                                            DisplayAppLauncher.moveConfigDown(config.packageName)
-                                                            configs = DisplayAppLauncher.getAllConfigs()
-                                                        },
-                                                        enabled = index < configs.size - 1 && allClusterFunctionsEnabled,
-                                                        modifier = Modifier
-                                                            .size(32.dp)
-                                                            .background(if (index < configs.size - 1) Color(0xFF2C3139) else Color.Transparent, RoundedCornerShape(8.dp))
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.KeyboardArrowRight,
-                                                            contentDescription = "Direita",
-                                                            tint = if (index < configs.size - 1) Color.White else Color(0xFF404550),
-                                                            modifier = Modifier.size(20.dp)
-                                                        )
-                                                    }
-                                                }
-
-                                                IconButton(
-                                                    onClick = {
-                                                        scope.launch {
-                                                            DisplayAppLauncher.killApp(config.packageName)
-                                                        }
-                                                    },
-                                                    enabled = allClusterFunctionsEnabled,
-                                                    modifier = Modifier
-                                                        .size(32.dp)
-                                                        .background(Color(0xFFFFB300).copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Close,
-                                                        contentDescription = "Matar",
-                                                        tint = Color(0xFFFFB300),
-                                                        modifier = Modifier.size(18.dp)
-                                                    )
-                                                }
+                                                Icon(
+                                                        imageVector =
+                                                                Icons.Default.KeyboardArrowLeft,
+                                                        contentDescription = "Esquerda",
+                                                        tint =
+                                                                if (isLeftEnabled) Color.White
+                                                                else
+                                                                        Color.White.copy(
+                                                                                alpha = 0.15f
+                                                                        ),
+                                                        modifier = Modifier.size(24.dp)
+                                                )
                                             }
 
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            // 2. Edge Positioning Right Button (>)
+                                            val isRightEnabled =
+                                                    index < configs.size - 1 &&
+                                                            allClusterFunctionsEnabled
+                                            Box(
+                                                    modifier =
+                                                            Modifier.align(Alignment.CenterEnd)
+                                                                    .fillMaxHeight()
+                                                                    .width(40.dp)
+                                                                    .background(
+                                                                            if (isRightEnabled)
+                                                                                    Color(
+                                                                                                    0xFF2C3139
+                                                                                            )
+                                                                                            .copy(
+                                                                                                    alpha =
+                                                                                                            0.4f
+                                                                                            )
+                                                                            else Color.Transparent
+                                                                    )
+                                                                    .clickable(
+                                                                            enabled = isRightEnabled
+                                                                    ) {
+                                                                        DisplayAppLauncher
+                                                                                .moveConfigDown(
+                                                                                        config.packageName
+                                                                                )
+                                                                        configs =
+                                                                                DisplayAppLauncher
+                                                                                        .getAllConfigs()
+                                                                    },
+                                                    contentAlignment = Alignment.Center
                                             ) {
-                                                OutlinedButton(
-                                                    onClick = {
-                                                        scope.launch {
-                                                            DisplayAppLauncher.launchOnMainDisplay(config)
-                                                        }
-                                                    },
-                                                    enabled = allClusterFunctionsEnabled,
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .height(34.dp),
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    border = BorderStroke(1.dp, Color(0xFF4A9EFF)),
-                                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF4A9EFF))
+                                                Icon(
+                                                        imageVector =
+                                                                Icons.Default.KeyboardArrowRight,
+                                                        contentDescription = "Direita",
+                                                        tint =
+                                                                if (isRightEnabled) Color.White
+                                                                else
+                                                                        Color.White.copy(
+                                                                                alpha = 0.15f
+                                                                        ),
+                                                        modifier = Modifier.size(24.dp)
+                                                )
+                                            }
+
+                                            // 3. Central Card Content
+                                            Column(
+                                                    modifier =
+                                                            Modifier.padding(
+                                                                            start = 48.dp,
+                                                                            end = 48.dp,
+                                                                            top = 12.dp,
+                                                                            bottom = 12.dp
+                                                                    )
+                                                                    .fillMaxSize(),
+                                                    verticalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                // A. Top Row (Icon + Name on left, Kill + Delete on
+                                                // right)
+                                                Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement =
+                                                                Arrangement.SpaceBetween,
+                                                        verticalAlignment =
+                                                                Alignment.CenterVertically
                                                 ) {
                                                     Row(
-                                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                                        verticalAlignment = Alignment.CenterVertically
+                                                            horizontalArrangement =
+                                                                    Arrangement.spacedBy(8.dp),
+                                                            verticalAlignment =
+                                                                    Alignment.CenterVertically,
+                                                            modifier = Modifier.weight(1f)
                                                     ) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.ArrowBack,
-                                                            contentDescription = null,
-                                                            modifier = Modifier.size(16.dp)
-                                                        )
-                                                        Text("Trazer", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                        val substituteIconVector =
+                                                                getSubstituteIconVector(
+                                                                        config.substituteIcon
+                                                                )
+                                                        if (config.substituteIcon == "youtube" ||
+                                                                        config.substituteIcon ==
+                                                                                "youtube_music" ||
+                                                                        config.substituteIcon ==
+                                                                                "gwm"
+                                                        ) {
+                                                            Image(
+                                                                    painter =
+                                                                            painterResource(
+                                                                                    id =
+                                                                                            when (config.substituteIcon
+                                                                                            ) {
+                                                                                                "youtube" ->
+                                                                                                        R.drawable
+                                                                                                                .ic_youtube_default
+                                                                                                "youtube_music" ->
+                                                                                                        R.drawable
+                                                                                                                .ic_youtube_music_default
+                                                                                                "gwm" ->
+                                                                                                        R.drawable
+                                                                                                                .ic_gwm
+                                                                                                else ->
+                                                                                                        R.drawable
+                                                                                                                .ic_youtube_default
+                                                                                            }
+                                                                            ),
+                                                                    contentDescription = "App Icon",
+                                                                    modifier = Modifier.size(34.dp)
+                                                            )
+                                                        } else if (substituteIconVector != null) {
+                                                            val iconTint =
+                                                                    config.iconColor
+                                                                            .toComposeColor()
+                                                            Icon(
+                                                                    substituteIconVector,
+                                                                    contentDescription = "App Icon",
+                                                                    tint = iconTint,
+                                                                    modifier = Modifier.size(34.dp)
+                                                            )
+                                                        } else {
+                                                            if (resolved.icon != null) {
+                                                                AsyncImage(
+                                                                        model = resolved.icon,
+                                                                        contentDescription =
+                                                                                resolved.label,
+                                                                        modifier =
+                                                                                Modifier.size(
+                                                                                        34.dp
+                                                                                ),
+                                                                        contentScale =
+                                                                                ContentScale.Fit
+                                                                )
+                                                            } else {
+                                                                when {
+                                                                    config.packageName.contains(
+                                                                            "androidauto"
+                                                                    ) -> {
+                                                                        AsyncImage(
+                                                                                model =
+                                                                                        R.drawable
+                                                                                                .ic_android_auto_default,
+                                                                                contentDescription =
+                                                                                        resolved.label,
+                                                                                modifier =
+                                                                                        Modifier.size(
+                                                                                                34.dp
+                                                                                        ),
+                                                                                contentScale =
+                                                                                        ContentScale
+                                                                                                .Fit
+                                                                        )
+                                                                    }
+                                                                    config.packageName.contains(
+                                                                            "carplay"
+                                                                    ) -> {
+                                                                        AsyncImage(
+                                                                                model =
+                                                                                        R.drawable
+                                                                                                .ic_carplay_default,
+                                                                                contentDescription =
+                                                                                        resolved.label,
+                                                                                modifier =
+                                                                                        Modifier.size(
+                                                                                                34.dp
+                                                                                        ),
+                                                                                contentScale =
+                                                                                        ContentScale
+                                                                                                .Fit
+                                                                        )
+                                                                    }
+                                                                    else -> {
+                                                                        Icon(
+                                                                                imageVector =
+                                                                                        Icons.Default
+                                                                                                .Apps,
+                                                                                contentDescription =
+                                                                                        resolved.label,
+                                                                                modifier =
+                                                                                        Modifier.size(
+                                                                                                34.dp
+                                                                                        ),
+                                                                                tint = Color.White
+                                                                        )
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+
+                                                        Column {
+                                                            Text(
+                                                                    text =
+                                                                            if (!config.customName
+                                                                                            .isNullOrEmpty()
+                                                                            )
+                                                                                    config.customName
+                                                                            else resolved.label,
+                                                                    color = Color.White,
+                                                                    fontSize = 15.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    maxLines = 1,
+                                                                    overflow = TextOverflow.Ellipsis
+                                                            )
+                                                            Text(
+                                                                    text =
+                                                                            "Display: ${config.displayId}",
+                                                                    color = Color(0xFFB0B8C4),
+                                                                    fontSize = 11.sp
+                                                            )
+                                                        }
+                                                    }
+
+                                                    Row(
+                                                            horizontalArrangement =
+                                                                    Arrangement.spacedBy(10.dp),
+                                                            verticalAlignment =
+                                                                    Alignment.CenterVertically
+                                                    ) {
+                                                        // KILL BUTTON WITH TEXT
+                                                        Box(
+                                                                modifier =
+                                                                        Modifier.height(40.dp)
+                                                                                .background(
+                                                                                        Color(
+                                                                                                        0xFFFFB300
+                                                                                                )
+                                                                                                .copy(
+                                                                                                        alpha =
+                                                                                                                0.15f
+                                                                                                ),
+                                                                                        RoundedCornerShape(
+                                                                                                8.dp
+                                                                                        )
+                                                                                )
+                                                                                .border(
+                                                                                        BorderStroke(
+                                                                                                1.dp,
+                                                                                                Color(
+                                                                                                                0xFFFFB300
+                                                                                                        )
+                                                                                                        .copy(
+                                                                                                                alpha =
+                                                                                                                        0.3f
+                                                                                                        )
+                                                                                        ),
+                                                                                        RoundedCornerShape(
+                                                                                                8.dp
+                                                                                        )
+                                                                                )
+                                                                                .clickable(
+                                                                                        enabled =
+                                                                                                allClusterFunctionsEnabled
+                                                                                ) {
+                                                                                    scope.launch {
+                                                                                        DisplayAppLauncher
+                                                                                                .killApp(
+                                                                                                        config.packageName
+                                                                                                )
+                                                                                    }
+                                                                                }
+                                                                                .padding(
+                                                                                        horizontal =
+                                                                                                12.dp,
+                                                                                        vertical =
+                                                                                                0.dp
+                                                                                ),
+                                                                contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Text(
+                                                                    text = "Kill",
+                                                                    color = Color(0xFFFFB300),
+                                                                    fontSize = 14.sp,
+                                                                    fontWeight = FontWeight.Bold
+                                                            )
+                                                        }
+
+                                                        // DELETE BUTTON (MATCHING HEIGHT AND STYLE)
+                                                        Box(
+                                                                modifier =
+                                                                        Modifier.size(
+                                                                                        width =
+                                                                                                40.dp,
+                                                                                        height =
+                                                                                                40.dp
+                                                                                )
+                                                                                .background(
+                                                                                        Color(
+                                                                                                        0xFFFF4B4B
+                                                                                                )
+                                                                                                .copy(
+                                                                                                        alpha =
+                                                                                                                0.15f
+                                                                                                ),
+                                                                                        RoundedCornerShape(
+                                                                                                8.dp
+                                                                                        )
+                                                                                )
+                                                                                .border(
+                                                                                        BorderStroke(
+                                                                                                1.dp,
+                                                                                                Color(
+                                                                                                                0xFFFF4B4B
+                                                                                                        )
+                                                                                                        .copy(
+                                                                                                                alpha =
+                                                                                                                        0.3f
+                                                                                                        )
+                                                                                        ),
+                                                                                        RoundedCornerShape(
+                                                                                                8.dp
+                                                                                        )
+                                                                                )
+                                                                                .clickable(
+                                                                                        enabled =
+                                                                                                allClusterFunctionsEnabled
+                                                                                ) {
+                                                                                    DisplayAppLauncher
+                                                                                            .deleteConfig(
+                                                                                                    config.packageName
+                                                                                            )
+                                                                                    configs =
+                                                                                            DisplayAppLauncher
+                                                                                                    .getAllConfigs()
+                                                                                },
+                                                                contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Icon(
+                                                                    imageVector =
+                                                                            Icons.Default.Delete,
+                                                                    contentDescription = "Remover",
+                                                                    tint = Color(0xFFFF4B4B),
+                                                                    modifier = Modifier.size(22.dp)
+                                                            )
+                                                        }
                                                     }
                                                 }
 
-                                                Button(
-                                                    onClick = {
-                                                        scope.launch {
-                                                            DisplayAppLauncher.sendToDisplay(config)
-                                                        }
-                                                    },
-                                                    enabled = allClusterFunctionsEnabled,
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .height(34.dp),
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                                                    colors = ButtonDefaults.buttonColors(
-                                                        containerColor = Color(0xFF4A9EFF),
-                                                        contentColor = Color.White
-                                                    )
+                                                // B. Middle Positioning / Dimension details
+                                                Box(
+                                                        modifier =
+                                                                Modifier.background(
+                                                                                Color(0xFF13151A),
+                                                                                RoundedCornerShape(
+                                                                                        6.dp
+                                                                                )
+                                                                        )
+                                                                        .padding(
+                                                                                horizontal = 8.dp,
+                                                                                vertical = 4.dp
+                                                                        )
                                                 ) {
-                                                    Row(
-                                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                                        verticalAlignment = Alignment.CenterVertically
+                                                    Text(
+                                                            text =
+                                                                    "Pos: ${config.x},${config.y} | Dim: ${config.width}x${config.height}",
+                                                            color = Color(0xFFB0B8C4),
+                                                            fontSize = 12.sp,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+
+                                                // C. Bottom Buttons Row (Trazer / Enviar)
+                                                Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement =
+                                                                Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    OutlinedButton(
+                                                            onClick = {
+                                                                scope.launch {
+                                                                    DisplayAppLauncher
+                                                                            .launchOnMainDisplay(
+                                                                                    config
+                                                                            )
+                                                                }
+                                                            },
+                                                            enabled = allClusterFunctionsEnabled,
+                                                            modifier =
+                                                                    Modifier.weight(1f)
+                                                                            .height(44.dp),
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            border =
+                                                                    BorderStroke(
+                                                                            1.dp,
+                                                                            Color(0xFF4A9EFF)
+                                                                    ),
+                                                            contentPadding =
+                                                                    PaddingValues(
+                                                                            horizontal = 4.dp,
+                                                                            vertical = 0.dp
+                                                                    ),
+                                                            colors =
+                                                                    ButtonDefaults
+                                                                            .outlinedButtonColors(
+                                                                                    contentColor =
+                                                                                            Color(
+                                                                                                    0xFF4A9EFF
+                                                                                            )
+                                                                            )
                                                     ) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.ArrowForward,
-                                                            contentDescription = null,
-                                                            modifier = Modifier.size(16.dp)
-                                                        )
-                                                        Text("Enviar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                        Row(
+                                                                horizontalArrangement =
+                                                                        Arrangement.spacedBy(4.dp),
+                                                                verticalAlignment =
+                                                                        Alignment.CenterVertically
+                                                        ) {
+                                                            Icon(
+                                                                    imageVector =
+                                                                            Icons.Default.ArrowBack,
+                                                                    contentDescription = null,
+                                                                    modifier = Modifier.size(20.dp)
+                                                            )
+                                                            Text(
+                                                                    "Trazer",
+                                                                    fontSize = 13.sp,
+                                                                    fontWeight = FontWeight.Bold
+                                                            )
+                                                        }
+                                                    }
+
+                                                    Button(
+                                                            onClick = {
+                                                                scope.launch {
+                                                                    DisplayAppLauncher
+                                                                            .sendToDisplay(config)
+                                                                }
+                                                            },
+                                                            enabled = allClusterFunctionsEnabled,
+                                                            modifier =
+                                                                    Modifier.weight(1f)
+                                                                            .height(44.dp),
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            contentPadding =
+                                                                    PaddingValues(
+                                                                            horizontal = 4.dp,
+                                                                            vertical = 0.dp
+                                                                    ),
+                                                            colors =
+                                                                    ButtonDefaults.buttonColors(
+                                                                            containerColor =
+                                                                                    Color(
+                                                                                            0xFF4A9EFF
+                                                                                    ),
+                                                                            contentColor =
+                                                                                    Color.White
+                                                                    )
+                                                    ) {
+                                                        Row(
+                                                                horizontalArrangement =
+                                                                        Arrangement.spacedBy(4.dp),
+                                                                verticalAlignment =
+                                                                        Alignment.CenterVertically
+                                                        ) {
+                                                            Icon(
+                                                                    imageVector =
+                                                                            Icons.Default
+                                                                                    .ArrowForward,
+                                                                    contentDescription = null,
+                                                                    modifier = Modifier.size(20.dp)
+                                                            )
+                                                            Text(
+                                                                    "Enviar",
+                                                                    fontSize = 13.sp,
+                                                                    fontWeight = FontWeight.Bold
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }
@@ -1203,141 +1788,253 @@ fun TelasTab() {
     // REGISTRATION DIALOG FOR REVISIONS
     if (showRegisterDialog) {
         AlertDialog(
-            onDismissRequest = { showRegisterDialog = false },
-            title = { Text("Registrar Revisão", color = Color.White, fontWeight = FontWeight.Bold) },
-            containerColor = Color(0xFF1E2228),
-            titleContentColor = Color.White,
-            textContentColor = Color.White,
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Informe a KM atual do veículo para registro (0 para Data de Compra):", color = Color(0xFFB0B8C4), fontSize = 14.sp)
-                    TextField(
-                        value = tempKm,
-                        onValueChange = { tempKm = it },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        placeholder = { Text("Ex: 10000", color = Color(0xFF808080)) },
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color(0xFF2A2F37),
-                            unfocusedContainerColor = Color(0xFF2A2F37),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedIndicatorColor = Color(0xFF4A9EFF),
-                            unfocusedIndicatorColor = Color(0xFF3A3F47)
-                        ),
-                        modifier = Modifier.fillMaxWidth()
+                onDismissRequest = { showRegisterDialog = false },
+                containerColor = Color(0xFF1E2228),
+                titleContentColor = Color.White,
+                textContentColor = Color.White,
+                title = {
+                    Text(
+                            if (revisionHistory.isEmpty()) {
+                                "Registrar Compra ou Revisão"
+                            } else {
+                                "Registrar Revisão"
+                            },
+                            fontWeight = FontWeight.Bold
                     )
-
-                    val displayDate = if (tempDate > 0) dateFormatter.format(tempDate) else "Clique para definir"
-                    val labelText = if (tempKm == "0") "Data de Compra" else "Data de Revisão"
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showDatePickerForRegister = true }
-                            .background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                },
+                text = {
+                    Column(
+                            modifier = Modifier.padding(top = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text("$labelText:", color = Color(0xFFB0B8C4), fontSize = 14.sp)
-                        Text(displayDate, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                                if (revisionHistory.isEmpty()) {
+                                    "Informe os dados da revisão atual para calcular a próxima automaticamente. Caso deseje registrar a data da compra, insira a km como zero (0)."
+                                } else {
+                                    "Informe os dados da revisão atual para calcular a próxima automaticamente."
+                                },
+                                color = Color(0xFFB0B8C4),
+                                fontSize = 14.sp
+                        )
+
+                        StyledTextField(
+                                value = tempKm,
+                                onValueChange = {
+                                    if (it.isEmpty() || it.toIntOrNull() != null) tempKm = it
+                                },
+                                label = { Text("Kilometragem Atual") },
+                                modifier = Modifier.fillMaxWidth(),
+                                keyboardOptions =
+                                        KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+
+                        Column {
+                            Text(
+                                    if (tempKm == "0") {
+                                        "Data de Compra"
+                                    } else {
+                                        "Data de Revisão"
+                                    },
+                                    color = Color(0xFFB0B8C4),
+                                    fontSize = 12.sp
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                    onClick = { showDatePickerForRegister = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors =
+                                            ButtonDefaults.outlinedButtonColors(
+                                                    contentColor = Color.White
+                                            ),
+                                    border = BorderStroke(1.dp, Color(0xFF3A3F47)),
+                                    shape = RoundedCornerShape(8.dp)
+                            ) {
+                                val displayDate =
+                                        if (tempDate > 0L) dateFormatter.format(tempDate)
+                                        else "Clique para definir"
+                                Text(displayDate)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                            onClick = {
+                                val km = tempKm.toIntOrNull() ?: 0
+                                if (km >= 0 && tempDate > 0L) {
+                                    val newEntry = RevisionEntry(km, tempDate)
+                                    val updated = (revisionHistory + newEntry).sortedBy { it.km }
+                                    revisionHistory = updated
+                                    saveRevisionHistory(prefs, updated)
+                                    showRegisterDialog = false
+                                    tempKm = ""
+                                    tempDate = 0L
+                                }
+                            },
+                            colors =
+                                    ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF)),
+                            enabled =
+                                    tempKm.isNotBlank() &&
+                                            tempKm.toIntOrNull() != null &&
+                                            tempDate > 0L
+                    ) { Text("Confirmar", fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRegisterDialog = false }) {
+                        Text("Cancelar", color = Color(0xFFB0B8C4))
                     }
                 }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val km = tempKm.toIntOrNull()
-                        if (km != null && tempDate > 0) {
-                            val newEntry = RevisionEntry(km, tempDate)
-                            val updated = (revisionHistory + newEntry).sortedBy { it.km }
-                            revisionHistory = updated
-                            saveRevisionHistory(prefs, updated)
-                            showRegisterDialog = false
-                            tempKm = ""
-                            tempDate = 0L
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF)),
-                    enabled = tempKm.isNotBlank() && tempKm.toIntOrNull() != null && tempDate > 0L
-                ) {
-                    Text("Registrar", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRegisterDialog = false }) {
-                    Text("Cancelar", color = Color(0xFFB0B8C4))
-                }
-            }
         )
     }
 
     if (showDatePickerForRegister) {
         val calendar = Calendar.getInstance()
+        if (tempDate > 0L) {
+            calendar.timeInMillis = tempDate
+        }
         LaunchedEffect(Unit) {
-            val dialog = DatePickerDialog(
-                context,
-                { _, year, month, day ->
-                    val cal = Calendar.getInstance()
-                    cal.set(year, month, day)
-                    tempDate = cal.timeInMillis
-                    showDatePickerForRegister = false
-                },
-                calendar.get(Calendar.YEAR),
-                calendar.get(Calendar.MONTH),
-                calendar.get(Calendar.DAY_OF_MONTH)
-            )
+            val dialog =
+                    DatePickerDialog(
+                            context,
+                            { _, year, month, day ->
+                                val cal = Calendar.getInstance()
+                                cal.set(year, month, day)
+                                tempDate = cal.timeInMillis
+                                showDatePickerForRegister = false
+                            },
+                            calendar.get(Calendar.YEAR),
+                            calendar.get(Calendar.MONTH),
+                            calendar.get(Calendar.DAY_OF_MONTH)
+                    )
             dialog.setOnDismissListener { showDatePickerForRegister = false }
             dialog.show()
         }
     }
 
+    if (showVirtualClusterWarningDialog) {
+        AlertDialog(
+                onDismissRequest = { showVirtualClusterWarningDialog = false },
+                containerColor = Color(0xFF1E2228),
+                titleContentColor = Color.White,
+                textContentColor = Color.White,
+                title = {
+                    Text(
+                            "Aviso Importante",
+                            fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column(
+                            modifier = Modifier.padding(top = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                                "Este painel virtual é renderizado pela multimidia, ficando sujeita a garglos de processamento causando eventuais discrepancias ou delays entre as informações reais e as disponibilizadas. Além disto, a velocidade informada pode ter uma pequena variação.",
+                                color = Color(0xFFB0B8C4),
+                                fontSize = 14.sp,
+                                lineHeight = 20.sp
+                        )
+                        Text(
+                                "Confirme e aceite os riscos e condições.",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                            onClick = {
+                                enableMask = true
+                                prefs.edit {
+                                    putBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, true)
+                                }
+                                showVirtualClusterWarningDialog = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF))
+                    ) {
+                        Text("Aceitar", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                            onClick = {
+                                showVirtualClusterWarningDialog = false
+                            }
+                    ) {
+                        Text("Recusar", color = Color(0xFFFF4B4B), fontWeight = FontWeight.Bold)
+                    }
+                }
+        )
+    }
+
     if (showConfigDialog) {
         DisplayAppConfigDialog(
-            existingConfig = activeEditConfig,
-            onDismiss = { showConfigDialog = false },
-            onSave = { updated ->
-                DisplayAppLauncher.saveConfig(updated)
-                configs = DisplayAppLauncher.getAllConfigs()
-                showConfigDialog = false
-            }
+                existingConfig = activeEditConfig,
+                onDismiss = { showConfigDialog = false },
+                onSave = { updated ->
+                    DisplayAppLauncher.saveConfig(updated)
+                    configs = DisplayAppLauncher.getAllConfigs()
+                    showConfigDialog = false
+                }
         )
     }
 }
 
 // EDITOR COMPONENT FOR NEW OR EXISTING CONFIGURATIONS
 @Composable
-fun AppEditorSection(
-    initialConfig: DisplayAppConfig?,
-    onSave: (DisplayAppConfig) -> Unit
-) {
+fun AppEditorSection(initialConfig: DisplayAppConfig?, onSave: (DisplayAppConfig) -> Unit) {
     val scope = rememberCoroutineScope()
     var selectedApp by remember { mutableStateOf<InstalledAppInfo?>(null) }
-    var selectedDisplay by remember { mutableStateOf(initialConfig?.let { DisplayInfo(it.displayId, "Display ${it.displayId}") } ?: DisplayInfo(3, "Display 3")) }
+    var selectedDisplay by remember {
+        mutableStateOf(
+                initialConfig?.let {
+                    when (it.displayId) {
+                        1 ->
+                                DisplayInfo(
+                                        1,
+                                        "Display 1: Cluster de instumentos, atrás do ADAS e outras informações"
+                                )
+                        4 -> DisplayInfo(4, "HUD")
+                        else ->
+                                DisplayInfo(
+                                        3,
+                                        "Display 3: Cluster de instumentos, por cima do ADAS e outras informações"
+                                )
+                    }
+                }
+                        ?: DisplayInfo(
+                                3,
+                                "Display 3: Cluster de instumentos, por cima do ADAS e outras informações"
+                        )
+        )
+    }
     var posX by remember { mutableStateOf(initialConfig?.x ?: 0) }
     var posY by remember { mutableStateOf(initialConfig?.y ?: 0) }
     var sizeW by remember { mutableStateOf(initialConfig?.width ?: 1920) }
     var sizeH by remember { mutableStateOf(initialConfig?.height ?: 720) }
-    var forceFocus by remember { mutableStateOf(initialConfig?.forceFocus ?: false) }
     var customName by remember { mutableStateOf(initialConfig?.customName ?: "") }
-    var overrideThemeDimensions by remember { mutableStateOf(initialConfig?.overrideThemeDimensions ?: false) }
+    var overrideThemeDimensions by remember {
+        mutableStateOf(initialConfig?.overrideThemeDimensions ?: false)
+    }
     var selectedSubIcon by remember { mutableStateOf(initialConfig?.substituteIcon) }
     var selectedIconColor by remember { mutableStateOf(initialConfig?.iconColor ?: "#FFFFFF") }
 
     val substituteIcons = remember {
         listOf(
-            "youtube" to "YouTube",
-            "youtube_music" to "YT Music",
-            "gwm" to "GWM",
-            "nav" to "Navegação",
-            "music" to "Música",
-            "video" to "Vídeo",
-            "settings" to "Configurações",
-            "haval" to "Carro",
-            "game" to "Jogo",
-            "tv" to "TV",
-            "phone" to "Telefone",
-            "chat" to "Chat",
-            "map_alt" to "Mapa Alternativo"
+                "youtube" to "YouTube",
+                "youtube_music" to "YT Music",
+                "gwm" to "GWM",
+                "nav" to "Navegação",
+                "music" to "Música",
+                "video" to "Vídeo",
+                "settings" to "Configurações",
+                "haval" to "Carro",
+                "game" to "Jogo",
+                "tv" to "TV",
+                "phone" to "Telefone",
+                "chat" to "Chat",
+                "map_alt" to "Mapa Alternativo"
         )
     }
 
@@ -1345,15 +2042,27 @@ fun AppEditorSection(
         initialConfig?.let {
             val context = br.com.redesurftank.App.getDeviceProtectedContext()
             val resolved = DisplayAppLauncher.resolveAppInfo(context, it.packageName, it.customName)
-            selectedApp = InstalledAppInfo(it.packageName, it.activityName ?: "", resolved.label, resolved.icon)
+            selectedApp =
+                    InstalledAppInfo(
+                            it.packageName,
+                            it.activityName ?: "",
+                            resolved.label,
+                            resolved.icon
+                    )
         }
     }
 
     val displays = remember {
         listOf(
-            DisplayInfo(3, "Display 3 (Painel)"),
-            DisplayInfo(4, "Display 4 (HUD)"),
-            DisplayInfo(5, "Display 5 (Carona)")
+                DisplayInfo(
+                        1,
+                        "Display 1: Cluster de instumentos, atrás do ADAS e outras informações"
+                ),
+                DisplayInfo(
+                        3,
+                        "Display 3: Cluster de instumentos, por cima do ADAS e outras informações"
+                ),
+                DisplayInfo(4, "HUD")
         )
     }
 
@@ -1363,13 +2072,13 @@ fun AppEditorSection(
     var showRenameDialog by remember { mutableStateOf(false) }
     var previewActive by remember { mutableStateOf(false) }
 
-    val resolution = remember(selectedDisplay) {
-        when (selectedDisplay.id) {
-            4 -> 854 to 480
-            5 -> 1024 to 600
-            else -> 1920 to 720
-        }
-    }
+    val resolution =
+            remember(selectedDisplay) {
+                when (selectedDisplay.id) {
+                    4 -> 854 to 480
+                    else -> 1920 to 720
+                }
+            }
 
     // Auto-constrain bounds if display changes
     LaunchedEffect(selectedDisplay) {
@@ -1379,57 +2088,65 @@ fun AppEditorSection(
         sizeH = sizeH.coerceIn(100, resolution.second)
     }
 
-    val configuredPackages = remember { DisplayAppLauncher.getAllConfigs().map { it.packageName }.toSet() }
+    val configuredPackages = remember {
+        DisplayAppLauncher.getAllConfigs().map { it.packageName }.toSet()
+    }
 
     val currentConfig = {
         selectedApp?.let { app ->
             DisplayAppConfig(
-                packageName = app.packageName,
-                activityName = app.activityName,
-                displayId = selectedDisplay.id,
-                x = posX,
-                y = posY,
-                width = sizeW,
-                height = sizeH,
-                forceFocus = forceFocus,
-                customName = customName,
-                overrideThemeDimensions = overrideThemeDimensions,
-                substituteIcon = selectedSubIcon,
-                iconColor = selectedIconColor
+                    packageName = app.packageName,
+                    activityName = app.activityName,
+                    displayId = selectedDisplay.id,
+                    x = posX,
+                    y = posY,
+                    width = sizeW,
+                    height = sizeH,
+                    forceFocus = false,
+                    customName = customName,
+                    overrideThemeDimensions = overrideThemeDimensions,
+                    substituteIcon = selectedSubIcon,
+                    iconColor = selectedIconColor
             )
         }
     }
 
     // Live resize effect while adjusting sliders
-    LaunchedEffect(posX, posY, sizeW, sizeH, forceFocus, overrideThemeDimensions, selectedSubIcon, selectedIconColor) {
-        if (previewActive) {
-            currentConfig()?.let { config ->
-                DisplayAppLauncher.launchApp(config)
-            }
+    LaunchedEffect(
+            posX,
+            posY,
+            sizeW,
+            sizeH,
+            overrideThemeDimensions,
+            selectedSubIcon,
+            selectedIconColor
+    ) {
+        if (previewActive && selectedApp != null) {
+            currentConfig()?.let { config -> DisplayAppLauncher.launchApp(config) }
         }
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // App Select Row
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("Aplicativo", color = Color(0xFFB0B8C4), fontSize = 12.sp)
                 Spacer(Modifier.height(4.dp))
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
-                        .clickable { showAppPicker = true }
-                        .padding(horizontal = 12.dp, vertical = 12.dp)
+                        modifier =
+                                Modifier.fillMaxWidth()
+                                        .background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
+                                        .clickable { showAppPicker = true }
+                                        .padding(horizontal = 12.dp, vertical = 12.dp)
                 ) {
                     Text(
-                        selectedApp?.label ?: "Selecionar Aplicativo...",
-                        color = if (selectedApp != null) Color.White else Color(0xFF808080),
-                        fontSize = 14.sp
+                            selectedApp?.label ?: "Selecionar Aplicativo...",
+                            color = if (selectedApp != null) Color.White else Color(0xFF808080),
+                            fontSize = 14.sp
                     )
                 }
             }
@@ -1437,16 +2154,18 @@ fun AppEditorSection(
             // Custom name/rename button
             if (selectedApp != null) {
                 IconButton(
-                    onClick = { showRenameDialog = true },
-                    modifier = Modifier
-                        .padding(top = 18.dp)
-                        .size(44.dp)
-                        .background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
+                        onClick = { showRenameDialog = true },
+                        modifier =
+                                Modifier.padding(top = 18.dp)
+                                        .size(44.dp)
+                                        .background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
                 ) {
                     Icon(
-                        imageVector = if (customName.isBlank()) Icons.Default.EditNote else Icons.Default.Label,
-                        contentDescription = "Nome Customizado",
-                        tint = if (customName.isBlank()) Color.White else Color(0xFF4A9EFF)
+                            imageVector =
+                                    if (customName.isBlank()) Icons.Default.EditNote
+                                    else Icons.Default.Label,
+                            contentDescription = "Nome Customizado",
+                            tint = if (customName.isBlank()) Color.White else Color(0xFF4A9EFF)
                     )
                 }
             }
@@ -1458,315 +2177,323 @@ fun AppEditorSection(
             Spacer(Modifier.height(4.dp))
             Box {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
-                        .clickable { displayExpanded = true }
-                        .padding(horizontal = 12.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        modifier =
+                                Modifier.fillMaxWidth()
+                                        .background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
+                                        .clickable { displayExpanded = true }
+                                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(selectedDisplay.name, color = Color.White, fontSize = 14.sp)
                     Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color.White)
                 }
                 DropdownMenu(
-                    expanded = displayExpanded,
-                    onDismissRequest = { displayExpanded = false },
-                    modifier = Modifier
-                        .fillMaxWidth(0.5f)
-                        .background(Color(0xFF1E2228))
+                        expanded = displayExpanded,
+                        onDismissRequest = { displayExpanded = false },
+                        modifier = Modifier.fillMaxWidth(0.5f).background(Color(0xFF1E2228))
                 ) {
                     displays.forEach { disp ->
                         DropdownMenuItem(
-                            text = { Text(disp.name, color = Color.White) },
-                            onClick = {
-                                selectedDisplay = disp
-                                displayExpanded = false
-                            }
+                                text = { Text(disp.name, color = Color.White) },
+                                onClick = {
+                                    selectedDisplay = disp
+                                    displayExpanded = false
+                                }
                         )
                     }
                 }
             }
         }
 
-        if (selectedApp != null) {
-            HorizontalDivider(color = Color(0xFF2C3139))
+        HorizontalDivider(color = Color(0xFF2C3139))
 
+        // Override Theme Dimensions
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text("Dimensões", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+            Spacer(Modifier.height(4.dp))
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier =
+                            Modifier.fillMaxWidth()
+                                    .background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        overrideThemeDimensions = !overrideThemeDimensions
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
-                // Focus Control
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Comportamento", color = Color(0xFFB0B8C4), fontSize = 12.sp)
-                    Spacer(Modifier.height(4.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
-                            .clickable { forceFocus = !forceFocus }
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                    ) {
-                        Text("Forçar Foco", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                        Switch(
-                            checked = forceFocus,
-                            onCheckedChange = { forceFocus = it },
-                            modifier = Modifier.scale(0.8f),
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = Color(0xFF4A9EFF)
-                            )
-                        )
-                    }
-                }
-
-                // Override Theme Dimensions
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Dimensões", color = Color(0xFFB0B8C4), fontSize = 12.sp)
-                    Spacer(Modifier.height(4.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFF2A2F37), RoundedCornerShape(8.dp))
-                            .clickable { overrideThemeDimensions = !overrideThemeDimensions }
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                    ) {
-                        Text("Override de Dimensões", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                        Switch(
-                            checked = overrideThemeDimensions,
-                            onCheckedChange = { overrideThemeDimensions = it },
-                            modifier = Modifier.scale(0.8f),
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = Color(0xFF4A9EFF)
-                            )
-                        )
-                    }
-                }
+                Text(
+                        "Override de Dimensões",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        modifier = Modifier.weight(1f)
+                )
+                Switch(
+                        checked = overrideThemeDimensions,
+                        onCheckedChange = { overrideThemeDimensions = it },
+                        modifier = Modifier.scale(0.8f),
+                        colors =
+                                SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = Color(0xFF4A9EFF)
+                                )
+                )
             }
+        }
 
-            if (overrideThemeDimensions || selectedDisplay.id != 3) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp),
+        if (overrideThemeDimensions || selectedDisplay.id != 3) {
+            Column(
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    // Resolution info
-                    Text(
+            ) {
+                // Resolution info
+                Text(
                         "Resolução: ${resolution.first} x ${resolution.second} | Pos: $posX,$posY",
                         color = Color(0xFF808080),
                         fontSize = 11.sp
-                    )
+                )
 
-                    // Position sliders
-                    Row(
+                // Position sliders
+                Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            SliderWithLabel(
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        SliderWithLabel(
                                 label = "Posição X",
                                 value = posX,
                                 range = 0..resolution.first,
                                 onValueChange = { posX = it }
-                            )
-                        }
-                        Box(modifier = Modifier.weight(1f)) {
-                            SliderWithLabel(
+                        )
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        SliderWithLabel(
                                 label = "Posição Y",
                                 value = posY,
                                 range = 0..resolution.second,
                                 onValueChange = { posY = it },
                                 specialSnap = 135
-                            )
-                        }
+                        )
                     }
+                }
 
-                    // Size sliders
-                    Row(
+                // Size sliders
+                Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            SliderWithLabel(
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        SliderWithLabel(
                                 label = "Largura",
                                 value = sizeW,
                                 range = 100..resolution.first,
                                 onValueChange = { sizeW = it }
-                            )
-                        }
-                        Box(modifier = Modifier.weight(1f)) {
-                            SliderWithLabel(
+                        )
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        SliderWithLabel(
                                 label = "Altura",
                                 value = sizeH,
                                 range = 100..resolution.second,
                                 onValueChange = { sizeH = it }
+                        )
+                    }
+                }
+            }
+        }
+
+        // Substitute Icon Selection
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text("Ícone Substituto", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+            Spacer(Modifier.height(4.dp))
+            LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+            ) {
+                item {
+                    Box(
+                            modifier =
+                                    Modifier.size(44.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(
+                                                    if (selectedSubIcon == null) Color(0xFF4A9EFF)
+                                                    else Color(0xFF2A2F37)
+                                            )
+                                            .clickable { selectedSubIcon = null }
+                                            .padding(4.dp),
+                            contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                                "Padrão",
+                                color = Color.White,
+                                fontSize = 9.sp,
+                                textAlign = TextAlign.Center
+                        )
+                    }
+                }
+                items(substituteIcons) { (id, label) ->
+                    val isSelected = selectedSubIcon == id
+                    Box(
+                            modifier =
+                                    Modifier.size(44.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(
+                                                    if (isSelected) Color(0xFF4A9EFF)
+                                                    else Color(0xFF2A2F37)
+                                            )
+                                            .clickable { selectedSubIcon = id }
+                                            .padding(4.dp),
+                            contentAlignment = Alignment.Center
+                    ) {
+                        if (id == "youtube" || id == "youtube_music" || id == "gwm") {
+                            Image(
+                                    painter =
+                                            painterResource(
+                                                    id =
+                                                            when (id) {
+                                                                "youtube" ->
+                                                                        R.drawable
+                                                                                .ic_youtube_default
+                                                                "youtube_music" ->
+                                                                        R.drawable
+                                                                                .ic_youtube_music_default
+                                                                "gwm" -> R.drawable.ic_gwm
+                                                                else ->
+                                                                        R.drawable
+                                                                                .ic_youtube_default
+                                                            }
+                                            ),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(32.dp)
+                            )
+                        } else {
+                            Icon(
+                                    imageVector =
+                                            when (id) {
+                                                "nav" -> Icons.Default.Place
+                                                "music" -> Icons.Default.PlayArrow
+                                                "video" -> Icons.Default.Movie
+                                                "settings" -> Icons.Default.Settings
+                                                "haval" -> Icons.Default.DirectionsCar
+                                                "game" -> Icons.Default.SportsEsports
+                                                "tv" -> Icons.Default.Tv
+                                                "phone" -> Icons.Default.Phone
+                                                "chat" -> Icons.Default.Chat
+                                                "map_alt" -> Icons.Default.Map
+                                                else -> Icons.Default.Android
+                                            },
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
                             )
                         }
                     }
                 }
             }
+        }
 
-            // Substitute Icon Selection
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text("Ícone Substituto", color = Color(0xFFB0B8C4), fontSize = 12.sp)
-                Spacer(Modifier.height(4.dp))
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (selectedSubIcon == null) Color(0xFF4A9EFF) else Color(0xFF2A2F37))
-                                .clickable { selectedSubIcon = null }
-                                .padding(4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("Padrão", color = Color.White, fontSize = 9.sp, textAlign = TextAlign.Center)
-                        }
-                    }
-                    items(substituteIcons) { (id, label) ->
-                        val isSelected = selectedSubIcon == id
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSelected) Color(0xFF4A9EFF) else Color(0xFF2A2F37))
-                                .clickable { selectedSubIcon = id }
-                                .padding(4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (id == "youtube" || id == "youtube_music" || id == "gwm") {
-                                Image(
-                                    painter = painterResource(
-                                        id = when (id) {
-                                            "youtube" -> R.drawable.ic_youtube_default
-                                            "youtube_music" -> R.drawable.ic_youtube_music_default
-                                            "gwm" -> R.drawable.ic_gwm
-                                            else -> R.drawable.ic_youtube_default
-                                        }
-                                    ),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = when (id) {
-                                        "nav" -> Icons.Default.Place
-                                        "music" -> Icons.Default.PlayArrow
-                                        "video" -> Icons.Default.Movie
-                                        "settings" -> Icons.Default.Settings
-                                        "haval" -> Icons.Default.DirectionsCar
-                                        "game" -> Icons.Default.SportsEsports
-                                        "tv" -> Icons.Default.Tv
-                                        "phone" -> Icons.Default.Phone
-                                        "chat" -> Icons.Default.Chat
-                                        "map_alt" -> Icons.Default.Map
-                                        else -> Icons.Default.Android
-                                    },
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Consolidated Color Selector
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text("Cor de Destaque", color = Color(0xFFB0B8C4), fontSize = 12.sp)
-                Spacer(Modifier.height(6.dp))
-                val colorOptions = listOf(
-                    "#FFFFFF", "#ECEFF1", "#FF0000", "#FF4B4B", "#00FF00",
-                    "#0000FF", "#4A9EFF", "#90CAF9", "#FFFF00", "#FF00FF",
-                    "#00FFFF", "#FFA500", "#800080", "#808080"
-                )
-                LazyRow(
+        // Consolidated Color Selector
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text("Cor de Destaque", color = Color(0xFFB0B8C4), fontSize = 12.sp)
+            Spacer(Modifier.height(6.dp))
+            val colorOptions =
+                    listOf(
+                            "#FFFFFF",
+                            "#ECEFF1",
+                            "#FF0000",
+                            "#FF4B4B",
+                            "#00FF00",
+                            "#0000FF",
+                            "#4A9EFF",
+                            "#90CAF9",
+                            "#FFFF00",
+                            "#FF00FF",
+                            "#00FFFF",
+                            "#FFA500",
+                            "#800080",
+                            "#808080"
+                    )
+            LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 2.dp)
-                ) {
-                    items(colorOptions) { colorHex ->
-                        val color = try {
-                            Color(android.graphics.Color.parseColor(colorHex))
-                        } catch (_: Exception) {
-                            Color.White
-                        }
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(color)
-                                .border(
-                                    width = if (selectedIconColor.uppercase() == colorHex.uppercase()) 2.dp else 1.dp,
-                                    color = Color.White,
-                                    shape = CircleShape
-                                )
-                                .clickable { selectedIconColor = colorHex }
-                        )
-                    }
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+            ) {
+                items(colorOptions) { colorHex ->
+                    val color =
+                            try {
+                                Color(android.graphics.Color.parseColor(colorHex))
+                            } catch (_: Exception) {
+                                Color.White
+                            }
+                    Box(
+                            modifier =
+                                    Modifier.size(28.dp)
+                                            .clip(CircleShape)
+                                            .background(color)
+                                            .border(
+                                                    width =
+                                                            if (selectedIconColor.uppercase() ==
+                                                                            colorHex.uppercase()
+                                                            )
+                                                                    2.dp
+                                                            else 1.dp,
+                                                    color = Color.White,
+                                                    shape = CircleShape
+                                            )
+                                            .clickable { selectedIconColor = colorHex }
+                    )
                 }
             }
+        }
 
-            // Live preview status
-            if (previewActive && selectedApp != null) {
-                Text(
+        // Live preview status
+        if (previewActive && selectedApp != null) {
+            Text(
                     "Preview ativo — ajuste os sliders e veja em tempo real",
                     color = Color(0xFF4A9EFF),
                     fontSize = 12.sp
-                )
-            }
+            )
+        }
 
-            // Action buttons
-            Spacer(Modifier.height(8.dp))
-            Button(
+        // Action buttons
+        Spacer(Modifier.height(8.dp))
+        Button(
                 onClick = { currentConfig()?.let { onSave(it) } },
                 enabled = selectedApp != null,
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF)),
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp)
-            ) {
-                Text("Salvar", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            }
-        }
+        ) { Text("Salvar", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
     }
 
     if (showAppPicker) {
         AppPickerDialog(
-            alreadyConfigured = configuredPackages,
-            onDismiss = { showAppPicker = false },
-            onAppSelected = { app ->
-                if (app.packageName == "com.ts.androidauto.app" || app.packageName == "com.ts.carplay.app") {
-                    showInterconnectionConfirmDialog = app
-                    showAppPicker = false
-                } else {
-                    selectedApp = app
-                    showAppPicker = false
-                    previewActive = true
-                    scope.launch {
-                        DisplayAppLauncher.launchApp(
-                            DisplayAppConfig(
-                                packageName = app.packageName,
-                                activityName = app.activityName,
-                                displayId = selectedDisplay.id,
-                                x = posX,
-                                y = posY,
-                                width = sizeW,
-                                height = sizeH
+                alreadyConfigured = configuredPackages,
+                onDismiss = { showAppPicker = false },
+                onAppSelected = { app ->
+                    if (app.packageName == "com.ts.androidauto.app" ||
+                                    app.packageName == "com.ts.carplay.app"
+                    ) {
+                        showInterconnectionConfirmDialog = app
+                        showAppPicker = false
+                    } else {
+                        selectedApp = app
+                        showAppPicker = false
+                        previewActive = true
+                        scope.launch {
+                            DisplayAppLauncher.launchApp(
+                                    DisplayAppConfig(
+                                            packageName = app.packageName,
+                                            activityName = app.activityName,
+                                            displayId = selectedDisplay.id,
+                                            x = posX,
+                                            y = posY,
+                                            width = sizeW,
+                                            height = sizeH
+                                    )
                             )
-                        )
+                        }
                     }
                 }
-            }
         )
     }
 
@@ -1780,230 +2507,264 @@ fun AppEditorSection(
         val abortText = if (isEn) "Abort" else "Abortar"
 
         AlertDialog(
-            onDismissRequest = { showInterconnectionConfirmDialog = null },
-            containerColor = Color(0xFF1E2228),
-            titleContentColor = Color.White,
-            textContentColor = Color.White,
-            title = {
-                Text(
-                    text = title,
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    if (app.packageName == "com.ts.androidauto.app") {
-                        val mainWarning = if (isEn) {
-                            "Android Auto support is experimental and has some important limitations:"
-                        } else {
-                            "O suporte ao Android Auto é experimental e possui algumas limitações importantes:"
-                        }
-                        val limit1 = if (isEn) {
-                            "Android Auto content does not resize; it is only cropped."
-                        } else {
-                            "O conteúdo do Android Auto não se redimensiona, apenas é recortado (crop)."
-                        }
-                        val limit2 = if (isEn) {
-                            "Clicking anywhere on the MMI causes Android Auto to lose focus and the screen to go black. We have a workaround that attempts to restore focus automatically, but it may fail occasionally, requiring you to click the Android Auto icon in the car to restore its focus."
-                        } else {
-                            "Ao clicar em qualquer lugar na MMI, o Android Auto perde o foco e a tela fica preta. Temos uma solução alternativa para tentar restaurar o foco automaticamente, mas ela pode falhar às vezes, exigindo que você clique no ícone do Android Auto no carro para restaurar seu foco."
-                        }
-                        val question = if (isEn) {
-                            "Do you want to proceed anyway?"
-                        } else {
-                            "Deseja prosseguir assim mesmo?"
-                        }
-
-                        Text(
-                            text = mainWarning,
-                            color = Color(0xFFB0B8C4),
-                            fontSize = 13.sp,
-                            lineHeight = 18.sp
-                        )
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(start = 4.dp)
-                        ) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.Top
-                            ) {
-                                Text("•", color = Color(0xFF4A9EFF), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Text(
-                                    text = limit1,
-                                    color = Color(0xFFB0B8C4),
-                                    fontSize = 12.sp,
-                                    lineHeight = 16.sp
-                                )
-                            }
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.Top
-                            ) {
-                                Text("•", color = Color(0xFF4A9EFF), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Text(
-                                    text = limit2,
-                                    color = Color(0xFFB0B8C4),
-                                    fontSize = 12.sp,
-                                    lineHeight = 16.sp
-                                )
-                            }
-                        }
-                        Text(
-                            text = question,
-                            color = Color(0xFFB0B8C4),
-                            fontSize = 13.sp,
-                            lineHeight = 18.sp
-                        )
-                    } else {
-                        val carplayWarning = if (isEn) {
-                            "Apple CarPlay support has not been tested in this version and correct operation is not guaranteed. Are you sure you want to continue?"
-                        } else {
-                            "O suporte ao Apple CarPlay ainda não foi testado nesta versão e não garantimos seu correto funcionamento. Tem certeza que deseja continuar?"
-                        }
-                        Text(
-                            text = carplayWarning,
-                            color = Color(0xFFB0B8C4),
-                            fontSize = 13.sp,
-                            lineHeight = 18.sp
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        selectedApp = app
-                        showInterconnectionConfirmDialog = null
+                onDismissRequest = { showInterconnectionConfirmDialog = null },
+                containerColor = Color(0xFF1E2228),
+                titleContentColor = Color.White,
+                textContentColor = Color.White,
+                title = {
+                    Text(
+                            text = title,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (app.packageName == "com.ts.androidauto.app") {
-                            forceFocus = true
-                        }
-                        previewActive = true
-                        scope.launch {
-                            DisplayAppLauncher.launchApp(
-                                DisplayAppConfig(
-                                    packageName = app.packageName,
-                                    activityName = app.activityName,
-                                    displayId = selectedDisplay.id,
-                                    x = posX,
-                                    y = posY,
-                                    width = sizeW,
-                                    height = sizeH
-                                )
+                            val mainWarning =
+                                    if (isEn) {
+                                        "Android Auto support is experimental and has some important limitations:"
+                                    } else {
+                                        "O suporte ao Android Auto é experimental e possui algumas limitações importantes:"
+                                    }
+                            val limit1 =
+                                    if (isEn) {
+                                        "Android Auto content does not resize; it is only cropped."
+                                    } else {
+                                        "O conteúdo do Android Auto não se redimensiona, apenas é recortado (crop)."
+                                    }
+                            val limit2 =
+                                    if (isEn) {
+                                        "Clicking anywhere on the MMI causes Android Auto to lose focus and the screen to go black. We have a workaround that attempts to restore focus automatically, but it may fail occasionally, requiring you to click the Android Auto icon in the car to restore its focus."
+                                    } else {
+                                        "Ao clicar em qualquer lugar na MMI, o Android Auto perde o foco e a tela fica preta. Temos uma solução alternativa para tentar restaurar o foco automaticamente, mas ela pode falhar às vezes, exigindo que você clique no ícone do Android Auto no carro para restaurar seu foco."
+                                    }
+                            val question =
+                                    if (isEn) {
+                                        "Do you want to proceed anyway?"
+                                    } else {
+                                        "Deseja prosseguir assim mesmo?"
+                                    }
+
+                            Text(
+                                    text = mainWarning,
+                                    color = Color(0xFFB0B8C4),
+                                    fontSize = 13.sp,
+                                    lineHeight = 18.sp
+                            )
+                            Column(
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.padding(start = 4.dp)
+                            ) {
+                                Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.Top
+                                ) {
+                                    Text(
+                                            "•",
+                                            color = Color(0xFF4A9EFF),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                    )
+                                    Text(
+                                            text = limit1,
+                                            color = Color(0xFFB0B8C4),
+                                            fontSize = 12.sp,
+                                            lineHeight = 16.sp
+                                    )
+                                }
+                                Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.Top
+                                ) {
+                                    Text(
+                                            "•",
+                                            color = Color(0xFF4A9EFF),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                    )
+                                    Text(
+                                            text = limit2,
+                                            color = Color(0xFFB0B8C4),
+                                            fontSize = 12.sp,
+                                            lineHeight = 16.sp
+                                    )
+                                }
+                            }
+                            Text(
+                                    text = question,
+                                    color = Color(0xFFB0B8C4),
+                                    fontSize = 13.sp,
+                                    lineHeight = 18.sp
+                            )
+                        } else {
+                            val carplayWarning =
+                                    if (isEn) {
+                                        "Apple CarPlay support has not been tested in this version and correct operation is not guaranteed. Are you sure you want to continue?"
+                                    } else {
+                                        "O suporte ao Apple CarPlay ainda não foi testado nesta versão e não garantimos seu correto funcionamento. Tem certeza que deseja continuar?"
+                                    }
+                            Text(
+                                    text = carplayWarning,
+                                    color = Color(0xFFB0B8C4),
+                                    fontSize = 13.sp,
+                                    lineHeight = 18.sp
                             )
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF)),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(proceedText, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showInterconnectionConfirmDialog = null
                     }
-                ) {
-                    Text(abortText, color = Color(0xFFFF4B4B), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                },
+                confirmButton = {
+                    Button(
+                            onClick = {
+                                selectedApp = app
+                                showInterconnectionConfirmDialog = null
+                                previewActive = true
+                                scope.launch {
+                                    DisplayAppLauncher.launchApp(
+                                            DisplayAppConfig(
+                                                    packageName = app.packageName,
+                                                    activityName = app.activityName,
+                                                    displayId = selectedDisplay.id,
+                                                    x = posX,
+                                                    y = posY,
+                                                    width = sizeW,
+                                                    height = sizeH
+                                            )
+                                    )
+                                }
+                            },
+                            colors =
+                                    ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF)),
+                            shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                                proceedText,
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showInterconnectionConfirmDialog = null }) {
+                        Text(
+                                abortText,
+                                color = Color(0xFFFF4B4B),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
-            }
         )
     }
 
     if (showRenameDialog) {
         var tempName by remember { mutableStateOf(customName) }
         AlertDialog(
-            onDismissRequest = { showRenameDialog = false },
-            title = { Text("Nome Customizado", color = Color.White, fontWeight = FontWeight.Bold) },
-            containerColor = Color(0xFF1E2228),
-            titleContentColor = Color.White,
-            textContentColor = Color.White,
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Defina um nome customizado para este atalho:", color = Color(0xFFB0B8C4), fontSize = 14.sp)
-                    TextField(
-                        value = tempName,
-                        onValueChange = { tempName = it },
-                        placeholder = { Text(selectedApp?.label ?: "Nome original", color = Color(0xFF808080)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color(0xFF2A2F37),
-                            unfocusedContainerColor = Color(0xFF2A2F37),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedIndicatorColor = Color(0xFF4A9EFF),
-                            unfocusedIndicatorColor = Color(0xFF3A3F47)
+                onDismissRequest = { showRenameDialog = false },
+                title = {
+                    Text("Nome Customizado", color = Color.White, fontWeight = FontWeight.Bold)
+                },
+                containerColor = Color(0xFF1E2228),
+                titleContentColor = Color.White,
+                textContentColor = Color.White,
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                                "Defina um nome customizado para este atalho:",
+                                color = Color(0xFFB0B8C4),
+                                fontSize = 14.sp
                         )
-                    )
-                    if (tempName.isNotBlank()) {
-                        TextButton(
-                            onClick = { tempName = "" },
-                            modifier = Modifier.align(Alignment.End)
-                        ) {
-                            Text("Resetar para o padrão", color = Color(0xFFFF4B4B), fontSize = 12.sp)
+                        TextField(
+                                value = tempName,
+                                onValueChange = { tempName = it },
+                                placeholder = {
+                                    Text(
+                                            selectedApp?.label ?: "Nome original",
+                                            color = Color(0xFF808080)
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                colors =
+                                        TextFieldDefaults.colors(
+                                                focusedContainerColor = Color(0xFF2A2F37),
+                                                unfocusedContainerColor = Color(0xFF2A2F37),
+                                                focusedTextColor = Color.White,
+                                                unfocusedTextColor = Color.White,
+                                                focusedIndicatorColor = Color(0xFF4A9EFF),
+                                                unfocusedIndicatorColor = Color(0xFF3A3F47)
+                                        )
+                        )
+                        if (tempName.isNotBlank()) {
+                            TextButton(
+                                    onClick = { tempName = "" },
+                                    modifier = Modifier.align(Alignment.End)
+                            ) {
+                                Text(
+                                        "Resetar para o padrão",
+                                        color = Color(0xFFFF4B4B),
+                                        fontSize = 12.sp
+                                )
+                            }
                         }
                     }
+                },
+                confirmButton = {
+                    Button(
+                            onClick = {
+                                customName = tempName
+                                showRenameDialog = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF))
+                    ) { Text("OK", fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRenameDialog = false }) {
+                        Text("Cancelar", color = Color(0xFFB0B8C4))
+                    }
                 }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        customName = tempName
-                        showRenameDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF))
-                ) { Text("OK", fontWeight = FontWeight.Bold) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRenameDialog = false }) {
-                    Text("Cancelar", color = Color(0xFFB0B8C4))
-                }
-            }
         )
     }
 }
 
 @Composable
 fun DisplayAppConfigDialog(
-    existingConfig: DisplayAppConfig?,
-    onDismiss: () -> Unit,
-    onSave: (DisplayAppConfig) -> Unit
+        existingConfig: DisplayAppConfig?,
+        onDismiss: () -> Unit,
+        onSave: (DisplayAppConfig) -> Unit
 ) {
     androidx.compose.ui.window.Dialog(
-        onDismissRequest = onDismiss,
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+            onDismissRequest = onDismiss,
+            properties =
+                    androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(
-            modifier = Modifier
-                .fillMaxWidth(0.5f)
-                .fillMaxHeight(0.8f)
-                .padding(16.dp)
-                .border(1.dp, Color(0xFF2C3139), RoundedCornerShape(12.dp)),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2228)),
-            shape = RoundedCornerShape(12.dp)
+                modifier =
+                        Modifier.fillMaxWidth(0.5f)
+                                .fillMaxHeight(0.8f)
+                                .padding(16.dp)
+                                .border(1.dp, Color(0xFF2C3139), RoundedCornerShape(12.dp)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2228)),
+                shape = RoundedCornerShape(12.dp)
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (existingConfig != null) "Editar Configuração" else "Nova Configuração",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
+                            text =
+                                    if (existingConfig != null) "Editar Configuração"
+                                    else "Nova Configuração",
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
                     )
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.Close, contentDescription = "Fechar", tint = Color.White)
@@ -2013,16 +2774,11 @@ fun DisplayAppConfigDialog(
                 HorizontalDivider(color = Color(0xFF2C3139))
 
                 Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    AppEditorSection(
-                        initialConfig = existingConfig,
-                        onSave = onSave
-                    )
-                }
+                        modifier =
+                                Modifier.weight(1f)
+                                        .fillMaxWidth()
+                                        .verticalScroll(rememberScrollState())
+                ) { AppEditorSection(initialConfig = existingConfig, onSave = onSave) }
             }
         }
     }
@@ -2030,141 +2786,146 @@ fun DisplayAppConfigDialog(
 
 @Composable
 fun SliderWithLabel(
-    label: String,
-    value: Int,
-    range: IntRange,
-    onValueChange: (Int) -> Unit,
-    step: Int = 1,
-    specialSnap: Int? = null
+        label: String,
+        value: Int,
+        range: IntRange,
+        onValueChange: (Int) -> Unit,
+        step: Int = 1,
+        specialSnap: Int? = null
 ) {
     Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(label, color = Color(0xFFB0B8C4), fontSize = 12.sp)
             Text("$value", color = Color.White, fontSize = 12.sp)
         }
         Slider(
-            value = value.toFloat(),
-            onValueChange = {
-                var snapped = (kotlin.math.round(it / step) * step).toInt()
-                val snapTolerance = if (step == 1) 10 else step
-                if (specialSnap != null && kotlin.math.abs(snapped - specialSnap) <= snapTolerance) {
-                    snapped = specialSnap
-                }
-                onValueChange(snapped.coerceIn(range))
-            },
-            valueRange = range.first.toFloat()..range.last.toFloat(),
-            modifier = Modifier.fillMaxWidth(),
-            colors = SliderDefaults.colors(
-                thumbColor = Color(0xFF4A9EFF),
-                activeTrackColor = Color(0xFF4A9EFF),
-                inactiveTrackColor = Color(0xFF2C3139)
-            )
+                value = value.toFloat(),
+                onValueChange = {
+                    var snapped = (kotlin.math.round(it / step) * step).toInt()
+                    val snapTolerance = if (step == 1) 10 else step
+                    if (specialSnap != null &&
+                                    kotlin.math.abs(snapped - specialSnap) <= snapTolerance
+                    ) {
+                        snapped = specialSnap
+                    }
+                    onValueChange(snapped.coerceIn(range))
+                },
+                valueRange = range.first.toFloat()..range.last.toFloat(),
+                modifier = Modifier.fillMaxWidth(),
+                colors =
+                        SliderDefaults.colors(
+                                thumbColor = Color(0xFF4A9EFF),
+                                activeTrackColor = Color(0xFF4A9EFF),
+                                inactiveTrackColor = Color(0xFF2C3139)
+                        )
         )
     }
 }
 
 @Composable
 fun ActionButton(
-    text: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    color: Color,
-    onClick: () -> Unit
+        text: String,
+        icon: androidx.compose.ui.graphics.vector.ImageVector,
+        color: Color,
+        onClick: () -> Unit
 ) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(Color(0xFF2A2F37))
-            .clickable { onClick() }
-            .padding(horizontal = 8.dp, vertical = 6.dp)
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier =
+                    Modifier.clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF2A2F37))
+                            .clickable { onClick() }
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
     ) {
-        Icon(imageVector = icon, contentDescription = text, tint = color, modifier = Modifier.size(18.dp))
+        Icon(
+                imageVector = icon,
+                contentDescription = text,
+                tint = color,
+                modifier = Modifier.size(18.dp)
+        )
         Spacer(Modifier.height(2.dp))
         Text(text, color = color, fontSize = 9.sp, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
-fun AppPickerItem(
-    app: InstalledAppInfo,
-    onClick: (InstalledAppInfo) -> Unit
-) {
+fun AppPickerItem(app: InstalledAppInfo, onClick: (InstalledAppInfo) -> Unit) {
     Column(
-        modifier = Modifier
-            .clickable { onClick(app) }
-            .padding(4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+            modifier = Modifier.clickable { onClick(app) }.padding(4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         if (app.icon != null) {
             AsyncImage(
-                model = app.icon,
-                contentDescription = app.label,
-                modifier = Modifier.size(44.dp),
-                contentScale = ContentScale.Fit
+                    model = app.icon,
+                    contentDescription = app.label,
+                    modifier = Modifier.size(44.dp),
+                    contentScale = ContentScale.Fit
             )
         } else {
             when {
                 app.packageName.contains("androidauto") -> {
                     AsyncImage(
-                        model = R.drawable.ic_android_auto_default,
-                        contentDescription = app.label,
-                        modifier = Modifier.size(44.dp),
-                        contentScale = ContentScale.Fit
+                            model = R.drawable.ic_android_auto_default,
+                            contentDescription = app.label,
+                            modifier = Modifier.size(44.dp),
+                            contentScale = ContentScale.Fit
                     )
                 }
                 app.packageName.contains("carplay") -> {
                     AsyncImage(
-                        model = R.drawable.ic_carplay_default,
-                        contentDescription = app.label,
-                        modifier = Modifier.size(44.dp),
-                        contentScale = ContentScale.Fit
+                            model = R.drawable.ic_carplay_default,
+                            contentDescription = app.label,
+                            modifier = Modifier.size(44.dp),
+                            contentScale = ContentScale.Fit
                     )
                 }
                 else -> {
                     Icon(
-                        imageVector = Icons.Default.Apps,
-                        contentDescription = app.label,
-                        modifier = Modifier.size(44.dp),
-                        tint = Color.White
+                            imageVector = Icons.Default.Apps,
+                            contentDescription = app.label,
+                            modifier = Modifier.size(44.dp),
+                            tint = Color.White
                     )
                 }
             }
         }
 
         Text(
-            text = app.label,
-            color = Color.White,
-            fontSize = 10.sp,
-            maxLines = 2,
-            minLines = 2,
-            lineHeight = 12.sp,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center
+                text = app.label,
+                color = Color.White,
+                fontSize = 10.sp,
+                maxLines = 2,
+                minLines = 2,
+                lineHeight = 12.sp,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
         )
     }
 }
 
 @Composable
 fun AppPickerDialog(
-    alreadyConfigured: Set<String> = emptySet(),
-    onDismiss: () -> Unit,
-    onAppSelected: (InstalledAppInfo) -> Unit
+        alreadyConfigured: Set<String> = emptySet(),
+        onDismiss: () -> Unit,
+        onAppSelected: (InstalledAppInfo) -> Unit
 ) {
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
     val predefinedApps = remember {
         DisplayAppLauncher.PREDEFINED_APPS.map { config ->
-            val resolved = DisplayAppLauncher.resolveAppInfo(context, config.packageName, config.customName)
+            val resolved =
+                    DisplayAppLauncher.resolveAppInfo(
+                            context,
+                            config.packageName,
+                            config.customName
+                    )
             InstalledAppInfo(
-                packageName = config.packageName,
-                activityName = config.activityName,
-                label = resolved.label,
-                icon = resolved.icon
+                    packageName = config.packageName,
+                    activityName = config.activityName,
+                    label = resolved.label,
+                    icon = resolved.icon
             )
         }
     }
@@ -2172,20 +2933,22 @@ fun AppPickerDialog(
     val installedApps = remember {
         val pm = context.packageManager
         val intent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
-        val apps = pm.queryIntentActivities(intent, 0)
-            .map { resolveInfo ->
-                InstalledAppInfo(
-                    packageName = resolveInfo.activityInfo.packageName,
-                    activityName = resolveInfo.activityInfo.name,
-                    label = resolveInfo.loadLabel(pm).toString(),
-                    icon = try {
-                        resolveInfo.loadIcon(pm)
-                    } catch (_: Exception) {
-                        null
-                    }
-                )
-            }
-            .toMutableList()
+        val apps =
+                pm.queryIntentActivities(intent, 0)
+                        .map { resolveInfo ->
+                            InstalledAppInfo(
+                                    packageName = resolveInfo.activityInfo.packageName,
+                                    activityName = resolveInfo.activityInfo.name,
+                                    label = resolveInfo.loadLabel(pm).toString(),
+                                    icon =
+                                            try {
+                                                resolveInfo.loadIcon(pm)
+                                            } catch (_: Exception) {
+                                                null
+                                            }
+                            )
+                        }
+                        .toMutableList()
 
         apps.sortedBy { it.label.lowercase() }
     }
@@ -2196,45 +2959,42 @@ fun AppPickerDialog(
     var manualLabel by remember { mutableStateOf("") }
 
     Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+            onDismissRequest = onDismiss,
+            properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(
-            modifier = Modifier
-                .fillMaxWidth(0.30f)
-                .wrapContentHeight()
-                .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp)),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A)),
-            shape = RoundedCornerShape(12.dp)
+                modifier =
+                        Modifier.fillMaxWidth(0.30f)
+                                .wrapContentHeight()
+                                .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A)),
+                shape = RoundedCornerShape(12.dp)
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .wrapContentHeight()
-                    .padding(horizontal = 16.dp, vertical = 7.dp)
+                    modifier =
+                            Modifier.fillMaxWidth()
+                                    .wrapContentHeight()
+                                    .padding(horizontal = 16.dp, vertical = 7.dp)
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Selecionar Aplicativo",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                            text = "Selecionar Aplicativo",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                     )
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.size(32.dp)
-                    ) {
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
                         Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Fechar",
-                            tint = Color.White
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Fechar",
+                                tint = Color.White
                         )
                     }
                 }
@@ -2242,105 +3002,125 @@ fun AppPickerDialog(
                 if (showManualInput) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextField(
-                            value = manualLabel,
-                            onValueChange = { manualLabel = it },
-                            placeholder = { Text("Nome do App (ex: YouTube)", color = Color(0xFF808080)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color(0xFF2A2F37),
-                                unfocusedContainerColor = Color(0xFF2A2F37),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
-                            )
+                                value = manualLabel,
+                                onValueChange = { manualLabel = it },
+                                placeholder = {
+                                    Text("Nome do App (ex: YouTube)", color = Color(0xFF808080))
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                colors =
+                                        TextFieldDefaults.colors(
+                                                focusedContainerColor = Color(0xFF2A2F37),
+                                                unfocusedContainerColor = Color(0xFF2A2F37),
+                                                focusedTextColor = Color.White,
+                                                unfocusedTextColor = Color.White
+                                        )
                         )
                         TextField(
-                            value = manualPkg,
-                            onValueChange = { manualPkg = it },
-                            placeholder = { Text("Pacote (ex: com.google.android.youtube)", color = Color(0xFF808080)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color(0xFF2A2F37),
-                                unfocusedContainerColor = Color(0xFF2A2F37),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
-                            )
+                                value = manualPkg,
+                                onValueChange = { manualPkg = it },
+                                placeholder = {
+                                    Text(
+                                            "Pacote (ex: com.google.android.youtube)",
+                                            color = Color(0xFF808080)
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                colors =
+                                        TextFieldDefaults.colors(
+                                                focusedContainerColor = Color(0xFF2A2F37),
+                                                unfocusedContainerColor = Color(0xFF2A2F37),
+                                                focusedTextColor = Color.White,
+                                                unfocusedTextColor = Color.White
+                                        )
                         )
                         TextField(
-                            value = manualActivity,
-                            onValueChange = { manualActivity = it },
-                            placeholder = { Text("Atividade (opcional)", color = Color(0xFF808080)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color(0xFF2A2F37),
-                                unfocusedContainerColor = Color(0xFF2A2F37),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
-                            )
+                                value = manualActivity,
+                                onValueChange = { manualActivity = it },
+                                placeholder = {
+                                    Text("Atividade (opcional)", color = Color(0xFF808080))
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                colors =
+                                        TextFieldDefaults.colors(
+                                                focusedContainerColor = Color(0xFF2A2F37),
+                                                unfocusedContainerColor = Color(0xFF2A2F37),
+                                                focusedTextColor = Color.White,
+                                                unfocusedTextColor = Color.White
+                                        )
                         )
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Button(
-                                onClick = { showManualInput = false },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2F37))
+                                    onClick = { showManualInput = false },
+                                    modifier = Modifier.weight(1f),
+                                    colors =
+                                            ButtonDefaults.buttonColors(
+                                                    containerColor = Color(0xFF2A2F37)
+                                            )
                             ) { Text("Cancelar", color = Color.White) }
                             Button(
-                                onClick = {
-                                    if (manualPkg.isNotBlank() && manualLabel.isNotBlank()) {
-                                        onAppSelected(
-                                            InstalledAppInfo(
-                                                manualPkg,
-                                                manualActivity,
-                                                manualLabel,
-                                                null
+                                    onClick = {
+                                        if (manualPkg.isNotBlank() && manualLabel.isNotBlank()) {
+                                            onAppSelected(
+                                                    InstalledAppInfo(
+                                                            manualPkg,
+                                                            manualActivity,
+                                                            manualLabel,
+                                                            null
+                                                    )
                                             )
-                                        )
-                                    }
-                                },
-                                modifier = Modifier.weight(1f),
-                                enabled = manualPkg.isNotBlank() && manualLabel.isNotBlank(),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF))
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = manualPkg.isNotBlank() && manualLabel.isNotBlank(),
+                                    colors =
+                                            ButtonDefaults.buttonColors(
+                                                    containerColor = Color(0xFF4A9EFF)
+                                            )
                             ) { Text("Adicionar", color = Color.White) }
                         }
                     }
                 } else {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         TextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = { Text("Buscar...", color = Color(0xFF808080)) },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color(0xFF2A2F37),
-                                unfocusedContainerColor = Color(0xFF2A2F37),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedIndicatorColor = Color(0xFF4A9EFF),
-                                unfocusedIndicatorColor = Color(0xFF3A3F47)
-                            )
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = { Text("Buscar...", color = Color(0xFF808080)) },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                colors =
+                                        TextFieldDefaults.colors(
+                                                focusedContainerColor = Color(0xFF2A2F37),
+                                                unfocusedContainerColor = Color(0xFF2A2F37),
+                                                focusedTextColor = Color.White,
+                                                unfocusedTextColor = Color.White,
+                                                focusedIndicatorColor = Color(0xFF4A9EFF),
+                                                unfocusedIndicatorColor = Color(0xFF3A3F47)
+                                        )
                         )
                         Button(
-                            onClick = { showManualInput = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2F37)),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                onClick = { showManualInput = true },
+                                colors =
+                                        ButtonDefaults.buttonColors(
+                                                containerColor = Color(0xFF2A2F37)
+                                        ),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                "MANUAL",
-                                color = Color.White,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
+                                    "MANUAL",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
                             )
                         }
                     }
@@ -2355,23 +3135,21 @@ fun AppPickerDialog(
                     }
                 }
 
-                val filteredApps = if (searchQuery.isBlank()) allAvailableApps
-                else allAvailableApps.filter {
-                    it.label.contains(searchQuery, ignoreCase = true) ||
-                        it.packageName.contains(searchQuery, ignoreCase = true)
-                }
+                val filteredApps =
+                        if (searchQuery.isBlank()) allAvailableApps
+                        else
+                                allAvailableApps.filter {
+                                    it.label.contains(searchQuery, ignoreCase = true) ||
+                                            it.packageName.contains(searchQuery, ignoreCase = true)
+                                }
 
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 80.dp),
-                    modifier = Modifier.heightIn(max = 315.dp),
-                    contentPadding = PaddingValues(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(filteredApps) { app ->
-                        AppPickerItem(app, onAppSelected)
-                    }
-                }
+                        columns = GridCells.Adaptive(minSize = 80.dp),
+                        modifier = Modifier.heightIn(max = 315.dp),
+                        contentPadding = PaddingValues(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) { items(filteredApps) { app -> AppPickerItem(app, onAppSelected) } }
             }
         }
     }
@@ -2386,7 +3164,9 @@ private fun String?.toComposeColor(): Color {
     }
 }
 
-private fun getSubstituteIconVector(substituteIcon: String?): androidx.compose.ui.graphics.vector.ImageVector? {
+private fun getSubstituteIconVector(
+        substituteIcon: String?
+): androidx.compose.ui.graphics.vector.ImageVector? {
     return when (substituteIcon) {
         "nav" -> Icons.Default.Place
         "music" -> Icons.Default.PlayArrow
@@ -2401,4 +3181,3 @@ private fun getSubstituteIconVector(substituteIcon: String?): androidx.compose.u
         else -> null
     }
 }
-

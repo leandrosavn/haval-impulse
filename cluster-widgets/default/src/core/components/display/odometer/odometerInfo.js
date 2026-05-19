@@ -4,17 +4,21 @@ import { div, span } from '../../../../utils/createElement.js';
 export function createOdometerInfo() {
     const container = div({ className: 'odometer-info-container' });
     const textWrapper = div({ className: 'odometer-text-wrapper double-line' });
-    
-    const odometerLine = div({ className: 'odometer-line', children: [
-        span({ className: 'odometer-label', children: ['ODO '] }),
-        span({ className: 'odometer-value', children: ['0'] }),
-        span({ className: 'odometer-unit', children: [' km'] })
-    ]});
-    
-    const revisionLine = div({ className: 'revision-line', children: [
-        span({ className: 'revision-text', children: ['--'] })
-    ]});
-    
+
+    const odometerLine = div({
+        className: 'odometer-line', children: [
+            span({ className: 'odometer-label', children: ['ODO '] }),
+            span({ className: 'odometer-value', children: ['0'] }),
+            span({ className: 'odometer-unit', children: [' km'] })
+        ]
+    });
+
+    const revisionLine = div({
+        className: 'revision-line', children: [
+            span({ className: 'revision-text', children: ['--'] })
+        ]
+    });
+
     textWrapper.appendChild(odometerLine);
     textWrapper.appendChild(revisionLine);
     container.appendChild(textWrapper);
@@ -23,7 +27,7 @@ export function createOdometerInfo() {
         showDoubleLine = false;
         textWrapper.classList.remove('startup-flash');
         updateDisplay();
-    }, window.__AIR_CONTROL_TEST_MODE === true ? 3000 : 120000); 
+    }, 120000);
 
     textWrapper.classList.add('startup-flash');
 
@@ -40,10 +44,10 @@ export function createOdometerInfo() {
             return;
         }
         container.style.display = 'block';
-        
+
         odometerLine.querySelector('.odometer-value').textContent = currentKm;
         odometerLine.style.display = odometerEnabled ? 'block' : 'none';
-        
+
         if (warningEnabled) {
             const remainingKm = nextKm - currentKm;
             let remainingDays = 999;
@@ -53,13 +57,13 @@ export function createOdometerInfo() {
             }
 
             const isNearMaintenance = (remainingKm < 1000 || remainingDays < 30);
-            
+
             if (showDoubleLine || isNearMaintenance) {
                 let text = `Manutenção em: ${remainingKm} Km`;
                 if (nextDateMillis > 0 && remainingDays > 0) {
                     text += ` ou ${remainingDays} dias`;
                 }
-                
+
                 revisionLine.querySelector('.revision-text').textContent = text;
                 revisionLine.style.display = 'block';
                 textWrapper.className = `odometer-text-wrapper ${odometerEnabled ? 'double-line' : 'single-line'}`;
