@@ -111,7 +111,7 @@ export function createDashboardInfo() {
         className: 'gauge-top-info', children: [
             img({ className: 'fuel-icon', src: fuelIconBase64 }),
             span({ className: 'fuel-range', children: [getState('fuelRange'), span({ className: 'dashboard-unit', children: [' km'] })] }),
-            span({ className: 'fuel-percent', children: [getState('fuelPercent') + '%'] })
+            span({ className: 'fuel-percent', children: [getState('fuelPercent') + (getState('fuelUnit') || '%')] })
         ]
     });
 
@@ -301,7 +301,10 @@ export function createDashboardInfo() {
         }),
         subscribe('fuelPercent', val => {
             updateBarSegments(fuelSegments, val);
-            fuelTop.querySelector('.fuel-percent').textContent = val + '%';
+            fuelTop.querySelector('.fuel-percent').textContent = val + (getState('fuelUnit') || '%');
+        }),
+        subscribe('fuelUnit', unit => {
+            fuelTop.querySelector('.fuel-percent').textContent = getState('fuelPercent') + (unit || '%');
         }),
         subscribe('batteryPercent', val => {
             updateBarSegments(batterySegments, val);

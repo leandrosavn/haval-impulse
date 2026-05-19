@@ -27,6 +27,7 @@ import java.util.regex.Pattern;
 import br.com.redesurftank.App;
 import br.com.redesurftank.havalshisuku.broadcastReceivers.DispatchAllDatasReceiver;
 import br.com.redesurftank.havalshisuku.broadcastReceivers.RestartReceiver;
+import br.com.redesurftank.havalshisuku.managers.AndroidAutoPatchManager;
 import br.com.redesurftank.havalshisuku.managers.ServiceManager;
 import br.com.redesurftank.havalshisuku.models.CommandListener;
 import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys;
@@ -371,6 +372,35 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
             restart();
             return;
         }
+
+        // Auto-mount Android Auto patches if installed but not yet mounted
+        backgroundHandler.post(() -> {
+            try {
+                var prefs = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE);
+                
+                // Initialize default if not set
+                if (!prefs.contains(SharedPreferencesKeys.AA_PATCH_AUTO_MOUNT.getKey())) {
+                    boolean aaInstalled = false;
+                    try {
+                        getPackageManager().getPackageInfo("com.ts.androidauto.app", 0);
+                        aaInstalled = true;
+                    } catch (Exception ignored) {}
+                    
+                    Log.i(TAG, "AA Patch auto-mount preference not set. Defaulting to " + aaInstalled + " (AA installed: " + aaInstalled + ")");
+                    prefs.edit().putBoolean(SharedPreferencesKeys.AA_PATCH_AUTO_MOUNT.getKey(), aaInstalled).apply();
+                }
+
+                boolean shouldAutoMount = prefs.getBoolean(SharedPreferencesKeys.AA_PATCH_AUTO_MOUNT.getKey(), false);
+                if (shouldAutoMount) {
+                    Log.i(TAG, "Checking Android Auto patch auto-mount...");
+                    AndroidAutoPatchManager.INSTANCE.ensureMounted();
+                } else {
+                    Log.d(TAG, "AA patch auto-mount is disabled in settings.");
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "AA patch auto-mount check failed: " + e.getMessage(), e);
+            }
+        });
 
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction("com.beantechs.intelligentvehiclecontrol.INIT_COMPLETED");

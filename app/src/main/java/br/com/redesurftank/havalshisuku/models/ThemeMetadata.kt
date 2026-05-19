@@ -13,5 +13,6 @@ data class ThemeMetadata(
     val x: Int? = null,
     val y: Int? = null,
     val width: Int? = null,
-    val height: Int? = null
+    val height: Int? = null,
+    val hasUpdate: Boolean = false
 )

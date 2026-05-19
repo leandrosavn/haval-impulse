@@ -22,7 +22,6 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import br.com.redesurftank.havalshisuku.R
-import br.com.redesurftank.havalshisuku.broadcastReceivers.AndroidAutoMonitorReceiver
 import br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
 import br.com.redesurftank.havalshisuku.models.BottomBarState
 import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys
@@ -96,129 +95,13 @@ class BottomBarService : LifecycleService() {
         registerUpdateReceiver()
         startDynamicOverscanMonitoring()
         ensureAccessibilityServiceEnabled()
-        startAppMonitoring()
+        // startAppMonitoring() // Disabled: Legacy focus watchdog replaced by permanent Frida hook
 
         // Initial timer start
         resetAutoHideTimer()
 
-        // Start Android Auto Broadcast Discovery and Monitoring (Phase 1)
-        lifecycleScope.launch(Dispatchers.IO) {
-            // Wait for Shizuku to be ready
-            var retry = 0
-            while (!ShizukuUtils.isShizukuAvailable() && retry < 20) {
-                delay(1000)
-                retry++
-            }
-
-            val actions = mutableListOf<String>()
-            if (ShizukuUtils.isShizukuAvailable()) {
-                actions.addAll(DisplayAppLauncher.discoverAndroidAutoBroadcasts())
-            } else {
-                Log.e(
-                        "AA_DISCOVERY",
-                        "Shizuku not available after 20s, using fallback actions only"
-                )
-            }
-
-            // Always include these critical ones just in case discovery fails or Shizuku is missing
-            if (!actions.contains("ts.car.androidauto.view_state"))
-                    actions.add("ts.car.androidauto.view_state")
-            if (!actions.contains("com.ts.androidauto.adapter.resource.RECEIVER_CLICK_ACTION"))
-                    actions.add("com.ts.androidauto.adapter.resource.RECEIVER_CLICK_ACTION")
-
-            if (actions.isNotEmpty()) {
-                withContext(Dispatchers.Main) {
-                    val filter = IntentFilter()
-                    actions.forEach { filter.addAction(it) }
-                    registerReceiver(AndroidAutoMonitorReceiver(), filter)
-                    Log.w("AA_MONITOR", "Registered monitor for ${actions.size} actions")
-                }
-            }
-
-            startBroadcastSniffer()
-        }
     }
 
-    private var isAppMonitoringActive = false
-    private var appMonitorJob: Job? = null
-
-    private fun startAppMonitoring() {
-        if (appMonitorJob?.isActive == true) return
-        isAppMonitoringActive = true
-
-        appMonitorJob =
-                lifecycleScope.launch(Dispatchers.IO) {
-                    Log.w("BottomBarService", "App monitoring watchdog STARTED")
-                    var cycleCount = 0
-                    while (isActive && isAppMonitoringActive) {
-                        cycleCount++
-
-                        if (cycleCount % 6 == 0) { // Every 60 seconds
-                            Log.i("BottomBarService", "WATCHDOG HEARTBEAT #$cycleCount")
-                        }
-
-                        if (DisplayAppLauncher.hasAnyForceFocusApp()) {
-                            try {
-                                val aaPackage = "com.ts.androidauto.app"
-                                val aaTask = DisplayAppLauncher.findTaskForPackage(aaPackage)
-
-                                if (aaTask != null &&
-                                                (aaTask.displayId == 3 || aaTask.displayId == 1)
-                                ) {
-                                    val topApp =
-                                            DisplayAppLauncher.getTopPackageOnDisplay(
-                                                    aaTask.displayId
-                                            )
-                                    val isUserApp =
-                                            DisplayAppLauncher.getAllConfigs().any {
-                                                it.packageName == topApp
-                                            }
-
-                                    if (topApp != aaPackage && !isUserApp) {
-                                        // AA is covered by a system app — send full poke
-                                        Log.w(
-                                                "BottomBarService",
-                                                "Watchdog: app ($topApp) covering AA on display ${aaTask.displayId}. Restoring..."
-                                        )
-                                        DisplayAppLauncher.syncInterconnectionFocus(
-                                                "polling_covered"
-                                        )
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                Log.e("BottomBarService", "Error in watchdog polling", e)
-                            }
-                        }
-                        delay(10000) // Poll every 10 seconds — coverage detection only
-                    }
-                }
-    }
-
-    private fun startBroadcastSniffer() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            // Sniff for the first 60 seconds of service life
-            val startTime = System.currentTimeMillis()
-            while (System.currentTimeMillis() - startTime < 60000) {
-                try {
-                    val output =
-                            ShizukuUtils.runCommandAndGetOutput(
-                                    arrayOf(
-                                            "sh",
-                                            "-c",
-                                            "dumpsys activity broadcasts | grep -i 'androidauto\\|mirror\\|video.*focus\\|projection'"
-                                    )
-                            )
-                    if (output.isNotBlank()) {
-                        Log.d("AA_SNIFFER", "Recent relevant broadcasts:\n$output")
-                    }
-                } catch (e: Exception) {
-                    Log.e("AA_SNIFFER", "Error sniffing broadcasts", e)
-                }
-                delay(10000) // Every 10 seconds
-            }
-            Log.w("AA_SNIFFER", "Broadcast discovery sniffer finished")
-        }
-    }
 
     private fun registerUpdateReceiver() {
         val filter =
@@ -827,7 +710,9 @@ class BottomBarService : LifecycleService() {
                             region.setEmpty()
 
                             val density = resources.displayMetrics.density
-                            val windowWidth = resources.displayMetrics.widthPixels
+                            val displayMetrics = android.util.DisplayMetrics()
+                            mWindowManager?.defaultDisplay?.getRealMetrics(displayMetrics)
+                            val windowWidth = displayMetrics.widthPixels
 
                             if (isMenuWindow) {
                                 // Menu window is MATCH_PARENT (full screen height)
@@ -840,7 +725,7 @@ class BottomBarService : LifecycleService() {
                                         "TouchRegion[MENU] anyMenuExpanded=$anyMenuExpanded"
                                 )
                                 if (anyMenuExpanded) {
-                                    val screenHeight = resources.displayMetrics.heightPixels
+                                    val screenHeight = displayMetrics.heightPixels
                                     region.union(Rect(0, 0, windowWidth, screenHeight))
                                 }
                             } else {

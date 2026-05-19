@@ -30,6 +30,10 @@ public class App extends Application {
     public void onCreate() {
         super.onCreate();
         sApplication = this;
+        
+        // Auto-apply AA Patches if installed
+        br.com.redesurftank.havalshisuku.managers.AndroidAutoPatchManager.INSTANCE.applyMounts();
+
         var context = getContext();
         Intent serviceIntent = new Intent(context, ForegroundService.class);
         context.startForegroundService(serviceIntent);

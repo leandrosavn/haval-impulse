@@ -110,6 +110,7 @@ var stateManager = new StateManager({
     brightness: 100,
     fuelRange: 0,
     fuelPercent: 0,
+    fuelUnit: '%',
     batteryRange: 0,
     batteryPercent: 0,
     clockTime: '--:--',

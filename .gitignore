@@ -38,3 +38,33 @@ google-services.json
 .DS_Store
 REFACTORING_SUMMARY.md
 .agents/
+
+# AA Patch Tooling and Temporary Artifacts
+tools/
+build_*/
+tmp_*/
+!aa-patches/cluster-widgets/
+!scripts/
+!aa-patches/README.md
+
+# Reverse Engineering and Large Binaries
+re/
+bin/
+gapps_download/
+frida/
+
+# Temporary Logs and Outputs
+*.txt
+*.log
+gradle_error.txt
+build_output*.txt
+!README*.txt
+scripts/experimental/
+scripts/utils/
+cluster-widgets/**/node_modules/
+cluster-widgets/**/parcel-cache/
+cluster-widgets/**/.parcel-cache/
+cluster-widgets/**/dist/
+cluster-widgets/**/out/
+
+.claude/settings.local.json

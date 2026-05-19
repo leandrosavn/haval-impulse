@@ -57,6 +57,13 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private val pendingJsQueues = mutableMapOf<WebView, MutableList<String>>()
     private lateinit var root: FrameLayout
 
+    // Dedup cache: skip a JS push when the same key:value pair was the most
+    // recently pushed one. Car CAN bus often re-emits identical values back
+    // to back; pushing them all the way through to the WebView causes wasted
+    // DOM mutations + Chrome compositor renders. Cleared on bootstrap (init,
+    // card-change, page-finished) where we want a fresh full sync.
+    private val lastSentValues = java.util.concurrent.ConcurrentHashMap<String, String>()
+
     // Cached EV power values for kW calculation
     private var batteryVoltage = 0f
     private var batteryCurrent = 0f
@@ -110,7 +117,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     CarConstants.CAR_IPK_LIGHT_ENGINE_OIL_LOW_PRESSURE_WARNING.value,
                     // CarConstants.CAR_IPK_LIGHT_SEAT_BELT_WARNING_INDICATOR.value,
                     CarConstants.CAR_IPK_LIGHT_TPMS_WARNING.value,
-                    CarConstants.CAR_IPK_LIGHT_FUEL_LOW
+                    CarConstants.CAR_IPK_LIGHT_FUEL_LOW.value
             )
 
     private val prefsListener =
@@ -134,6 +141,11 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                 )
                 ) {
                     ensureUi {
+                        if (key == SharedPreferencesKeys.CLUSTER_FUEL_DISPLAY_UNIT.key) {
+                            val (fuelVal, fuelUnit) = getFuelDisplayInfo()
+                            evaluateJsIfReady(webView, "control('fuelUnit', '$fuelUnit')")
+                            evaluateJsIfReady(webView, "control('fuelPercent', '$fuelVal')")
+                        }
                         if (key == SharedPreferencesKeys.ENABLE_INSTRUMENT_ODOMETER_AND_REVISION.key
                         ) {
                             val enabled = preferences.getBoolean(key, true)
@@ -342,6 +354,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         isAnyAppOnDisplay1 =
                 br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.isAnyAppOnDisplay(1)
         updateValuesWebView() // Queue initial values for state sync
+        syncInitialWarnings() // Fresh JS state on init — warnings need to be primed
         updateVirtualClusterVisibility()
         setupDataListeners()
 
@@ -376,6 +389,24 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private fun setupDataListeners() {
         ServiceManager.getInstance().addDataChangedListener { key, value ->
             if (value == null) return@addDataChangedListener
+
+            // Same-value dedup. Cars commonly re-emit identical values
+            // back-to-back (e.g. unchanged HVAC settings, sticky CAN
+            // signals). Skipping them avoids round-tripping a no-op DOM
+            // mutation through the WebView and Chrome compositor — that
+            // was a big chunk of the ~30%+ sandbox-process CPU we saw.
+            // Cache is cleared in updateValuesWebView() (init / card change
+            // / page-finished) so the next telemetry burst is pushed
+            // through even when values match the post-bootstrap snapshot.
+            // NOTE: We intentionally do NOT gate on shouldShowProjector()
+            // or isMainScreenOn here — even when the projector is briefly
+            // hidden or the main screen is "off", we still want the
+            // WebView's internal state to stay current so it's correct
+            // the moment visibility returns.
+            val previous = lastSentValues[key]
+            if (previous == value) return@addDataChangedListener
+            lastSentValues[key] = value
+
             ensureUi {
                 when (key) {
                     CarConstants.CAR_BASIC_VEHICLE_SPEED.value -> {
@@ -386,7 +417,9 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         evaluateJsIfReady(webView, "control('odometer', '$value')")
                     }
                     CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE.value -> {
-                        evaluateJsIfReady(webView, "control('fuelPercent', '$value')")
+                        val (fuelVal, fuelUnit) = getFuelDisplayInfo()
+                        evaluateJsIfReady(webView, "control('fuelUnit', '$fuelUnit')")
+                        evaluateJsIfReady(webView, "control('fuelPercent', '$fuelVal')")
                     }
                     CarConstants.CAR_EV_INFO_CUR_BATTERY_POWER_PERCENTAGE.value -> {
                         evaluateJsIfReady(webView, "control('batteryPercent', '$value')")
@@ -554,6 +587,13 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
                                             // Apply pending JS or updates
                                             updateValuesWebView()
+                                            // Fresh JS context after page load — prime warning state
+                                            // once so the UI reflects the current car warnings without
+                                            // having to wait for the next per-warning change. Card
+                                            // changes go through updateValuesWebView() but intentionally
+                                            // NOT through syncInitialWarnings() so dismissed warnings
+                                            // (user pressed back) don't get artificially re-shown.
+                                            syncInitialWarnings()
                                             webViewsLoaded[wv] = true
                                             pendingJsQueues[wv]?.let { list ->
                                                 for (js in list) {
@@ -579,6 +619,18 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         addJavascriptInterface(WebAppInterface(), "Android")
                     }
             parent.addView(webView)
+        }
+    }
+
+    private fun getFuelDisplayInfo(): Pair<String, String> {
+        val sm = ServiceManager.getInstance()
+        val unit = preferences.getString(SharedPreferencesKeys.CLUSTER_FUEL_DISPLAY_UNIT.key, "percent")
+        val rawFuelPercentage = sm.getData(CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE.value)?.toIntOrNull() ?: 0
+        return if (unit == "liters") {
+            val liters = (rawFuelPercentage * 60) / 100
+            Pair(liters.toString(), " L")
+        } else {
+            Pair(rawFuelPercentage.toString(), "%")
         }
     }
 
@@ -629,8 +681,9 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         .toString()
 
         // Fuel and Battery Percentages/Range
-        updates["fuelPercent"] =
-                sm.getData(CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE.value) ?: "0"
+        val (fuelVal, fuelUnit) = getFuelDisplayInfo()
+        updates["fuelPercent"] = fuelVal
+        updates["fuelUnit"] = fuelUnit
         updates["batteryPercent"] =
                 sm.getData(CarConstants.CAR_EV_INFO_CUR_BATTERY_POWER_PERCENTAGE.value) ?: "0"
         updates["fuelRange"] =
@@ -696,7 +749,32 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         updates["instantEVConsumption"] =
                 sm.getData(CarConstants.CAR_EV_INFO_INSTANT_ENERGY_CONSUMPTION.value) ?: "0"
 
+        // Bootstrap: clear the dedup cache so the next telemetry burst is
+        // pushed through even if values match. The batchEvaluateJs below
+        // re-establishes the WebView's full state.
+        lastSentValues.clear()
+
         batchEvaluateJs(webView, updates)
+    }
+
+    /**
+     * Fire current warning values into the WebView once, on freshly-loaded
+     * JS state only (init / page-finished). Intentionally NOT called from
+     * CLUSTER_CARD_CHANGED: card changes preserve the WebView's JS state,
+     * including the user's "dismissed" flag per warning (set when they press
+     * back). Re-pushing the same value would make the JS see "value changed
+     * from undefined -> X" again and re-show an alert the user already
+     * acknowledged. The car may still have the underlying warning active —
+     * we keep tracking it via the per-change listener — but we don't
+     * artificially re-trigger it on UI state transitions.
+     */
+    private fun syncInitialWarnings() {
+        val sm = ServiceManager.getInstance()
+        val webView = this.webView ?: return
+        for (key in monitoredWarningKeys) {
+            val value = sm.getData(key) ?: "0"
+            evaluateJsIfReady(webView, "updateWarning('$key', '$value')")
+        }
     }
 
     private fun getClusterFuelDisplayUnit(): String {
@@ -1078,6 +1156,15 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     }
 
     private fun updateWarningUI(anyWarningActive: Boolean) {
+        // State-change guard. The WebView's JS bridge (setWarningActive)
+        // was observed firing every ~580ms while a warning is active,
+        // producing a hot loop of cache invalidations, visibility
+        // recomputes, syncSecondaryDisplayApps() calls, and JS round-trips
+        // that pegged Impulse's main thread (~87% CPU). Doing real work
+        // only on the actual boolean flip eliminates the loop without
+        // changing semantics — the JS bridge can stay chatty; we no-op.
+        if (anyWarningActive == isWarningActive) return
+
         isWarningActive = anyWarningActive
         lastAppliedConfigs.clear() // Invalidate cache on warning toggle to force re-sync
         if (anyWarningActive) {

@@ -686,7 +686,7 @@ fun AppSwitcherSection() {
                         onClick = {
                                 scope.launch {
                                         br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
-                                                .getOrCreateDefaultConfig(context, selectedPackage)
+                                                .getOrCreateDefaultConfig(context, selectedPackage, save = false)
                                                 ?.let {
                                                         br.com.redesurftank.havalshisuku.managers
                                                                 .DisplayAppLauncher.sendToDisplay(
@@ -728,7 +728,8 @@ fun AppSwitcherSection() {
                                                                                         .DisplayAppLauncher
                                                                                         .getOrCreateDefaultConfig(
                                                                                                 context,
-                                                                                                selectedPackage
+                                                                                                selectedPackage,
+                                                                                                save = false
                                                                                         )
                                                                                 br.com.redesurftank
                                                                                         .havalshisuku
@@ -817,7 +818,8 @@ fun AppSwitcherSection() {
                                                         .DisplayAppLauncher
                                                         .getOrCreateDefaultConfig(
                                                                 context,
-                                                                selectedPackage
+                                                                selectedPackage,
+                                                                save = false
                                                         )
                                                 br.com.redesurftank.havalshisuku.managers
                                                         .DisplayAppLauncher.launchAnyApp(
@@ -2240,6 +2242,14 @@ fun OverrideMenuContent() {
                                 gson.toJson(newOverrides)
                         )
                         .apply()
+
+                // v2.3: Re-resize Impulse-managed Display 0 apps so their
+                // windows shrink for the new overscan. wm overscan above is
+                // the system-level fallback for unmanaged apps; managed apps
+                // (e.g. AA) need an explicit am stack resize because Impulse's
+                // bounds otherwise override the system overscan.
+                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                        .reapplyDisplay0BoundsForOverscanAsync()
         }
 
         Box(

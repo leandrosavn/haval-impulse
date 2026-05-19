@@ -195,14 +195,14 @@ object DisplayAppLauncher {
      * Resolves the main activity for a package and creates a default config if it doesn't exist.
      * Defaults to Display 3 (Cluster) with full screen dimensions.
      */
-    fun getOrCreateDefaultConfig(context: Context, packageName: String): DisplayAppConfig? {
+    fun getOrCreateDefaultConfig(context: Context, packageName: String, save: Boolean = true): DisplayAppConfig? {
         val existing = getAllConfigs().find { it.packageName == packageName }
         if (existing != null) return existing
 
         // Check predefined apps first (they might not have a launcher intent)
         val predefined = PREDEFINED_APPS.find { it.packageName == packageName }
         if (predefined != null) {
-            saveConfig(predefined)
+            if (save) saveConfig(predefined)
             return predefined
         }
 
@@ -220,7 +220,7 @@ object DisplayAppLauncher {
             height = 720,
             substituteIcon = if (packageName.startsWith("com.beantech")) "gwm" else null
         )
-        saveConfig(config)
+        if (save) saveConfig(config)
         return config
     }
 
@@ -272,7 +272,7 @@ object DisplayAppLauncher {
     fun getEffectiveBounds(config: DisplayAppConfig): IntArray {
         val prefs = getPrefs()
         val virtualClusterEnabled = prefs.getBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, true)
-        
+
         var x = config.x
         var y = config.y
         var width = config.width
@@ -296,6 +296,27 @@ object DisplayAppLauncher {
                 }
             }
         }
+
+        // v2.3: Subtract overscan from Display 0 apps so the bottom bar
+        // shrinks the app window instead of overlaying its bottom strip.
+        // System-level `wm overscan` already handles apps NOT managed by
+        // Impulse; but when Impulse calls `am stack resize` explicitly
+        // (e.g. for AA), our bounds override the system overscan unless
+        // we subtract it here too. overrideThemeDimensions is the opt-out
+        // for users who want their raw configured bounds.
+        // Gated on the persistent bar being enabled — if the user turned
+        // the bar off, no overscan should be applied even if stale pref
+        // values are still on disk.
+        if (!config.overrideThemeDimensions && config.displayId == 0) {
+            val barEnabled = prefs.getBoolean(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR.key, false)
+            if (barEnabled) {
+                val overscanPx = getOverscanForPackage(config.packageName)
+                if (overscanPx > 0 && height > overscanPx) {
+                    height -= overscanPx
+                }
+            }
+        }
+
         return intArrayOf(x, y, x + width, y + height)
     }
 
@@ -389,6 +410,71 @@ object DisplayAppLauncher {
     }
 
     /**
+     * v2.3: Subtracts the configured overscan from a Display 0 bounds
+     * height if the persistent bar is enabled. Used by code paths that
+     * compute Display 0 fullscreen-restore bounds from cached state or
+     * raw display resolution (launchAnyApp DISPLAY_MOVE RESTORE,
+     * evictOtherAppsFromDisplay RESTORE, bringAllToMainDisplay) — those
+     * paths don't flow through getEffectiveBounds so we apply the same
+     * adjustment here. Returns the bottom edge (y2) after adjustment.
+     */
+    private fun applyOverscanToDisplay0Height(packageName: String, y2: Int): Int {
+        val prefs = getPrefs()
+        val barEnabled = prefs.getBoolean(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR.key, false)
+        if (!barEnabled) return y2
+        val overscanPx = getOverscanForPackage(packageName)
+        if (overscanPx <= 0) return y2
+        val adjusted = y2 - overscanPx
+        return if (adjusted > 0) adjusted else y2
+    }
+
+    /**
+     * v2.3: Re-applies effective bounds to every running Display 0 app
+     * after the overscan setting changes. For apps Impulse explicitly
+     * manages via `am stack resize`, our bounds override the system-level
+     * `wm overscan` — so when overscan changes we have to re-resize
+     * ourselves. Unmanaged apps are still handled by `wm overscan` and
+     * don't need to flow through here.
+     *
+     * Skips com.android.systemui and any app with overrideThemeDimensions=true.
+     */
+    suspend fun reapplyDisplay0BoundsForOverscan() = withContext(Dispatchers.IO) {
+        try {
+            val stackList = getStackList()
+            val stackIds = getAllStackIdsOnDisplay(0)
+            if (stackIds.isEmpty()) return@withContext
+
+            for (stackId in stackIds) {
+                val pkg = findPackageNameForStack(stackId, stackList) ?: continue
+                if (pkg == "com.android.systemui") continue
+                if (pkg == App.getContext().packageName) continue // skip self
+
+                // Only resize apps that Impulse manages (have an effective config).
+                // getOrCreateDefaultConfig falls back to a sensible Display 0 default
+                // for known packages but returns null if there's no launch intent.
+                val config = getOrCreateDefaultConfig(App.getContext(), pkg, save = false) ?: continue
+                if (config.displayId != 0) continue
+                if (config.overrideThemeDimensions) continue
+
+                val bounds = getEffectiveBounds(config)
+                Log.w(TAG, "[v2.3 OVERSCAN_REAPPLY] $pkg | stack $stackId | bounds=[${bounds.joinToString(",")}]")
+                sh("am stack resize $stackId ${bounds[0]} ${bounds[1]} ${bounds[2]} ${bounds[3]}")
+            }
+
+            ServiceManager.getInstance().dispatchServiceManagerEvent(
+                br.com.redesurftank.havalshisuku.models.ServiceManagerEventType.APP_GEOMETRY_CHANGED
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in reapplyDisplay0BoundsForOverscan", e)
+        }
+    }
+
+    @JvmStatic
+    fun reapplyDisplay0BoundsForOverscanAsync() {
+        scope.launch { reapplyDisplay0BoundsForOverscan() }
+    }
+
+    /**
      * Kills an app via am force-stop.
      */
     suspend fun killApp(packageName: String) = withContext(Dispatchers.IO) {
@@ -457,15 +543,16 @@ object DisplayAppLauncher {
                             var y2 = cached[3]
                             if (y2 >= 710) {
                                 y2 = 720
-                                Log.w(TAG, "[DISPLAY_MOVE] RESTORE App: $packageName | Bounds: [${cached[0]},${cached[1]},${cached[2]},$y2] (Full Height) | Overscan: ${overscanDp}dp | Mode: 1")
-                            } else {
-                                Log.w(TAG, "[DISPLAY_MOVE] RESTORE App: $packageName | Bounds: [${cached.joinToString(",")}] | Overscan: ${overscanDp}dp | Mode: 1")
                             }
+                            // v2.3: respect overscan when restoring to Display 0 fullscreen
+                            y2 = applyOverscanToDisplay0Height(packageName, y2)
+                            Log.w(TAG, "[DISPLAY_MOVE] RESTORE App: $packageName | Bounds: [${cached[0]},${cached[1]},${cached[2]},$y2] | Overscan: ${overscanDp}dp | Mode: 1")
                             sh("am stack resize ${movedTask.stackId} ${cached[0]} ${cached[1]} ${cached[2]} $y2")
                         } else {
                             val res = getDisplayResolution(0)
-                            val effectiveHeight = res.second
-                            Log.w(TAG, "[DISPLAY_MOVE] FALLBACK App: $packageName | Bounds: [0,0,${res.first},$effectiveHeight] (Full Height) | Overscan: ${overscanDp}dp | Mode: 1")
+                            // v2.3: respect overscan
+                            val effectiveHeight = applyOverscanToDisplay0Height(packageName, res.second)
+                            Log.w(TAG, "[DISPLAY_MOVE] FALLBACK App: $packageName | Bounds: [0,0,${res.first},$effectiveHeight] | Overscan: ${overscanDp}dp | Mode: 1")
                             sh("am stack resize ${movedTask.stackId} 0 0 ${res.first} $effectiveHeight")
                         }
                         
@@ -588,9 +675,11 @@ object DisplayAppLauncher {
             }
             
             val res = getDisplayResolution(0)
-            sh("am stack resize $stackId 0 0 ${res.first} ${res.second}")
+            // v2.3: respect overscan when restoring to Display 0 fullscreen
+            val effectiveHeight = if (pkg != null) applyOverscanToDisplay0Height(pkg, res.second) else res.second
+            sh("am stack resize $stackId 0 0 ${res.first} $effectiveHeight")
         }
-        
+
         displaysToEvict.forEach { notifyDisplayStateChanged(it) }
         notifyBottomBarUpdate()
     }
@@ -661,9 +750,14 @@ object DisplayAppLauncher {
             Log.w(TAG, "App moved to display ${config.displayId} with bounds, state preserved")
             notifyDisplayStateChanged(config.displayId)
 
-            // Trigger focus poke immediately after move
+            // Trigger focus poke immediately after move with a small delay for stability
             if (config.packageName == "com.ts.androidauto.app" || config.packageName == "com.ts.carplay.app") {
-                syncInterconnectionFocus("MANUAL_MOVE")
+                CoroutineScope(Dispatchers.IO).launch {
+                    delay(500)
+                    syncInterconnectionFocus("MANUAL_MOVE_P1")
+                    delay(1000)
+                    syncInterconnectionFocus("MANUAL_MOVE_P2")
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error sending to display", e)
@@ -738,12 +832,15 @@ object DisplayAppLauncher {
                 if (cached != null) {
                     var y2 = cached[3]
                     if (y2 >= 710) y2 = 720
-                    Log.w(TAG, "[EVICTION] RESTORE App: $pkg | Bounds: [${cached[0]},${cached[1]},${cached[2]},$y2] (Full Height) | Overscan: ${overscanDp}dp | Mode: 1")
+                    // v2.3: respect overscan
+                    y2 = applyOverscanToDisplay0Height(pkg, y2)
+                    Log.w(TAG, "[EVICTION] RESTORE App: $pkg | Bounds: [${cached[0]},${cached[1]},${cached[2]},$y2] | Overscan: ${overscanDp}dp | Mode: 1")
                     sh("am stack resize $stackId ${cached[0]} ${cached[1]} ${cached[2]} $y2")
                 } else {
                     val res = getDisplayResolution(0)
-                    val effectiveHeight = res.second
-                    Log.w(TAG, "[EVICTION] FALLBACK App: $pkg | Bounds: [0,0,${res.first},$effectiveHeight] (Full Height) | Overscan: ${overscanDp}dp | Mode: 1")
+                    // v2.3: respect overscan
+                    val effectiveHeight = applyOverscanToDisplay0Height(pkg, res.second)
+                    Log.w(TAG, "[EVICTION] FALLBACK App: $pkg | Bounds: [0,0,${res.first},$effectiveHeight] | Overscan: ${overscanDp}dp | Mode: 1")
                     sh("am stack resize $stackId 0 0 ${res.first} $effectiveHeight")
                 }
             }
@@ -1009,6 +1106,21 @@ object DisplayAppLauncher {
      * fullscreen mode works fine after move-stack.
      */
     fun onAppWindowChanged(packageName: String) {
+        // Event-driven fallback when Frida hooks are disabled:
+        // If the user navigates to any other app on Display 0, Android Auto loses focus and goes blank.
+        // We detect this window change and immediately send a high-efficiency LITE focus poke to refresh focus.
+        val prefs = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
+        val hooksEnabled = prefs.getBoolean("enableFridaHooks", false)
+        if (!hooksEnabled) {
+            val aaConfig = getAllConfigs().find { it.packageName == "com.ts.androidauto.app" }
+            if (aaConfig != null && aaConfig.displayId != 0) {
+                // If the new focused app is on Display 0 (not AA itself and not our controller/launcher)
+                if (packageName != "com.ts.androidauto.app" && packageName != App.getContext().packageName) {
+                    Log.d(TAG, "Reactive fallback: window changed to $packageName on Display 0. Sending LITE focus poke.")
+                    syncInterconnectionFocusLite("window_change_fallback")
+                }
+            }
+        }
 
         val config = getAllConfigs().find { it.packageName == packageName } ?: return
         if (config.displayId == 0) return
@@ -1056,11 +1168,11 @@ object DisplayAppLauncher {
     fun hasAnyForceFocusApp(): Boolean = getAllConfigs().any { it.forceFocus }
 
     fun syncInterconnectionFocus(triggerSource: String) {
+        val prefs = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
+
+
         val forceFocusConfigs = getAllConfigs().filter { it.forceFocus }
         if (forceFocusConfigs.isEmpty()) return
-
-        // Mark cooldown so the receiver ignores the bg→fg oscillation our poke causes
-        br.com.redesurftank.havalshisuku.broadcastReceivers.AndroidAutoMonitorReceiver.lastPokeTimestamp = System.currentTimeMillis()
 
         CoroutineScope(Dispatchers.IO).launch {
             for (config in forceFocusConfigs) {
@@ -1069,10 +1181,13 @@ object DisplayAppLauncher {
                 if (taskInfo.displayId != 1 && taskInfo.displayId != 3) continue
 
                 val sb = StringBuilder()
+                // 1. CARPLAY focus broadcast
                 sb.append("am broadcast -a com.ts.carplay.action.VIDEO_FOCUS_CHANGE --es \"focus\" \"${config.packageName}\" --ei \"displayId\" ${taskInfo.displayId}; ")
-                sb.append("am broadcast -a com.ts.androidauto.action.AndroidAutoService; ")
+                // 2. ANDROID AUTO focus broadcast
+                sb.append("am broadcast -a com.ts.androidauto.action.AndroidAutoService --es \"command\" \"requestVideoFocus\" --ei \"displayId\" ${taskInfo.displayId}; ")
+                // 3. Force activity to front with aggressive flags (NEW_TASK | REORDER_TO_FRONT | CLEAR_TOP)
                 val escapedActivity = config.activityName.replace("$", "\\$")
-                sb.append("am start -n ${config.packageName}/$escapedActivity --display ${taskInfo.displayId} --windowingMode 1")
+                sb.append("am start -n ${config.packageName}/$escapedActivity --display ${taskInfo.displayId} --windowingMode 1 -f 0x14000000; ")
 
                 Log.w("FOCUS_SYNC", "Executing focus poke (Trigger: $triggerSource, Display: ${taskInfo.displayId}, App: ${config.packageName})")
                 sh(sb.toString())
@@ -1085,6 +1200,13 @@ object DisplayAppLauncher {
      * Does NOT use 'am start', so it won't cause screen flashing.
      */
     fun syncInterconnectionFocusLite(triggerSource: String) {
+        val prefs = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
+        val hooksEnabled = prefs.getBoolean("enableFridaHooks", false)
+        if (hooksEnabled) {
+            Log.i("FOCUS_SYNC", "syncInterconnectionFocusLite ignored (Bypassed by active Frida unpause hook, Trigger: $triggerSource)")
+            return
+        }
+
         val forceFocusConfigs = getAllConfigs().filter { it.forceFocus }
         if (forceFocusConfigs.isEmpty()) return
 
@@ -1146,5 +1268,6 @@ object DisplayAppLauncher {
         Log.w("AA_DISCOVERY", "v2 Discovered Actions: ${discoveredActions.joinToString(", ")}")
         return discoveredActions.toList()
     }
+
 
 }

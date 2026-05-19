@@ -35,13 +35,52 @@ public class ShizukuUtils {
         }
         IRemoteProcess process = null;
         try {
-            process = shizukuService.newProcess(command, null, null);
+            int retries = 0;
+            while (retries < 3) {
+                try {
+                    process = shizukuService.newProcess(command, null, null);
+                    if (process != null) break;
+                } catch (Exception e) {
+                    if (retries == 2) throw e;
+                    Thread.sleep(500);
+                    IBinder b = Shizuku.getBinder();
+                    if (b != null) shizukuService = IShizukuService.Stub.asInterface(b);
+                }
+                retries++;
+            }
+
             if (process == null) {
                 throw new Exception("Failed to create remote process for command: " + String.join(" ", command));
             }
 
             StringBuilder output = new StringBuilder();
             StringBuilder errorOutput = new StringBuilder();
+
+            // Fetch and close stdin immediately (prevents FD leak on Shizuku server)
+            try (ParcelFileDescriptor pfdOut = process.getOutputStream()) {
+                // just close it
+            } catch (Exception ignored) {}
+
+            // Read stderr in a background thread to prevent deadlocks
+            ParcelFileDescriptor pfdErr = process.getErrorStream();
+            Thread errThread = null;
+            if (pfdErr != null) {
+                errThread = new Thread(() -> {
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(pfdErr.getFileDescriptor())))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            synchronized (errorOutput) {
+                                errorOutput.append(line).append("\n");
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error reading stderr", e);
+                    } finally {
+                        try { pfdErr.close(); } catch (Exception ignored) {}
+                    }
+                });
+                errThread.start();
+            }
 
             // Read stdout
             ParcelFileDescriptor pfdIn = process.getInputStream();
@@ -58,19 +97,10 @@ public class ShizukuUtils {
                 }
             }
 
-            // Read stderr
-            ParcelFileDescriptor pfdErr = process.getErrorStream();
-            if (pfdErr != null) {
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(pfdErr.getFileDescriptor())))) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        errorOutput.append(line).append("\n");
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error reading stderr", e);
-                } finally {
-                    try { pfdErr.close(); } catch (Exception ignored) {}
-                }
+            if (errThread != null) {
+                try {
+                    errThread.join(5000); // wait for stderr thread to finish, max 5s
+                } catch (InterruptedException ignored) {}
             }
 
             int exitCode = process.waitFor();
@@ -81,8 +111,10 @@ public class ShizukuUtils {
 
             if (exitCode != 0 && !isGrepNoMatch) {
                 Log.e(TAG, "Command failed: " + cmdString + " (exit code: " + exitCode + ")");
-                if (errorOutput.length() > 0) {
-                    Log.e(TAG, "Error output:\n" + errorOutput.toString().trim());
+                synchronized (errorOutput) {
+                    if (errorOutput.length() > 0) {
+                        Log.e(TAG, "Error output:\n" + errorOutput.toString().trim());
+                    }
                 }
                 if (output.length() > 0) {
                     Log.d(TAG, "Standard output:\n" + output.toString().trim());
@@ -131,6 +163,27 @@ public class ShizukuUtils {
             final CountDownLatch latch = new CountDownLatch(1);
             final Object lock = new Object();
             final boolean[] found = {false};
+
+            // Fetch and close stdin immediately (prevents FD leak on Shizuku server)
+            try (ParcelFileDescriptor pfdOut = finalProcess.getOutputStream()) {
+                // just close it
+            } catch (Exception ignored) {}
+
+            // Drain stderr to prevent deadlock
+            ParcelFileDescriptor pfdErr = finalProcess.getErrorStream();
+            if (pfdErr != null) {
+                new Thread(() -> {
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(pfdErr.getFileDescriptor())))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            // discard
+                        }
+                    } catch (Exception ignored) {
+                    } finally {
+                        try { pfdErr.close(); } catch (Exception ignored) {}
+                    }
+                }).start();
+            }
 
             // Thread for monitoring output
             new Thread(() -> {
@@ -239,6 +292,11 @@ public class ShizukuUtils {
             }
 
             IRemoteProcess finalProcess = process;
+
+            // Fetch and close stdin immediately (prevents FD leak on Shizuku server)
+            try (ParcelFileDescriptor pfdOut = finalProcess.getOutputStream()) {
+                // just close it
+            } catch (Exception ignored) {}
 
             // Thread for stdout
             new Thread(() -> {

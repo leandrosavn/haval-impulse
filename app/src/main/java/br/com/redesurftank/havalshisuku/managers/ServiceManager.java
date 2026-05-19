@@ -509,9 +509,6 @@ public class ServiceManager {
             if (sharedPreferences.getBoolean(SharedPreferencesKeys.DISABLE_AVAS.getKey(), false)) setAvasEnabled(false);
             if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_AUTO_BRIGHTNESS.getKey(), false)) AutoBrightnessManager.Companion.getInstance().setEnabled(true);
             if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_FRIDA_HOOKS.getKey(), false)) pendingTasks.add(this::initializeFrida);
-            if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_SEAT_VENTILATION_ON_AC_ON.getKey(), false) && "1".equals(getUpdatedData(CarConstants.CAR_HVAC_POWER_MODE.getValue()))) {
-                updateData(CarConstants.CAR_COMFORT_SETTING_DRIVER_SEAT_VENTILATION_LEVEL.getValue(), "3");
-            }
             ensureSteeringWheelButtonIntegration();
             ensureSystemApps();
             TripConsistencyManager.Companion.getInstance().initialize();
@@ -821,15 +818,27 @@ public class ServiceManager {
     }
 
     public void dispatchAllData() {
-        if (controlService == null) return;
+        if (!isControlServiceAlive()) return;
         try {
             String[] allKeys = getCombinedKeys();
             String[] currentValues = controlService.fetchDatas(allKeys);
             for (int i = 0; i < currentValues.length; i++) {
                 OnDataChanged(allKeys[i], currentValues[i]);
             }
-        } catch (RemoteException e) {
+        } catch (Exception e) {
             Log.e(TAG, "Error dispatching data", e);
+        }
+    }
+
+    private boolean isControlServiceAlive() {
+        IIntelligentVehicleControlService svc = controlService;
+        if (svc == null) return false;
+        try {
+            if (!Shizuku.pingBinder()) return false;
+            IBinder binder = svc.asBinder();
+            return binder != null && binder.isBinderAlive();
+        } catch (Throwable t) {
+            return false;
         }
     }
 
@@ -898,7 +907,7 @@ public class ServiceManager {
         if (dataCache.containsKey(key)) {
             return dataCache.get(key);
         }
-        if (controlService == null) {
+        if (!isControlServiceAlive()) {
             Log.e(TAG, "ControlService not initialized");
             return null;
         }
@@ -906,14 +915,14 @@ public class ServiceManager {
             String value = controlService.fetchData(key);
             dataCache.put(key, value);
             return value;
-        } catch (RemoteException e) {
+        } catch (Exception e) {
             Log.e(TAG, "Error fetching data", e);
             return null;
         }
     }
 
     public String getUpdatedData(String key) {
-        if (controlService == null) {
+        if (!isControlServiceAlive()) {
             Log.e(TAG, "ControlService not initialized");
             return null;
         }
@@ -921,14 +930,14 @@ public class ServiceManager {
             String value = controlService.fetchData(key);
             dataCache.put(key, value);
             return value;
-        } catch (RemoteException e) {
+        } catch (Exception e) {
             Log.e(TAG, "Error fetching data", e);
             return null;
         }
     }
 
     public void updateData(String key, String value) {
-        if (controlService == null) {
+        if (!isControlServiceAlive()) {
             Log.e(TAG, "ControlService not initialized");
             return;
         }
@@ -940,7 +949,7 @@ public class ServiceManager {
 
         try {
             controlService.request("cmd.common.request.set", key, value);
-        } catch (RemoteException e) {
+        } catch (Exception e) {
             Log.e(TAG, "Error updating data", e);
         }
 
@@ -972,9 +981,9 @@ public class ServiceManager {
 
     private boolean isHvacAppInForeground() {
         try {
-            // Check if the HVAC app is currently resumed (more reliable than window focus on some units)
-            String output = ShizukuUtils.runCommandAndGetOutput(new String[]{"sh", "-c", "dumpsys activity activities | grep ResumedActivity"});
-            boolean isForeground = output != null && output.contains(HVAC_PACKAGE_NAME);
+            // Check if the HVAC app is currently resumed via lightweight am stack list
+            String topApp = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.INSTANCE.getTopPackageOnDisplay(0);
+            boolean isForeground = HVAC_PACKAGE_NAME.equals(topApp);
             if (isForeground) {
                 Log.w(TAG, "Detection: HVAC app IS resumed in foreground");
             }
@@ -1020,6 +1029,9 @@ public class ServiceManager {
             }
         }
         dataCache.put(key, value);
+        if (!servicesInitialized) {
+            return;
+        }
         try {
             if (key.equals(CarConstants.CAR_FRS_SETTING_DISTRACTION_DETECTION_ENABLE.getValue()) && value.equals("1")) {
                 boolean isForceDisableMonitoring = sharedPreferences.getBoolean(SharedPreferencesKeys.DISABLE_MONITORING.getKey(), false);
@@ -1238,27 +1250,27 @@ public class ServiceManager {
     }
 
     public void setMonitoringEnabled(boolean b) {
-        if (controlService == null) {
+        if (!isControlServiceAlive()) {
             Log.e(TAG, "ControlService not initialized");
             return;
         }
         try {
             controlService.request("cmd.common.request.set", CarConstants.CAR_FRS_SETTING_DISTRACTION_DETECTION_ENABLE.getValue(), b ? "1" : "0");
             Log.w(TAG, "Distraction detection monitoring set to: " + b);
-        } catch (RemoteException e) {
+        } catch (Exception e) {
             Log.e(TAG, "Error setting monitoring", e);
         }
     }
 
     public void setAvasEnabled(boolean b) {
-        if (controlService == null) {
+        if (!isControlServiceAlive()) {
             Log.e(TAG, "ControlService not initialized");
             return;
         }
         try {
             controlService.request("cmd.common.request.set", CarConstants.CAR_EV_SETTING_AVAS_ENABLE.getValue(), b ? "1" : "0");
             Log.w(TAG, "AVAS enabled: " + b);
-        } catch (RemoteException e) {
+        } catch (Exception e) {
             Log.e(TAG, "Error setting AVAS", e);
         }
     }
