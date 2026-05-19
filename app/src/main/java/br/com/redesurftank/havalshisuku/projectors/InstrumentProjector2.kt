@@ -71,6 +71,14 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private var isAnyAppOnDisplay1 = false
     private var currentCard = 0
     private var isWarningActive = false
+    private val dismissedWarnings = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    private fun isWarningValueActive(value: String?): Boolean {
+        if (value == null) return false
+        val v = value.trim()
+        return v != "0" && v != "{0,0,0,0}" && v != "{0,0,0,0,0}" && v != "" && v != "false"
+    }
+
     private var hasAutoLaunched = false
     private val lastAppliedConfigs =
             mutableMapOf<String, br.com.redesurftank.havalshisuku.models.DisplayAppConfig>()
@@ -318,6 +326,14 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         ServiceManagerEventType.DISMISS_WARNING -> {
                             evaluateJsIfReady(webView, "clearWarnings()")
                             updateWarningUI(false)
+
+                            val sm = ServiceManager.getInstance()
+                            for (key in monitoredWarningKeys) {
+                                val value = sm.getData(key)
+                                if (isWarningValueActive(value)) {
+                                    dismissedWarnings[key] = value!!
+                                }
+                            }
                         }
                         ServiceManagerEventType.APP_GEOMETRY_CHANGED -> {
                             updateVirtualClusterVisibility()
@@ -530,7 +546,11 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
                 // --- Warning Management Logic ---
                 if (key in monitoredWarningKeys) {
-                    evaluateJsIfReady(webView, "updateWarning('$key', '$value')")
+                    val currentValue = value.toString()
+                    if (dismissedWarnings[key] != currentValue) {
+                        dismissedWarnings.remove(key)
+                        evaluateJsIfReady(webView, "updateWarning('$key', '$value')")
+                    }
                 }
             }
         }
@@ -756,6 +776,9 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         val webView = this.webView ?: return
         for (key in monitoredWarningKeys) {
             val value = sm.getData(key) ?: "0"
+            if (dismissedWarnings[key] == value) {
+                continue
+            }
             evaluateJsIfReady(webView, "updateWarning('$key', '$value')")
         }
     }

@@ -52,7 +52,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 private const val recycleOut = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8BAMAAADI0sRBAAAAJFBMVEV5pf57o/57nvd4ke1bjPJpfupvbH9HcExnlfhejfJhkfU9/+4C6j87AAAADHRSTlMiFQwG/gMBAFrOlQHp+XlJAAAC1ElEQVQ4y32VsU4jMRCGx9IVC5VtURA6777BrvIAJ02RpI3gDUhDfxQ0QUoBVEFKcXRBShHuAWh4uftnbK8dTrqRQGt/nvHMZGZM90l+3a0g11luZPV5T4k+yPL2uhIcuPtK+NdXVh1UpvKJrYQ/75Quh1GmyiN+iHQ4EeERx3t1s2vbth85FbqMsGt7/Osjp1q3B8jSdcLpflWo7oeQD2CLYjKWSTUAeue8T5zGa5UCAboQueCKeqUqwSmnRGVRoJoQ85RoP1JrbTqAC6jcCwV3vmPmt7c/RwP72KRiOYBylvkj9IFTHgOga5hPuBfcZZ/tgedrImqeXj6UB0/RtOi6s0hVcM3cuJYkWUHTQTveElV84TyN6bBnvCiUDPjW0ZisS+Y11fyZ54IV2ubAM9l9UpGD8PSRNKbmA+kQv5pdiktOTgTD7IfubA3RgQu254LDlWq8HSViXhTjdAYcnNg9rska2aid+8GGAjw+GusMWWwsTrEjN+G9NVFoM/sHb9gYq1K0z9fZuDssBMF4dXejyRfXLM+cg13r4Nvo+U74Fb/SJb9agrpql7g1SfwTR95NliprBa9FV6mVUijGGxifABdtql2b8Dv+UlgptiqwDTy/4Kxr6Zsc8Htf8JGcuG4r4/EGhAzXUEMIvPjMvBf6zPwKPSwRmt3UNa66KFVPqBSeWUdcy14yyntUKip8h+sPKEutOQR/xYs1lNFmLfmA8heRpoIPkn91YyY9iloLVpbb1Nf4aWInxh5rtRbnv23pfGNedvO9djBK8XQqJBPSztLfbeYezVKf9DodpAPRKRhYQb/aTIOOniFOOt+maefT0AtxcJ1MyiReDbdDN6TpkGWovnVo6qRVA32c01083+nMp/gA9In1yocO87iTF4HKA9EN378wz08eEChM69fkRmZqPDAdn6jlNC1vVlQ9bfIy1Uu8ZJR39NlLcjuepdV/5S/ikFxpmirRgwAAAABJRU5ErkJggg=="
-private const val recycleIn = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8BAMAAADI0sRBAAAAJ1BMVEV6pf97nfh7o/12kO5bjPJlf+leVZZlk/ZHcExejvJgj/P//+0A/9FP0Or/AAAADXRSTlMeDBMG/QMBVQDLlQEBuyPuOwAAAtFJREFUOMt9Vc1q20AQHpaAcU6VdOpttQRMchPCL1AWjHw18RtYl/ZgjCEkTxBoDyEITG+mGIzzALkk51z6Uv1m9kerFvfDyDv7zcyORrMz9Ojw4+21BW4DLix9PNLj93dZ/cZjdZuAFT7ovX1tv7bRsnaY8hp79NE6rBISWEyFp7a3XNQD8AGgl6uULASBp8GZVeZRVY6ntrcsiqwqooLwBM8LYSORKpAzraLbsiyNccuCaWY9lefG4AeFsoTI1otgCiOQeSkKePBeTT5e2UuRs4OCxJa9emitw1JoPlgkpUhddtba5ufLURk5H9ZZTkIq0pc2oFmzf9BZ9snu4ZJIjWyPZgP7jGCsoUuMg1uM7h5OnicO+t7OmR0HNXjCMQ3OJ45LH+wTjDp+BoCfm5xgrDWYNW2dDw8F/gnWiJp1G8S1jqTGS_7bRmiOeotgZ9HSqRzshtg3jU78LsFY+/9r0Mi0I1PfTmsM2uibTtJw6iM7uj+hDdjmZc1JmXv77U4iuLCKDCLeud0OaneMrdu5sIbMtd17n6OuT/ku0FsbgwkxRhrOuzRXo9Q5h6b7bES40OjGPtMk/Q7DFyP7BSp7Ogeh1+fYEZxfn6VReb/+Q+MrbujKxi80hKIDvveVPZ49emboM2oKJT7IKL8LisU+G6SFRSXlEmvc17xCzpHoGemJTbHnjNo9qhDXp8PxKGUtkBqer3HZlDYZas2MxWLj7iFfUgljhksGOnfijinlLvClV8cd44s/OTU7lVx99dA1ezZmGrw2/yCXBkRJa8jzPDNeKtkW3aGSZmXEVexdxvWuoqbat6w8k2bFbMaauXQuik1tANHkvlYXKZ+0x6KoxLryW9yFpdGGjomhQK4ZV9KhK9eXnVTwyHA9ldd1kY6C0M//mhHTab/kabAK3X4aR9Ri6sVlS8lou20Hk44nGYWdpWchuNkjgh9UPb6lwtsfbTVCnXvwUeQAAAAASUVORK5CYII="
+private const val recycleIn = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8BAMAAADI0sRBAAAAJ1BMVEV6pf97nfh7o/12kO5bjPJlf+leVZZlk/ZHcExejvJgj/P//+0A/9FP0Or/AAAADXRSTlMeDBMG/QMBVQDLlQEBuyPuOwAAAtFJREFUOMt9Vc1q20AQHpaAcU6VdOpttQRMchPCL1AWjHw18RtYl/ZgjCEkTxBoDyEITG+mGIzzALkk51z6Uv1m9kerFvfDyDv7zcyORrMz9Ojw4+21BW4DLix9PNLj93dZ/cZjdZuAFT7ovX1tv7bRsnaY8hp79NE6rBISWEyFp7a3XNQD8AGgl6uULASBp8GZVeZRVY6ntrcsiqwqooLwBM8LYSORKpAzraLbsiyNccuCaWY9lefG4AeFsoTI1otgCiOQeSkKePBeTT5e2UuRs4OCxJa9emitw1JoPlgkpUhddtba5ufLURk5H9ZZTkIq0pc2oFmzf9BZ9snu4ZJIjWyPZgP7jGCsoUuMg1uM7h5OnicO+t7OmR0HNXjCMQ3OJ45LH+wTjDp+BoCfm5xgrDWYNW2dDw8F/gnWiJp1G8S1jqTGS97bRmiOeotgZ9HSqRzshtg3jU78LsFY+/9r0Mi0I1PfTmsM2uibTtJw6iM7uj+hDdjmZc1JmXv77U4iuLCKDCLeud0OaneMrdu5sIbMtd17n6OuT/ku0FsbgwkxRhrOuzRXo9Q5h6b7bES40OjGPtMk/Q7DFyP7BSp7Ogeh1+fYEZxfn6VReb/+Q+MrbujKxi80hKIDvveVPZ49emboM2oKJT7IKL8LisU+G6SFRSXlEmvc17xCzpHoGemJTbHnjNo9qhDXp8PxKGUtkBqer3HZlDYZas2MxWLj7iFfUgljhksGOnfijinlLvClV8cd44s/OTU7lVx99dA1ezZmGrw2/yCXBkRJa8jzPDNeKtkW3aGSZmXEVexdxvWuoqbat6w8k2bFbMaauXQuik1tANHkvlYXKZ+0x6KoxLryW9yFpdGGjomhQK4ZV9KhK9eXnVTwyHA9ldd1kY6C0M//mhHTab/kabAK3X4aR9Ri6sVlS8lou20Hk44nGYWdpWchuNkjgh9UPb6lwtsfbTVCnXvwUeQAAAAASUVORK5CYII="
 
 private val commonTextStyle =
         TextStyle(
@@ -420,7 +420,7 @@ fun BottomBarContent() {
                                                         ) {
                                                                 ACControlButton(
                                                                         icon = if (acRecirc == "1") recycleIn else recycleOut,
-                                                                        label = "Recirc",
+                                                                        label = "Circular",
                                                                         isActive = acRecirc == "1",
                                                                         isEnabled = isACEnabled
                                                                 ) {
@@ -880,9 +880,17 @@ fun AppSwitcherSection() {
                                         indication = null
                                 ) {
                                         scope.launch {
-                                                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
-                                                        .bringAllToMainDisplay()
-                                                if (selectedPackage.isNotEmpty()) {
+                                                // bringAllToMainDisplay() returns the list of packages it actually
+                                                // moved back from secondary displays. If non-empty, those apps
+                                                // deserve to keep focus on Display 0 — launching selectedPackage
+                                                // on top would immediately steal it (the user just brought their
+                                                // active app back, they don't want it bounced). Only fall through
+                                                // to launching selectedPackage when nothing was moved.
+                                                val movedBack =
+                                                        br.com.redesurftank.havalshisuku.managers
+                                                                .DisplayAppLauncher
+                                                                .bringAllToMainDisplay()
+                                                if (movedBack.isEmpty() && selectedPackage.isNotEmpty()) {
                                                         br.com.redesurftank.havalshisuku.managers
                                                                 .DisplayAppLauncher
                                                                 .getOrCreateDefaultConfig(
@@ -2137,11 +2145,15 @@ private fun decodeBase64ToBitmap(base64Str: String): ImageBitmap? {
                 val decodedBytes = android.util.Base64.decode(cleanStr, android.util.Base64.DEFAULT)
                 val bitmap = android.graphics.BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
                 if (bitmap != null) {
-                        cropBitmapTransparentMargins(bitmap).asImageBitmap()
+                        val cropped = cropBitmapTransparentMargins(bitmap)
+                        android.util.Log.d("BottomBarUI", "Successfully decoded and cropped. Orig size: ${bitmap.width}x${bitmap.height}, Cropped size: ${cropped.width}x${cropped.height}")
+                        cropped.asImageBitmap()
                 } else {
+                        android.util.Log.e("BottomBarUI", "decodeByteArray returned null for base64: ${base64Str.take(50)}...")
                         null
                 }
         } catch (e: Exception) {
+                android.util.Log.e("BottomBarUI", "Failed to decode base64: ${base64Str.take(50)}...", e)
                 null
         }
 }
@@ -2668,6 +2680,13 @@ fun VerticalSliderOverlay() {
         val serviceManager = ServiceManager.getInstance()
         val isACEnabled = serviceManager.getData(CarConstants.CAR_HVAC_POWER_MODE.getValue()) == "1"
 
+        LaunchedEffect(activeSlider, BottomBarState.sliderInteractionTrigger) {
+                delay(3000)
+                if (!BottomBarState.isSliderDragging) {
+                        BottomBarState.activeSliderType = null
+                }
+        }
+
         val density = LocalDensity.current
         val sliderWidthDp = 80.dp
         val sliderWidthPx = with(density) { sliderWidthDp.toPx() }
@@ -2711,7 +2730,7 @@ fun VerticalSliderOverlay() {
                                                 step = 0.5f,
                                                 displayValue = if (!isACEnabled || tempStr == "--" || tempVal <= -1) "--" else String.format(java.util.Locale.US, "%.1f°C", tempVal),
                                                 visualAidType = VisualAidType.TEMP,
-                                                modifier = Modifier.height(320.dp),
+                                                modifier = Modifier.height(380.dp),
                                                 isEnabled = isACEnabled,
                                                 onValueChange = { newValue ->
                                                         serviceManager.updateData(
@@ -2747,7 +2766,7 @@ fun VerticalSliderOverlay() {
                                                 step = 0.5f,
                                                 displayValue = if (!isACEnabled || tempStr == "--" || tempVal <= -1) "--" else String.format(java.util.Locale.US, "%.1f°C", tempVal),
                                                 visualAidType = VisualAidType.TEMP,
-                                                modifier = Modifier.height(320.dp),
+                                                modifier = Modifier.height(380.dp),
                                                 isEnabled = isACEnabled,
                                                 onValueChange = { newValue ->
                                                         serviceManager.updateData(
@@ -2877,16 +2896,6 @@ fun VerticalSlider(
                         verticalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxSize()
                 ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                        text = displayValue,
-                                        color = Color.White,
-                                        fontSize = 16.sp,
-                                        fontFamily = Michroma,
-                                        fontWeight = FontWeight.Bold
-                                )
-                        }
-
                         Box(
                                 modifier = Modifier
                                         .width(48.dp)
@@ -2894,31 +2903,37 @@ fun VerticalSlider(
                                         .padding(vertical = 10.dp)
                                         .onGloballyPositioned { trackHeightPx = it.size.height.toFloat() }
                                         .pointerInput(range, step, isEnabled) {
-                                                if (!isEnabled) return@pointerInput
-                                                awaitPointerEventScope {
-                                                        while (true) {
-                                                                val down = awaitFirstDown(requireUnconsumed = false)
-                                                                val startY = down.position.y
-                                                                val fractionStart = ((trackHeightPx - startY) / trackHeightPx).coerceIn(0f..1f)
-                                                                val rawValueStart = range.start + fractionStart * (range.endInclusive - range.start)
-                                                                val steppedStart = (rawValueStart / step).roundToInt() * step
-                                                                onValueChange(steppedStart.coerceIn(range))
+                                                 if (!isEnabled) return@pointerInput
+                                                 awaitPointerEventScope {
+                                                         while (true) {
+                                                                 val down = awaitFirstDown(requireUnconsumed = false)
+                                                                 BottomBarState.isSliderDragging = true
+                                                                 BottomBarState.sliderInteractionTrigger++
+                                                                 val startY = down.position.y
+                                                                 val fractionStart = ((trackHeightPx - startY) / trackHeightPx).coerceIn(0f..1f)
+                                                                 val rawValueStart = range.start + fractionStart * (range.endInclusive - range.start)
+                                                                 val steppedStart = (rawValueStart / step).roundToInt() * step
+                                                                 onValueChange(steppedStart.coerceIn(range))
 
-                                                                do {
-                                                                        val event = awaitPointerEvent()
-                                                                        val change = event.changes.firstOrNull() ?: break
-                                                                        if (change.pressed) {
-                                                                                change.consume()
-                                                                                val currentY = change.position.y
-                                                                                val fraction = ((trackHeightPx - currentY) / trackHeightPx).coerceIn(0f..1f)
-                                                                                val rawValue = range.start + fraction * (range.endInclusive - range.start)
-                                                                                val stepped = (rawValue / step).roundToInt() * step
-                                                                                onValueChange(stepped.coerceIn(range))
-                                                                        }
-                                                                } while (event.changes.any { it.pressed })
-                                                        }
-                                                }
-                                        }
+                                                                 do {
+                                                                         val event = awaitPointerEvent()
+                                                                         val change = event.changes.firstOrNull() ?: break
+                                                                         if (change.pressed) {
+                                                                                 change.consume()
+                                                                                 val currentY = change.position.y
+                                                                                 val fraction = ((trackHeightPx - currentY) / trackHeightPx).coerceIn(0f..1f)
+                                                                                 val rawValue = range.start + fraction * (range.endInclusive - range.start)
+                                                                                 val stepped = (rawValue / step).roundToInt() * step
+                                                                                 onValueChange(stepped.coerceIn(range))
+                                                                                 BottomBarState.sliderInteractionTrigger++
+                                                                         }
+                                                                 } while (event.changes.any { it.pressed })
+
+                                                                 BottomBarState.isSliderDragging = false
+                                                                 BottomBarState.sliderInteractionTrigger++
+                                                         }
+                                                 }
+                                         }
                         ) {
                                 Canvas(modifier = Modifier.fillMaxSize()) {
                                         val w = size.width

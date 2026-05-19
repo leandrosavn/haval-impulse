@@ -596,8 +596,6 @@ V2_4_XCROP_CODE = f"""
     move-result v2
 
     :v24_skip_id_read
-    if-eqz v2, :v24_skip_xcrop
-
     iget-object v0, p0, Lcom/ts/androidauto/app/display/AapActivity;->mSurfaceProjection:Landroid/view/SurfaceView;
 
     invoke-virtual {{v0}}, Landroid/view/SurfaceView;->getLayoutParams()Landroid/view/ViewGroup$LayoutParams;
@@ -605,6 +603,8 @@ V2_4_XCROP_CODE = f"""
     move-result-object v0
 
     check-cast v0, Landroid/widget/FrameLayout$LayoutParams;
+
+    if-eqz v2, :v24_reset_to_default
 
     iget v1, p0, Lcom/ts/androidauto/app/display/AapActivity;->mAapDisplayAreaWidth:I
 
@@ -624,11 +624,25 @@ V2_4_XCROP_CODE = f"""
 
     iput v1, v0, Landroid/widget/FrameLayout$LayoutParams;->gravity:I
 
+    goto :v24_apply
+
+    :v24_reset_to_default
+    iget v1, p0, Lcom/ts/androidauto/app/display/AapActivity;->mAapDisplayAreaWidth:I
+
+    iput v1, v0, Landroid/widget/FrameLayout$LayoutParams;->width:I
+
+    const/4 v1, 0x0
+
+    iput v1, v0, Landroid/view/ViewGroup$MarginLayoutParams;->leftMargin:I
+
+    const/4 v1, 0x1
+
+    iput v1, v0, Landroid/widget/FrameLayout$LayoutParams;->gravity:I
+
+    :v24_apply
     iget-object v1, p0, Lcom/ts/androidauto/app/display/AapActivity;->mSurfaceProjection:Landroid/view/SurfaceView;
 
     invoke-virtual {{v1, v0}}, Landroid/view/SurfaceView;->setLayoutParams(Landroid/view/ViewGroup$LayoutParams;)V
-
-    :v24_skip_xcrop
 """
 
 

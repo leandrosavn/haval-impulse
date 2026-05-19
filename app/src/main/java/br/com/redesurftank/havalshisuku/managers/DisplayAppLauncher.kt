@@ -554,7 +554,18 @@ object DisplayAppLauncher {
                             Log.w(TAG, "[DISPLAY_MOVE] FALLBACK App: $packageName | Bounds: [0,0,${res.first},$effectiveHeight] | Overscan: ${overscanDp}dp | Mode: 1")
                             sh("am stack resize ${movedTask.stackId} 0 0 ${res.first} $effectiveHeight")
                         }
-                        
+
+                        // Bring AA to the foreground with focus flags after the move.
+                        // am stack move-task-to-front above does not always reorder the
+                        // focused stack — without -f 0x14000000 (FLAG_ACTIVITY_NEW_TASK |
+                        // FLAG_ACTIVITY_REORDER_TO_FRONT) the previously-focused app stays
+                        // on top.
+                        val predefined = PREDEFINED_APPS.find { it.packageName == packageName }
+                        val escapedActivityForFront = (activityName ?: predefined?.activityName)?.replace("$", "\\$")
+                        if (escapedActivityForFront != null) {
+                            sh("am start -n $packageName/$escapedActivityForFront --display 0 --windowingMode 1 -f 0x14000000")
+                        }
+
                         // Force BottomBar to re-apply overscan immediately
                         notifyBottomBarUpdate()
                         return@withContext
@@ -567,23 +578,33 @@ object DisplayAppLauncher {
             if (intent != null) {
                 Log.w(TAG, "Launching $packageName via Intent")
                 intent.addFlags(
-                    android.content.Intent.FLAG_ACTIVITY_NEW_TASK or 
+                    android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
                     android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or
                     android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
                 )
-                
+
                 // If task exists on display 0, bring it to front
                 // Newer Android versions don't support 'am stack move-task-to-front'
                 // Re-launching with flags is the most compatible way
                 context.startActivity(intent)
-            } else if (activityName != null) {
-                // Fallback to am start if intent is somehow null
-                val escapedActivity = activityName.replace("$", "\\$")
-                sh("am force-stop $packageName")
-                Thread.sleep(200)
-                sh("am start -n $packageName/$escapedActivity --display 0")
             } else {
-                Log.e(TAG, "Could not find launch intent for $packageName")
+                // No launcher intent (some system apps don't expose one — e.g.,
+                // com.ts.androidauto.app's AapActivity has no MAIN/LAUNCHER
+                // filter). Fall back to the explicit activityName from the
+                // caller, or look it up from PREDEFINED_APPS / saved configs.
+                val resolvedActivity = activityName
+                    ?: PREDEFINED_APPS.find { it.packageName == packageName }?.activityName
+                    ?: getAppConfig(packageName)?.activityName
+                if (resolvedActivity != null) {
+                    val escapedActivity = resolvedActivity.replace("$", "\\$")
+                    Log.w(TAG, "Launching $packageName via am start (no launcher intent, using activity $resolvedActivity)")
+                    // Use -f 0x14000000 (NEW_TASK | REORDER_TO_FRONT) so the
+                    // activity actually grabs focus on Display 0 instead of
+                    // sitting behind whatever stack was previously focused.
+                    sh("am start -n $packageName/$escapedActivity --display 0 --windowingMode 1 -f 0x14000000")
+                } else {
+                    Log.e(TAG, "Could not launch $packageName: no launcher intent and no known activityName")
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error launching $packageName", e)
@@ -615,12 +636,19 @@ object DisplayAppLauncher {
 
     /**
      * Brings all applications from secondary displays (1 and 3) back to the main display (0).
+     *
+     * Returns the list of package names that were moved (empty list if no apps were
+     * found on secondary displays). Callers can use this to decide whether to do a
+     * follow-up "launch my preferred app" — when something was actually moved, that
+     * app deserves focus and a follow-up launch would steal it. When nothing was
+     * moved, the caller can safely launch a preferred app on top.
      */
-    suspend fun bringAllToMainDisplay() = withContext(Dispatchers.IO) {
+    suspend fun bringAllToMainDisplay(): List<String> = withContext(Dispatchers.IO) {
+        val movedPackages = mutableListOf<String>()
         val stackList = getStackList()
         val displaysToEvict = setOf(1, 3)
         val stacksToMove = mutableListOf<Pair<Int, Int>>() // stackId, displayId
-        
+
         var currentDisplayId: Int? = null
         for (line in stackList.lines()) {
             val stackMatch = Regex("""Stack id=(\d+).*displayId=(\d+)""").find(line)
@@ -632,34 +660,43 @@ object DisplayAppLauncher {
                 }
             }
         }
-        
+
         if (stacksToMove.isEmpty()) {
             Log.w(TAG, "No stacks found on displays 1 or 3 to move")
-            return@withContext
+            return@withContext movedPackages
         }
 
         for ((stackId, displayId) in stacksToMove) {
             val pkg = findPackageNameForStack(stackId, stackList)
             Log.w(TAG, "Moving stack $stackId ($pkg) from display $displayId to display 0")
-            
+
             val result = sh("am display move-stack $stackId 0")
             if (result.contains("Exception") || result.contains("Error")) {
                 Log.e(TAG, "Failed to move stack $stackId: $result")
                 continue
             }
 
-            // Bring to front immediately after move
+            if (pkg != null) movedPackages.add(pkg)
+
+            // Bring to front immediately after move.
+            // -f 0x14000000 = FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_REORDER_TO_FRONT.
+            // Without these flags the activity gets attached to Display 0 but the
+            // previously-focused stack stays on top — user sees the other app
+            // keep running, AA invisible in background.
             if (pkg != null) {
                 val config = PREDEFINED_APPS.find { it.packageName == pkg }
                 val activity = config?.activityName?.replace("$", "\\$")
                 if (activity != null) {
-                    // Force fullscreen and bring to front
-                    sh("am start -n $pkg/$activity --display 0 --windowingMode 1")
+                    // Force fullscreen and bring to front (with focus flags)
+                    sh("am start -n $pkg/$activity --display 0 --windowingMode 1 -f 0x14000000")
                 } else {
                     // Fallback to simple intent launch
                     val intent = App.getContext().packageManager.getLaunchIntentForPackage(pkg)
                     intent?.let {
-                        it.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        it.addFlags(
+                            android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
+                                    android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                        )
                         App.getContext().startActivity(it)
                     }
                 }
@@ -681,6 +718,7 @@ object DisplayAppLauncher {
 
         displaysToEvict.forEach { notifyDisplayStateChanged(it) }
         notifyBottomBarUpdate()
+        movedPackages
     }
 
 

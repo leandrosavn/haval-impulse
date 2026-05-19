@@ -60,7 +60,7 @@ export function initWarningHandler() {
         const cardId = stateManager.get('cardId');
 
         if (window.Android && window.Android.setWarningActive) {
-            window.Android.setWarningActive(shouldBeWarnActive);
+            window.Android.setWarningActive(false);
         }
     };
 }
