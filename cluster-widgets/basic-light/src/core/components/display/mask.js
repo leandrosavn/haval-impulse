@@ -65,7 +65,7 @@ export function createMask() {
         noAppMaskL.style.visibility = showL ? 'visible' : 'hidden';
         noAppMaskR.style.visibility = showR ? 'visible' : 'hidden';
 
-        partialAppMask.style.opacity = (cardId == 0 && !warningActive) ? '1' : '0';
+        //partialAppMask.style.opacity = (cardId == 0 && !warningActive) ? '1' : '0'; //Removed for better experience. Will decide if we keep this mask in future.
         //warnMask.style.opacity = warningActive ? '1' : '0'; //TODO: enhance this mask in future
     };
 
