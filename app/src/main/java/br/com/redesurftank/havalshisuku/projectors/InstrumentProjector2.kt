@@ -599,22 +599,20 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                                     "WebView finished loading (PID: ${android.os.Process.myPid()}): $url"
                                             )
 
-                                            // Apply pending JS or updates
-                                            updateValuesWebView()
-                                            // Fresh JS context after page load — prime warning state
-                                            // once so the UI reflects the current car warnings without
-                                            // having to wait for the next per-warning change. Card
-                                            // changes go through updateValuesWebView() but intentionally
-                                            // NOT through syncInitialWarnings() so dismissed warnings
-                                            // (user pressed back) don't get artificially re-shown.
-                                            syncInitialWarnings()
+                                            // Mark the WebView as fully loaded first so that any new incoming
+                                            // telemetry events are processed instantly instead of being queued.
                                             webViewsLoaded[wv] = true
-                                            pendingJsQueues[wv]?.let { list ->
-                                                for (js in list) {
-                                                    wv.evaluateJavascript(js, null)
-                                                }
-                                                pendingJsQueues.remove(wv)
-                                            }
+
+                                            // Discard all stale, redundant telemetry updates queued during page load
+                                            pendingJsQueues.remove(wv)
+
+                                            // Perform a single, consolidated, full-state synchronization
+                                            // using the latest car metrics to guarantee perfect UI consistency.
+                                            updateValuesWebView()
+
+                                            // Prime the warning state once so the UI reflects the current car warnings.
+                                            syncInitialWarnings()
+
                                             // Inject Heartbeat
                                             wv.evaluateJavascript(
                                                     "setInterval(() => { if (window.Android && window.Android.heartbeat) window.Android.heartbeat(); }, 2000);",
