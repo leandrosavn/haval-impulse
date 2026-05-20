@@ -750,6 +750,14 @@ object DisplayAppLauncher {
                 return@withContext
             }
 
+            // Concurrency/state safeguard: if the task is already physically running on the target display,
+            // skip the move-stack IPC call entirely to avoid IllegalArgumentException / race conditions.
+            if (taskInfo.displayId == config.displayId) {
+                Log.w(TAG, "Stack ${taskInfo.stackId} is already on target display ${config.displayId}, skipping move-stack and performing direct resize")
+                sh("am stack resize ${taskInfo.stackId} ${bounds[0]} ${bounds[1]} ${bounds[2]} ${bounds[3]}")
+                return@withContext
+            }
+
             // Save current bounds before moving away from current display
             saveCurrentBounds(config.packageName, taskInfo)
 
@@ -931,6 +939,10 @@ object DisplayAppLauncher {
         // Priority 2: Hardcoded App Overrides (matching BottomBarService)
         val hardcodedOverscan = when (packageName) {
             "com.google.android.apps.messaging", "deezer.android.app" -> 60
+            // AA's projected UI tends to put navigation controls right at
+            // the bottom edge; the default 20dp bar overlap is too tight
+            // and clips the AA system bar. 30dp keeps everything visible.
+            "com.ts.androidauto.app" -> 30
             else -> null
         }
         if (hardcodedOverscan != null) return (hardcodedOverscan * density).toInt()
@@ -1143,21 +1155,6 @@ object DisplayAppLauncher {
      * fullscreen mode works fine after move-stack.
      */
     fun onAppWindowChanged(packageName: String) {
-        // Event-driven fallback when Frida hooks are disabled:
-        // If the user navigates to any other app on Display 0, Android Auto loses focus and goes blank.
-        // We detect this window change and immediately send a high-efficiency LITE focus poke to refresh focus.
-        val prefs = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
-        val hooksEnabled = prefs.getBoolean("enableFridaHooks", false)
-        if (!hooksEnabled) {
-            val aaConfig = getAllConfigs().find { it.packageName == "com.ts.androidauto.app" }
-            if (aaConfig != null && aaConfig.displayId != 0) {
-                // If the new focused app is on Display 0 (not AA itself and not our controller/launcher)
-                if (packageName != "com.ts.androidauto.app" && packageName != App.getContext().packageName) {
-                    Log.d(TAG, "Reactive fallback: window changed to $packageName on Display 0. Sending LITE focus poke.")
-                    syncInterconnectionFocusLite("window_change_fallback")
-                }
-            }
-        }
 
         val config = getAllConfigs().find { it.packageName == packageName } ?: return
         if (config.displayId == 0) return
@@ -1232,36 +1229,7 @@ object DisplayAppLauncher {
         }
     }
 
-    /**
-     * Sends ONLY the broadcasts to restore video focus. 
-     * Does NOT use 'am start', so it won't cause screen flashing.
-     */
-    fun syncInterconnectionFocusLite(triggerSource: String) {
-        val prefs = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
-        val hooksEnabled = prefs.getBoolean("enableFridaHooks", false)
-        if (hooksEnabled) {
-            Log.i("FOCUS_SYNC", "syncInterconnectionFocusLite ignored (Bypassed by active Frida unpause hook, Trigger: $triggerSource)")
-            return
-        }
 
-        val forceFocusConfigs = getAllConfigs().filter { it.forceFocus }
-        if (forceFocusConfigs.isEmpty()) return
-
-        CoroutineScope(Dispatchers.IO).launch {
-            for (config in forceFocusConfigs) {
-                val taskInfo = findTaskForPackage(config.packageName)
-                if (taskInfo == null) continue
-                if (taskInfo.displayId != 1 && taskInfo.displayId != 3) continue
-
-                val sb = StringBuilder()
-                sb.append("am broadcast -a com.ts.carplay.action.VIDEO_FOCUS_CHANGE --es \"focus\" \"${config.packageName}\" --ei \"displayId\" ${taskInfo.displayId}; ")
-                sb.append("am broadcast -a com.ts.androidauto.action.AndroidAutoService")
-
-                Log.w("FOCUS_SYNC", "Executing LITE focus poke (Trigger: $triggerSource, Display: ${taskInfo.displayId}, App: ${config.packageName})")
-                sh(sb.toString())
-            }
-        }
-    }
 
     fun discoverAndroidAutoBroadcasts(): List<String> {
         val discoveredActions = mutableSetOf<String>()
