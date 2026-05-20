@@ -2328,7 +2328,7 @@ canvas.graph-chart {
       transparent calc(var(--mask-radius)),
       var(--bg-black-60) calc(var(--mask-radius) * 0.5 + 30px),
       var(--bg-black-100) calc(var(--mask-radius) * 0.6 + 120px));
-  opacity: 1; /* We decided to disable it for better experience, but not removing in case we want to revert */
+  opacity: 0;
   transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
