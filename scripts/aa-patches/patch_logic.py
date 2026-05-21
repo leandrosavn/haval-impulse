@@ -298,11 +298,34 @@ V3_RESIZE_CODE = f"""
 
     if-lez v2, :v3_skip_resize
 
+    invoke-virtual {{p0}}, Lcom/ts/androidauto/app/display/AapActivity;->getDisplay()Landroid/view/Display;
+
+    move-result-object v0
+
+    if-eqz v0, :v3_skip_display0_override
+
+    invoke-virtual {{v0}}, Landroid/view/Display;->getDisplayId()I
+
+    move-result v3
+
+    if-nez v3, :v3_skip_display0_override
+
+    new-instance v3, Landroid/util/DisplayMetrics;
+
+    invoke-direct {{v3}}, Landroid/util/DisplayMetrics;-><init>()V
+
+    invoke-virtual {{v0, v3}}, Landroid/view/Display;->getRealMetrics(Landroid/util/DisplayMetrics;)V
+
+    iget v1, v3, Landroid/util/DisplayMetrics;->widthPixels:I
+
+    iget v2, v3, Landroid/util/DisplayMetrics;->heightPixels:I
+
+    :v3_skip_display0_override
     new-instance v3, Ljava/lang/StringBuilder;
 
     invoke-direct {{v3}}, Ljava/lang/StringBuilder;-><init>()V
 
-    const-string v0, "setDisplayParams: window bounds "
+    const-string v0, "setDisplayParams: effective bounds "
 
     invoke-virtual {{v3, v0}}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
 
@@ -671,6 +694,134 @@ def apply_v2_4_xcrop_patch(content):
 
 
 # ---------------------------------------------------------------------------
+# v2.5-diag — emit window/display geometry + windowing mode each call
+# ---------------------------------------------------------------------------
+# Hunting the "AA launched from car shortcut on Display 0 has small gaps on
+# all sides" bug. We need to know what bounds the system actually gives AA
+# in that scenario vs in the post-Impulse-resize state. Each setDisplayParams
+# call logs:
+#   window=WxH  (Configuration.windowConfiguration.getBounds())
+#   mode=N      (WindowConfiguration.getWindowingMode(): 1=fullscreen,
+#                2=pinned, 3=split-primary, 4=split-secondary, 5=freeform)
+#   displayId=I (Activity.getDisplay().getDisplayId())
+# Tag "V25_DIAG" so it's easy to grep.
+
+V25_DIAG_SENTINEL = "# V25_DIAG_BOUNDS"
+
+V25_DIAG_CODE = f"""
+    {V25_DIAG_SENTINEL}
+    const-string v0, "V25_DIAG"
+
+    new-instance v1, Ljava/lang/StringBuilder;
+
+    invoke-direct {{v1}}, Ljava/lang/StringBuilder;-><init>()V
+
+    const-string v2, "setDisplayParams w="
+
+    invoke-virtual {{v1, v2}}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {{p0}}, Lcom/ts/androidauto/app/display/AapActivity;->getResources()Landroid/content/res/Resources;
+
+    move-result-object v2
+
+    invoke-virtual {{v2}}, Landroid/content/res/Resources;->getConfiguration()Landroid/content/res/Configuration;
+
+    move-result-object v2
+
+    iget-object v2, v2, Landroid/content/res/Configuration;->windowConfiguration:Landroid/app/WindowConfiguration;
+
+    invoke-virtual {{v2}}, Landroid/app/WindowConfiguration;->getBounds()Landroid/graphics/Rect;
+
+    move-result-object v3
+
+    invoke-virtual {{v3}}, Landroid/graphics/Rect;->width()I
+
+    move-result v4
+
+    invoke-virtual {{v1, v4}}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;
+
+    const-string v4, " h="
+
+    invoke-virtual {{v1, v4}}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {{v3}}, Landroid/graphics/Rect;->height()I
+
+    move-result v3
+
+    invoke-virtual {{v1, v3}}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;
+
+    const-string v3, " mode="
+
+    invoke-virtual {{v1, v3}}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {{v2}}, Landroid/app/WindowConfiguration;->getWindowingMode()I
+
+    move-result v2
+
+    invoke-virtual {{v1, v2}}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;
+
+    const-string v2, " displayId="
+
+    invoke-virtual {{v1, v2}}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {{p0}}, Lcom/ts/androidauto/app/display/AapActivity;->getDisplay()Landroid/view/Display;
+
+    move-result-object v2
+
+    if-eqz v2, :v25_no_display
+
+    invoke-virtual {{v2}}, Landroid/view/Display;->getDisplayId()I
+
+    move-result v2
+
+    invoke-virtual {{v1, v2}}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;
+
+    goto :v25_log
+
+    :v25_no_display
+    const-string v2, "null"
+
+    invoke-virtual {{v1, v2}}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    :v25_log
+    invoke-virtual {{v1}}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+
+    move-result-object v1
+
+    invoke-static {{v0, v1}}, Landroid/util/Log;->e(Ljava/lang/String;Ljava/lang/String;)I
+"""
+
+
+def apply_v25_diag_patch(content):
+    print("[v2.5-diag] setDisplayParams: log bounds + mode + displayId:")
+    if V25_DIAG_SENTINEL in content:
+        print("  [SKIP] diag log already injected")
+        return content, 0
+
+    # Inject right after v2.0's V3_RESIZE_INJECTION_V2 sentinel — which is
+    # the very first thing in the method body. We tuck our diagnostic between
+    # `.locals N` and v2.0's prologue so it runs on every call.
+    pattern = re.compile(
+        r"(\.method private setDisplayParams\(\)V\s*\n\s*\.locals )(\d+)(\s*\n)",
+        re.MULTILINE,
+    )
+
+    def bump_and_inject(match):
+        prefix, count, suffix = match.group(1), int(match.group(2)), match.group(3)
+        # Diag uses v0..v4, body uses v0..v4 — .locals 5 is enough.
+        new_count = max(count, 5)
+        return f"{prefix}{new_count}{suffix}{V25_DIAG_CODE}"
+
+    new_content, n = pattern.subn(bump_and_inject, content)
+    if n == 0:
+        print("  [WARN] could not find setDisplayParams .locals to inject after")
+        return content, 0
+
+    print("  [OK]   diag log injected at setDisplayParams entry")
+    return new_content, 1
+
+
+# ---------------------------------------------------------------------------
 # v2.1 onConfigurationChanged — re-trigger setDisplayParams on size change
 # ---------------------------------------------------------------------------
 
@@ -818,6 +969,9 @@ def main():
     total += n
 
     content, n = apply_v2_4_xcrop_patch(content)
+    total += n
+
+    content, n = apply_v25_diag_patch(content)
     total += n
 
     write_file(AAP_ACTIVITY, content)

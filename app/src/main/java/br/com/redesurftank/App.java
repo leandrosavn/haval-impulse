@@ -33,6 +33,9 @@ public class App extends Application {
         
         // Auto-apply AA Patches if installed
         br.com.redesurftank.havalshisuku.managers.AndroidAutoPatchManager.INSTANCE.applyMounts();
+        
+        // Auto-apply CarPlay Patches if installed
+        br.com.redesurftank.havalshisuku.managers.CarPlayPatchManager.INSTANCE.applyMounts();
 
         var context = getContext();
         Intent serviceIntent = new Intent(context, ForegroundService.class);

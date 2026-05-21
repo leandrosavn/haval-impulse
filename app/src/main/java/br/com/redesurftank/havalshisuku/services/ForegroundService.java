@@ -28,6 +28,7 @@ import br.com.redesurftank.App;
 import br.com.redesurftank.havalshisuku.broadcastReceivers.DispatchAllDatasReceiver;
 import br.com.redesurftank.havalshisuku.broadcastReceivers.RestartReceiver;
 import br.com.redesurftank.havalshisuku.managers.AndroidAutoPatchManager;
+import br.com.redesurftank.havalshisuku.managers.CarPlayPatchManager;
 import br.com.redesurftank.havalshisuku.managers.ServiceManager;
 import br.com.redesurftank.havalshisuku.models.CommandListener;
 import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys;
@@ -399,6 +400,35 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
                 }
             } catch (Exception e) {
                 Log.e(TAG, "AA patch auto-mount check failed: " + e.getMessage(), e);
+            }
+        });
+
+        // Auto-mount CarPlay patches if installed but not yet mounted
+        backgroundHandler.post(() -> {
+            try {
+                var prefs = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE);
+                
+                // Initialize default if not set
+                if (!prefs.contains(SharedPreferencesKeys.CARPLAY_PATCH_AUTO_MOUNT.getKey())) {
+                    boolean carplayInstalled = false;
+                    try {
+                        getPackageManager().getPackageInfo("com.ts.carplay.app", 0);
+                        carplayInstalled = true;
+                    } catch (Exception ignored) {}
+                    
+                    Log.i(TAG, "CarPlay Patch auto-mount preference not set. Defaulting to " + carplayInstalled + " (CarPlay installed: " + carplayInstalled + ")");
+                    prefs.edit().putBoolean(SharedPreferencesKeys.CARPLAY_PATCH_AUTO_MOUNT.getKey(), carplayInstalled).apply();
+                }
+
+                boolean shouldAutoMount = prefs.getBoolean(SharedPreferencesKeys.CARPLAY_PATCH_AUTO_MOUNT.getKey(), false);
+                if (shouldAutoMount) {
+                    Log.i(TAG, "Checking CarPlay patch auto-mount...");
+                    CarPlayPatchManager.INSTANCE.ensureMounted();
+                } else {
+                    Log.d(TAG, "CarPlay patch auto-mount is disabled in settings.");
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "CarPlay patch auto-mount check failed: " + e.getMessage(), e);
             }
         });
 

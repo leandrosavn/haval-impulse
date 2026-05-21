@@ -68,3 +68,14 @@ cluster-widgets/**/dist/
 cluster-widgets/**/out/
 
 .claude/settings.local.json
+
+# Decompiled APKs and reverse engineering directory
+/apks/
+__pycache__/
+*.pyc
+
+# Allow tracking APKs in assets and milestones
+!app/src/main/assets/**/*.apk
+!scripts/milestones/**/*.apk
+!scripts/carplay-patches/**/*.apk
+

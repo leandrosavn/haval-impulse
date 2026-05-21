@@ -35,6 +35,7 @@ import androidx.core.content.FileProvider
 import br.com.redesurftank.App
 import br.com.redesurftank.havalshisuku.TAG
 import br.com.redesurftank.havalshisuku.managers.AndroidAutoPatchManager
+import br.com.redesurftank.havalshisuku.managers.CarPlayPatchManager
 import br.com.redesurftank.havalshisuku.models.AppInfo
 import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys
 import br.com.redesurftank.havalshisuku.ui.components.*
@@ -74,6 +75,8 @@ fun InstallAppsTab() {
     var urlProgress by remember { mutableFloatStateOf(0f) }
     var isPatchInstalled by remember { mutableStateOf(AndroidAutoPatchManager.isPatchInstalled()) }
     var isMounted by remember { mutableStateOf(AndroidAutoPatchManager.isMounted()) }
+    var isCarPlayPatchInstalled by remember { mutableStateOf(CarPlayPatchManager.isPatchInstalled()) }
+    var isCarPlayMounted by remember { mutableStateOf(CarPlayPatchManager.isMounted()) }
     var showDiagnostics by remember { mutableStateOf(false) }
     var diagnosticsText by remember { mutableStateOf("") }
 
@@ -83,11 +86,16 @@ fun InstallAppsTab() {
     var aaPatchAutoMount by remember {
         mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.AA_PATCH_AUTO_MOUNT.key, false))
     }
+    var carplayPatchAutoMount by remember {
+        mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.CARPLAY_PATCH_AUTO_MOUNT.key, false))
+    }
 
     LaunchedEffect(Unit) {
         while (true) {
             isPatchInstalled = AndroidAutoPatchManager.isPatchInstalled()
             isMounted = AndroidAutoPatchManager.isMounted()
+            isCarPlayPatchInstalled = CarPlayPatchManager.isPatchInstalled()
+            isCarPlayMounted = CarPlayPatchManager.isMounted()
             delay(2000)
         }
     }
@@ -408,6 +416,164 @@ fun InstallAppsTab() {
                             IconButton(
                                     onClick = {
                                         diagnosticsText = AndroidAutoPatchManager.getDiagnostics()
+                                        showDiagnostics = true
+                                    }
+                            ) {
+                                Icon(
+                                        Icons.Default.BugReport,
+                                        contentDescription = "Diagnóstico",
+                                        tint = Color.Gray
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item(span = { GridItemSpan(4) }) {
+            Card(
+                    modifier =
+                            Modifier.fillMaxWidth()
+                                    .padding(vertical = 8.dp)
+                                    .border(
+                                            width = 1.dp,
+                                            color =
+                                                    if (isCarPlayMounted) Color(0xFF4A9EFF)
+                                                    else Color(0xFF1D2430),
+                                            shape = RoundedCornerShape(12.dp)
+                                    ),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A)),
+                    shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(
+                            modifier =
+                                    Modifier.size(48.dp).background(Color(0xFF2A2F37), CircleShape),
+                            contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                                Icons.Default.Shield,
+                                contentDescription = null,
+                                tint = if (isCarPlayMounted) Color(0xFF4A9EFF) else Color.White,
+                                modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                                "CarPlay (Patch Impulse) - Bloqueia fechamento, ativa resize dinâmico e remove barra no cluster",
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                                text =
+                                        when {
+                                            isCarPlayMounted -> "Status: Ativo (Mounted)"
+                                            isCarPlayPatchInstalled ->
+                                                    "Status: Instalado (Pronto para ativar)"
+                                            else -> "Status: Não instalado"
+                                        },
+                                color = if (isCarPlayMounted) Color(0xFF4A9EFF) else Color(0xFFB0B8C4),
+                                fontSize = 13.sp
+                        )
+                        if (isCarPlayPatchInstalled) {
+                            Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                Switch(
+                                        checked = carplayPatchAutoMount,
+                                        onCheckedChange = {
+                                            carplayPatchAutoMount = it
+                                            prefs.edit()
+                                                    .putBoolean(
+                                                            SharedPreferencesKeys
+                                                                    .CARPLAY_PATCH_AUTO_MOUNT
+                                                                    .key,
+                                                            it
+                                                    )
+                                                    .apply()
+                                        },
+                                        modifier = Modifier.scale(0.7f),
+                                        colors =
+                                                SwitchDefaults.colors(
+                                                        checkedThumbColor = Color.White,
+                                                        checkedTrackColor = Color(0xFF4A9EFF)
+                                                )
+                                )
+                                Text(
+                                        "Auto-montar ao iniciar",
+                                        color = Color(0xFFB0B8C4),
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.padding(start = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                    Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (!isCarPlayPatchInstalled) {
+                            Button(
+                                    onClick = {
+                                        if (CarPlayPatchManager.installPatches(context))
+                                                isCarPlayPatchInstalled = true
+                                    },
+                                    colors =
+                                            ButtonDefaults.buttonColors(
+                                                    containerColor = Color(0xFF4A9EFF)
+                                            ),
+                                    shape = RoundedCornerShape(8.dp)
+                            ) { Text("Instalar", color = Color.White) }
+                        } else {
+                            if (!isCarPlayMounted) {
+                                Button(
+                                        onClick = {
+                                            if (CarPlayPatchManager.applyMounts())
+                                                    isCarPlayMounted = true
+                                        },
+                                        colors =
+                                                ButtonDefaults.buttonColors(
+                                                        containerColor = Color(0xFF4CAF50)
+                                                ),
+                                        shape = RoundedCornerShape(8.dp)
+                                ) { Text("Ativar", color = Color.White) }
+                            } else {
+                                Button(
+                                        onClick = {
+                                            if (CarPlayPatchManager.removeMounts())
+                                                    isCarPlayMounted = false
+                                        },
+                                        colors =
+                                                ButtonDefaults.buttonColors(
+                                                        containerColor = Color(0xFFF44336)
+                                                ),
+                                        shape = RoundedCornerShape(8.dp)
+                                ) { Text("Desativar", color = Color.White) }
+                            }
+                            IconButton(
+                                    onClick = {
+                                        if (CarPlayPatchManager.uninstallPatches()) {
+                                            isCarPlayPatchInstalled = false
+                                            isCarPlayMounted = false
+                                        }
+                                    }
+                            ) {
+                                Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = "Remover Patch",
+                                        tint = Color.Gray
+                                )
+                            }
+                            IconButton(
+                                    onClick = {
+                                        diagnosticsText = CarPlayPatchManager.getDiagnostics()
                                         showDiagnostics = true
                                     }
                             ) {
