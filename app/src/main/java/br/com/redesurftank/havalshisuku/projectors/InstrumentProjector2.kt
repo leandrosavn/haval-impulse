@@ -72,6 +72,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private var currentCard = 0
     private var isWarningActive = false
     private val dismissedWarnings = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private var isWarningDismissed = false
+    private var lastWarningActiveTime = 0L
 
     private fun isWarningValueActive(value: String?): Boolean {
         if (value == null) return false
@@ -248,6 +250,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                             syncSecondaryDisplayApps(3)
                             MainUiManager.getInstance().handleCardChange(currentCard)
                             if (currentCard == 1 || currentCard == 3) {
+                                isWarningDismissed = false
                                 updateValuesWebView()
                             }
                         }
@@ -324,14 +327,18 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                             updateVirtualClusterVisibility()
                         }
                         ServiceManagerEventType.DISMISS_WARNING -> {
-                            evaluateJsIfReady(webView, "clearWarnings()")
-                            updateWarningUI(false)
+                            val timeSinceWarning = System.currentTimeMillis() - lastWarningActiveTime
+                            if (timeSinceWarning >= 2500) {
+                                evaluateJsIfReady(webView, "clearWarnings()")
+                                updateWarningUI(false)
+                                isWarningDismissed = true
 
-                            val sm = ServiceManager.getInstance()
-                            for (key in monitoredWarningKeys) {
-                                val value = sm.getData(key)
-                                if (isWarningValueActive(value)) {
-                                    dismissedWarnings[key] = value!!
+                                val sm = ServiceManager.getInstance()
+                                for (key in monitoredWarningKeys) {
+                                    val value = sm.getData(key)
+                                    if (isWarningValueActive(value)) {
+                                        dismissedWarnings[key] = value!!
+                                    }
                                 }
                             }
                         }
@@ -549,6 +556,12 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     val currentValue = value.toString()
                     if (dismissedWarnings[key] != currentValue) {
                         dismissedWarnings.remove(key)
+                        if (isWarningValueActive(currentValue)) {
+                            isWarningDismissed = false
+                            lastWarningActiveTime = System.currentTimeMillis()
+                            dismissedWarnings.clear()
+                            syncInitialWarnings()
+                        }
                         evaluateJsIfReady(webView, "updateWarning('$key', '$value')")
                     }
                 }
@@ -643,6 +656,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
         val updates = mutableMapOf<String, String>()
 
+        updates["cardId"] = currentCard.toString()
         updates["display"] = getSavedClusterDisplay()
 
         // Gears
@@ -843,7 +857,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 }
 
                 val actualWidth =
-                        if (displayId == 3 && (currentCard == 0 || isWarningActive)) {
+                        if (displayId == 3 && (!isWarningDismissed && (currentCard == 0 || isWarningActive))) {
                             (fullWidth * 0.7f).toInt() - baseX
                         } else {
                             baseWidth
@@ -898,7 +912,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
             val baseHeight = bounds[3] - bounds[1]
 
             val targetWidth =
-                    if (displayId == 3 && (currentCard == 0 || isWarningActive)) {
+                    if (displayId == 3 && (!isWarningDismissed && (currentCard == 0 || isWarningActive))) {
                         val calculated = (fullWidth * 0.7f).toInt() - baseX
                         kotlin.math.max(100, kotlin.math.min(baseWidth, calculated))
                     } else {
@@ -1168,6 +1182,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         // only on the actual boolean flip eliminates the loop without
         // changing semantics — the JS bridge can stay chatty; we no-op.
         if (anyWarningActive == isWarningActive) return
+
+        if (anyWarningActive && !isWarningActive) {
+            lastWarningActiveTime = System.currentTimeMillis()
+        }
 
         isWarningActive = anyWarningActive
         lastAppliedConfigs.clear() // Invalidate cache on warning toggle to force re-sync

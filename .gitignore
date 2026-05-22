@@ -43,6 +43,8 @@ REFACTORING_SUMMARY.md
 tools/
 build_*/
 tmp_*/
+scripts/.build/
+scripts/.tmp/
 !aa-patches/cluster-widgets/
 !scripts/
 !aa-patches/README.md

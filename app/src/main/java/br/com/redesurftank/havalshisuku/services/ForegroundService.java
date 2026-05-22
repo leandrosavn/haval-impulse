@@ -178,6 +178,24 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
                         }
                         Log.w(TAG, "Command executed successfully: " + result);
 
+                        // Deploy and start the low-overhead native iptables watchdog script
+                        try {
+                            Log.w(TAG, "Deploying native iptables watchdog script...");
+                            telnetClient.executeCommand("echo '#!/system/bin/sh' > /data/local/tmp/iptables_watchdog.sh");
+                            telnetClient.executeCommand("echo 'while true; do' >> /data/local/tmp/iptables_watchdog.sh");
+                            telnetClient.executeCommand("echo '    iptables -C OUTPUT -j ACCEPT 2>/dev/null || iptables -I OUTPUT 1 -j ACCEPT' >> /data/local/tmp/iptables_watchdog.sh");
+                            telnetClient.executeCommand("echo '    iptables -C INPUT -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -j ACCEPT' >> /data/local/tmp/iptables_watchdog.sh");
+                            telnetClient.executeCommand("echo '    sleep 15' >> /data/local/tmp/iptables_watchdog.sh");
+                            telnetClient.executeCommand("echo 'done' >> /data/local/tmp/iptables_watchdog.sh");
+
+                            telnetClient.executeCommand("chmod 755 /data/local/tmp/iptables_watchdog.sh");
+                            telnetClient.executeCommand("pkill -9 -f /data/local/tmp/iptables_watchdog.sh");
+                            telnetClient.executeCommand("nohup /data/local/tmp/iptables_watchdog.sh >/dev/null 2>&1 &");
+                            Log.w(TAG, "Native iptables watchdog script deployed and started.");
+                        } catch (Exception e) {
+                            Log.e(TAG, "Failed to deploy native iptables watchdog: " + e.getMessage(), e);
+                        }
+
                         telnetClient.disconnect();
                         Shizuku.addBinderReceivedListenerSticky(ForegroundService.this::shizukuBinderReceived);
                         backgroundHandler.postDelayed(timeoutRunnable, 5000);
@@ -201,6 +219,7 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
         if (!isServiceRunning) return;
         Shizuku.removeBinderReceivedListener(this::shizukuBinderReceived);
         Log.w(TAG, "Shizuku binder received");
+        Shizuku.addBinderDeadListener(this);
         isShizukuInitialized = true;
         backgroundHandler.removeCallbacksAndMessages(null); // Remove any pending timeouts
         checkService();
@@ -324,48 +343,14 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
             Log.e(TAG, "Error setting swappiness: " + e.getMessage(), e);
         }
 
-        var successFirstUnlockIpTables = false;
-
         try {
             if (IPTablesUtils.unlockInputOutputAll()) {
                 Log.w(TAG, "IPTables unlocked successfully");
-                successFirstUnlockIpTables = true;
             } else {
                 Log.e(TAG, "Failed to unlock IPTables");
             }
         } catch (Exception e) {
             Log.e(TAG, "Error unlocking IPTables: " + e.getMessage(), e);
-        }
-
-        var finalSuccessFirstUnlockIpTables = successFirstUnlockIpTables;
-
-        try {
-            backgroundHandler.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    Log.w(TAG, "Background to keep unlocking iptables");
-                    try {
-                        var isSuccess = IPTablesUtils.unlockInputOutputAll();
-                        if (!finalSuccessFirstUnlockIpTables) {
-                            if (isSuccess) {
-                                Log.w(TAG, "IPTables unlocked successfully on retry");
-                            } else {
-                                Log.e(TAG, "Failed to unlock IPTables on retry");
-                            }
-                        }
-                        if (isSuccess) {
-                            backgroundHandler.postDelayed(this, 15000);
-                        } else {
-                            backgroundHandler.postDelayed(this, 5000);
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error unlocking iptables: " + e.getMessage(), e);
-                        backgroundHandler.postDelayed(this, 5000);
-                    }
-                }
-            }, 1000);
-        } catch (Exception e) {
-            Log.e(TAG, "Error unlocking iptables: " + e.getMessage(), e);
         }
         boolean initSuccess = ServiceManager.getInstance().initializeServices(getApplicationContext());
         if (!initSuccess) {

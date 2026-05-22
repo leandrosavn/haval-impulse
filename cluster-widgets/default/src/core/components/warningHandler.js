@@ -42,6 +42,10 @@ export function initWarningHandler() {
         const cardId = stateManager.get('cardId');
         const shouldBeWarnActive = hasCriticalWarning;
 
+        if (hasCriticalWarning) {
+            stateManager.set('warningDismissed', false);
+        }
+
         if (currentActive !== hasCriticalWarning) {
             stateManager.set('warningActive', hasCriticalWarning);
         }
@@ -56,6 +60,7 @@ export function initWarningHandler() {
         logger.log('Clearing all warnings via DISMISS_WARNING');
         stateManager.set('warnings', {});
         stateManager.set('warningActive', false);
+        stateManager.set('warningDismissed', true);
         
         const cardId = stateManager.get('cardId');
 
