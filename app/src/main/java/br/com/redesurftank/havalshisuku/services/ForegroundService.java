@@ -185,7 +185,7 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
                             telnetClient.executeCommand("echo 'while true; do' >> /data/local/tmp/iptables_watchdog.sh");
                             telnetClient.executeCommand("echo '    iptables -C OUTPUT -j ACCEPT 2>/dev/null || iptables -I OUTPUT 1 -j ACCEPT' >> /data/local/tmp/iptables_watchdog.sh");
                             telnetClient.executeCommand("echo '    iptables -C INPUT -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -j ACCEPT' >> /data/local/tmp/iptables_watchdog.sh");
-                            telnetClient.executeCommand("echo '    sleep 15' >> /data/local/tmp/iptables_watchdog.sh");
+                            telnetClient.executeCommand("echo '    sleep 5' >> /data/local/tmp/iptables_watchdog.sh");
                             telnetClient.executeCommand("echo 'done' >> /data/local/tmp/iptables_watchdog.sh");
 
                             telnetClient.executeCommand("chmod 755 /data/local/tmp/iptables_watchdog.sh");

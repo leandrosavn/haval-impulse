@@ -1345,16 +1345,22 @@ public class ServiceManager {
             maxAcTimeoutRunnable = null;
         }
 
-        // Force POWER as 1 (ON) to ensure it stays ON after MAX AC finishes
-        updateData(CarConstants.CAR_HVAC_POWER_MODE.getValue(), "1");
-        updateData(CarConstants.CAR_HVAC_AC_ENABLE.getValue(), "1");
-
-        // Restores previous AC state
+        // Restores previous AC settings (excluding power/enable keys so they can be restored last)
         for (Map.Entry<String, String> entry : previousAcState.entrySet()) {
-            if (entry.getValue() != null) {
+            if (entry.getValue() != null && 
+                !entry.getKey().equals(CarConstants.CAR_HVAC_POWER_MODE.getValue()) && 
+                !entry.getKey().equals(CarConstants.CAR_HVAC_AC_ENABLE.getValue())) {
                 updateData(entry.getKey(), entry.getValue());
             }
         }
+
+        // Restore AC power mode and AC enable last to ensure the system is correctly turned ON/OFF
+        String restoredPower = previousAcState.get(CarConstants.CAR_HVAC_POWER_MODE.getValue());
+        String restoredAcEnable = previousAcState.get(CarConstants.CAR_HVAC_AC_ENABLE.getValue());
+
+        updateData(CarConstants.CAR_HVAC_AC_ENABLE.getValue(), restoredAcEnable != null ? restoredAcEnable : "1");
+        updateData(CarConstants.CAR_HVAC_POWER_MODE.getValue(), restoredPower != null ? restoredPower : "1");
+
         previousAcState.clear();
         clearPersistedMaxAcState();
         dispatchServiceManagerEvent(ServiceManagerEventType.MAX_AUTO_AC_STATUS_CHANGED, 0);
@@ -1375,9 +1381,13 @@ public class ServiceManager {
             if (tempStr == null) return;
             float currentTemp = Float.parseFloat(tempStr);
             
-            if ((currentTemp >= 85.0f || currentTemp <= -40.0f) && retryCount < 5) {
-                Log.w(TAG, "Invalid temp " + currentTemp + " at startup, delaying Max AC check... retry: " + retryCount);
-                backgroundHandler.postDelayed(() -> enableMaxAcOnWithRetry(retryCount + 1), 1000);
+            if (currentTemp >= 85.0f || currentTemp <= -40.0f) {
+                if (retryCount < 5) {
+                    Log.w(TAG, "Invalid temp " + currentTemp + " at startup, delaying Max AC check... retry: " + retryCount);
+                    backgroundHandler.postDelayed(() -> enableMaxAcOnWithRetry(retryCount + 1), 1000);
+                } else {
+                    Log.e(TAG, "Invalid temp " + currentTemp + " after max retries, aborting Max AC activation");
+                }
                 return;
             }
 
@@ -1386,6 +1396,8 @@ public class ServiceManager {
 
                 tryRestoreMaxAcState();
                 if (previousAcState.isEmpty()) {
+                    String prevPower = getUpdatedData(CarConstants.CAR_HVAC_POWER_MODE.getValue());
+                    String prevAcEnable = getUpdatedData(CarConstants.CAR_HVAC_AC_ENABLE.getValue());
                     String prevFan = getUpdatedData(CarConstants.CAR_HVAC_FAN_SPEED.getValue());
                     String prevDriverTemp = getUpdatedData(CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.getValue());
                     String prevPassTemp = getUpdatedData(CarConstants.CAR_HVAC_PASS_TEMPERATURE.getValue());
@@ -1396,6 +1408,8 @@ public class ServiceManager {
                     String prevComfortCurve = getUpdatedData(CarConstants.CAR_HVAC_SETTING_COMFORT_CURVE.getValue());
                     String prevCycleMode = getUpdatedData(CarConstants.CAR_HVAC_CYCLE_MODE.getValue());
 
+                    previousAcState.put(CarConstants.CAR_HVAC_POWER_MODE.getValue(), prevPower);
+                    previousAcState.put(CarConstants.CAR_HVAC_AC_ENABLE.getValue(), prevAcEnable);
                     previousAcState.put(CarConstants.CAR_HVAC_FAN_SPEED.getValue(), prevFan);
                     previousAcState.put(CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.getValue(), prevDriverTemp);
                     previousAcState.put(CarConstants.CAR_HVAC_PASS_TEMPERATURE.getValue(), prevPassTemp);

@@ -328,6 +328,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         }
                         ServiceManagerEventType.DISMISS_WARNING -> {
                             val timeSinceWarning = System.currentTimeMillis() - lastWarningActiveTime
+                            Log.d(TAG, "Received DISMISS_WARNING event. timeSinceWarning=${timeSinceWarning}ms (onset=${lastWarningActiveTime})")
                             if (timeSinceWarning >= 2500) {
                                 evaluateJsIfReady(webView, "clearWarnings()")
                                 updateWarningUI(false)
@@ -340,6 +341,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                         dismissedWarnings[key] = value!!
                                     }
                                 }
+                            } else {
+                                Log.w(TAG, "DISMISS_WARNING ignored: timeSinceWarning=${timeSinceWarning}ms < 2500ms lockout")
                             }
                         }
                         ServiceManagerEventType.APP_GEOMETRY_CHANGED -> {
@@ -558,7 +561,12 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         dismissedWarnings.remove(key)
                         if (isWarningValueActive(currentValue)) {
                             isWarningDismissed = false
-                            lastWarningActiveTime = System.currentTimeMillis()
+                            if (!isWarningActive) {
+                                lastWarningActiveTime = System.currentTimeMillis()
+                                Log.d(TAG, "Warning onset detected in telemetry: key=$key value=$currentValue")
+                            } else {
+                                Log.d(TAG, "Telemetry warning update for key=$key value=$currentValue (already active, preserving onset)")
+                            }
                             dismissedWarnings.clear()
                             syncInitialWarnings()
                         }
@@ -1185,6 +1193,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
         if (anyWarningActive && !isWarningActive) {
             lastWarningActiveTime = System.currentTimeMillis()
+            Log.w(TAG, "updateWarningUI: warning transition to active, setting onset time")
         }
 
         isWarningActive = anyWarningActive
