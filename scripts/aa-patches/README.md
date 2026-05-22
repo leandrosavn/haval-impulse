@@ -10,11 +10,12 @@ This directory contains everything needed to build, patch, and deploy a modified
 
 See [`patch_guide.md`](patch_guide.md) for the full v1/v2 patch breakdown, the versioning scheme, and on-vehicle verification steps.
 
-> 📋 **Before you start a patch run**: read [`../AGENTS.md`](../AGENTS.md) for the
-> repo-wide convention on where build/decompile output goes. This pipeline
-> historically uses `build_v19/` at the repo root (gitignored, working) — keep
-> using it for established workflows, but route any ad-hoc / new work through
-> `scripts/.build/` as `AGENTS.md` describes.
+> 📋 **Before you start a patch run**: read the **Working conventions** section
+> in [`../README.md`](../README.md) for the repo-wide convention on where
+> build/decompile output goes. This pipeline historically uses `build_v19/` at
+> the repo root (gitignored, working) — keep using it for established
+> workflows, but route any ad-hoc / new work through `scripts/.build/` as
+> described there.
 
 ## Versioning at a glance
 
