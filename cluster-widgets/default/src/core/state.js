@@ -1,3 +1,7 @@
+import { FORCE_MAP_DISPLAY_AS_DEFAULT_FOR_TESTS, MAP_DISPLAY_TEST_VALUE } from '../utils/testingFlags.js';
+
+var initialDisplayMode = FORCE_MAP_DISPLAY_AS_DEFAULT_FOR_TESTS ? MAP_DISPLAY_TEST_VALUE : 'Normal';
+
 function StateManager(initialState) {
     this._state = {};
     for (var key in initialState) {
@@ -80,8 +84,8 @@ var stateManager = new StateManager({
     maxauto: 0,
     impulseauto: 0, // TODO: for future implementation of AC automated control, should replace maxauto
     targetTemp: '--',
-    outside_temp: '--',
-    inside_temp: '--',
+    outside_temp: 28,
+    inside_temp: 22,
 
     // Regen screen states
     regenMode: 'Normal',
@@ -103,9 +107,11 @@ var stateManager = new StateManager({
     evPowerKwAvg: 0,
 
     // Template states
-    display: 'Normal', //Display mode, should be either Normal, Esportivo, Reduzido or Clean
+    display: initialDisplayMode, // Display mode: Normal, Esportivo, Reduzido, Clean or Mapa
     displayFocus: 'sel_template',
     appInDash: false,
+    carPlayInDash: false,
+    projectionMirrorInDash: false,
     clusterEnabled: true,
     brightness: 100,
     fuelRange: 0,

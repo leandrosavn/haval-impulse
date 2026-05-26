@@ -16,12 +16,13 @@ public class DisplaySelectionScreen implements Screen {
     private static final String[] ITEM_IDS = {
             "mode_normal",
             "mode_reduzido",
-            "mode_clean"
+            "mode_clean",
+            "mode_mapa"
     };
     private int focusedTemplateIndex = 0; // default focus on Normal
     private int focusedDisplayIndex = 0; // default selected display is Normal
 
-    private static final String[] DISPLAYS = { "Normal", "Reduzido", "Clean" };
+    private static final String[] DISPLAYS = { "Normal", "Reduzido", "Clean", "Mapa" };
 
     private int getDisplayIndex(String display) {
         for (int i = 0; i < DISPLAYS.length; i++) {
@@ -105,6 +106,9 @@ public class DisplaySelectionScreen implements Screen {
                     } else {
                         focusedDisplayIndex = 2;
                     }
+                    break;
+                case "mode_mapa":
+                    focusedDisplayIndex = 3;
                     break;
             }
             persistCurrentDisplay();

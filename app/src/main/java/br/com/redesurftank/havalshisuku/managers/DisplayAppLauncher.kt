@@ -83,7 +83,7 @@ object DisplayAppLauncher {
         ),
         DisplayAppConfig(
             packageName = "com.ts.carplay.app",
-            activityName = "com.ts.carplay.app.display.AapActivity",
+            activityName = "com.ts.carplay.app.ui.display.view.CarPlayDisplayActivity",
             displayId = 3, // Default to Cluster
             x = 0,
             y = 0,
@@ -94,16 +94,1133 @@ object DisplayAppLauncher {
     )
 
     private const val TAG = "DisplayAppLauncher"
+    private const val ANDROID_AUTO_PACKAGE = "com.ts.androidauto.app"
+    private const val ANDROID_AUTO_SERVICE_PACKAGE = "com.ts.androidauto.projectionservice"
+    private const val ANDROID_AUTO_ACTIVITY = "com.ts.androidauto.app.display.AapActivity"
+    private const val ANDROID_AUTO_SERVICE = "com.ts.androidauto.projectionservice/.AndroidAutoService"
+    private const val ANDROID_AUTO_REMOTE_SERVICE = "com.ts.androidauto.app/.AndroidAutoRemoteUiService"
+    private const val ANDROID_AUTO_START_FLAGS = "0x18000000"
+    private const val CARPLAY_PACKAGE = "com.ts.carplay.app"
+    private const val CARPLAY_ACTIVITY = "com.ts.carplay.app.ui.display.view.CarPlayDisplayActivity"
+    private const val CARPLAY_HOST_SERVICE = "com.ts.carplay/.CarPlayService"
+    private const val CARPLAY_REMOTE_SERVICE = "com.ts.carplay.app/.service.CarPlayRemoteService"
+    private const val CARPLAY_START_FLAGS = "0x18000000"
+    private const val PREF_DESIRED_CARPLAY_DISPLAY_ID = "desiredCarPlayDisplayId"
+    private const val CARPLAY_REFRESH_RENDER_ACTION = "br.com.redesurftank.havalshisuku.carplay.REFRESH_RENDER"
+    private const val CARPLAY_HEALTH_TRANSITION_GRACE_SEC = 1.2
+    private const val CARPLAY_HEALTH_RECENT_WINDOW_SEC = 2.2
+    private const val CARPLAY_HEALTH_CODEC_NOISE_THRESHOLD = 6
+    private const val CARPLAY_HEALTH_SURFACE_NOISE_THRESHOLD = 4
+    private const val CARPLAY_CLUSTER_GUARD_COOLDOWN_MS = 3_500L
+    private const val CARPLAY_WINDOW_FOCUS_GUARD_COOLDOWN_MS = 4_000L
+    private const val CARPLAY_RESTORE_PROBE_INTERVAL_MS = 300L
+    private const val CARPLAY_RESTORE_REQUIRED_DISPLAY0_MS = 800L
+    private const val CARPLAY_RESTORE_MAX_WAIT_MS = 3_000L
+    private const val CARPLAY_CLUSTER_WATCHDOG_START_DELAY_MS = 4_000L
+    private const val CARPLAY_CLUSTER_WATCHDOG_INTERVAL_MS = 1_000L
+    private const val CARPLAY_MAIN_DUPLICATE_CLEANUP_COOLDOWN_MS = 3_500L
+    private const val CARPLAY_WATCHDOG_RESTORE_COOLDOWN_MS = 3_500L
 
     private val gson = Gson()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @Volatile private var lastCarPlayClusterGuardAt = 0L
+    @Volatile private var lastCarPlayWindowFocusGuardAt = 0L
+    @Volatile private var carPlayClusterWatchdogStarted = false
+    @Volatile private var lastCarPlayMainDuplicateCleanupAt = 0L
+    @Volatile private var lastCarPlayWatchdogRestoreAt = 0L
 
     // Memory cache for app bounds per display: packageName -> Map<displayId, bounds>
     private val lastKnownDisplayBounds = mutableMapOf<String, MutableMap<Int, IntArray>>()
 
+    private data class CarPlayHealth(
+        val hasIssue: Boolean,
+        val hasCodecIssue: Boolean,
+        val hasNullSurface: Boolean,
+        val sessionDisconnected: Boolean,
+        val evidence: String
+    )
+
+    private enum class ExistingClusterCarPlayAction {
+        FULL_REFRESH,
+        VIDEO_FOCUS_ONLY,
+        VERIFY_ONLY
+    }
+
     private fun getPrefs() =
         App.getDeviceProtectedContext()
             .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
+
+    private fun isCarPlayPackage(packageName: String): Boolean = packageName == CARPLAY_PACKAGE
+
+    private fun isAndroidAutoPackage(packageName: String): Boolean = packageName == ANDROID_AUTO_PACKAGE
+
+    private fun isCarPlayLikePackage(packageName: String): Boolean {
+        val normalized = packageName.lowercase()
+        return normalized == CARPLAY_PACKAGE ||
+                normalized == "com.ts.carplay" ||
+                normalized.contains("carplay") ||
+                normalized.contains("carlink") ||
+                normalized.contains("zlink")
+    }
+
+    private fun isAndroidAutoLikePackage(packageName: String): Boolean {
+        val normalized = packageName.lowercase()
+        return normalized == ANDROID_AUTO_PACKAGE ||
+                normalized == ANDROID_AUTO_SERVICE_PACKAGE ||
+                normalized.contains("androidauto") ||
+                normalized.contains("gearhead")
+    }
+
+    fun isProjectionMirrorPackage(packageName: String): Boolean {
+        return isCarPlayLikePackage(packageName) || isAndroidAutoLikePackage(packageName)
+    }
+
+    private fun rememberCarPlayDisplayTarget(displayId: Int, reason: String) {
+        getPrefs().edit()
+            .putInt(PREF_DESIRED_CARPLAY_DISPLAY_ID, displayId)
+            .apply()
+        Log.w(TAG, "[$reason] Desired CarPlay display set to $displayId")
+    }
+
+    fun isCarPlayDesiredOnCluster(): Boolean {
+        return getPrefs().getInt(PREF_DESIRED_CARPLAY_DISPLAY_ID, -1) == 3
+    }
+
+    fun isCarPlayOnDisplay(displayId: Int): Boolean {
+        if (findTaskForPackageOnDisplay(CARPLAY_PACKAGE, displayId) != null) return true
+        if (findTaskMatchingOnDisplay(displayId, ::isCarPlayLikePackage) != null) return true
+
+        val topPackage = getTopPackageOnDisplay(displayId)
+        if (topPackage != null && isCarPlayLikePackage(topPackage)) return true
+
+        return false
+    }
+
+    fun isProjectionMirrorOnDisplay(displayId: Int): Boolean {
+        if (isCarPlayOnDisplay(displayId)) return true
+        if (findTaskForPackageOnDisplay(ANDROID_AUTO_PACKAGE, displayId) != null) return true
+        if (findTaskMatchingOnDisplay(displayId, ::isAndroidAutoLikePackage) != null) return true
+
+        val topPackage = getTopPackageOnDisplay(displayId)
+        return topPackage != null && isProjectionMirrorPackage(topPackage)
+    }
+
+    fun resolveActiveProjectionPackageForDisplay(displayId: Int): String? {
+        if (findTaskForPackageOnDisplay(CARPLAY_PACKAGE, displayId) != null) return CARPLAY_PACKAGE
+        if (findTaskMatchingOnDisplay(displayId, ::isCarPlayLikePackage) != null) return CARPLAY_PACKAGE
+
+        if (findTaskForPackageOnDisplay(ANDROID_AUTO_PACKAGE, displayId) != null) return ANDROID_AUTO_PACKAGE
+        if (findTaskMatchingOnDisplay(displayId, ::isAndroidAutoLikePackage) != null) return ANDROID_AUTO_PACKAGE
+
+        val topPackage = getTopPackageOnDisplay(displayId) ?: return null
+        return when {
+            isCarPlayLikePackage(topPackage) -> CARPLAY_PACKAGE
+            isAndroidAutoLikePackage(topPackage) -> ANDROID_AUTO_PACKAGE
+            else -> null
+        }
+    }
+
+    private fun getAndroidAutoConfigForDisplay(
+        displayId: Int,
+        source: DisplayAppConfig? = null
+    ): DisplayAppConfig {
+        val base = source
+            ?: getAppConfig(ANDROID_AUTO_PACKAGE)
+            ?: PREDEFINED_APPS.first { it.packageName == ANDROID_AUTO_PACKAGE }
+        val res = getDisplayResolution(displayId)
+        return base.copy(
+            activityName = ANDROID_AUTO_ACTIVITY,
+            displayId = displayId,
+            x = if (displayId == 0) 0 else base.x,
+            y = if (displayId == 0) 0 else base.y,
+            width = if (displayId == 0) res.first else base.width,
+            height = if (displayId == 0) res.second else base.height
+        )
+    }
+
+    private fun configureAndroidAutoProjection(reason: String) {
+        Log.w(TAG, "[$reason] Preparing Android Auto projection services")
+        sh("am startservice -n $ANDROID_AUTO_SERVICE")
+        sh("am startservice -n $ANDROID_AUTO_REMOTE_SERVICE")
+    }
+
+    private fun sendAndroidAutoFocus(displayId: Int, reason: String) {
+        Log.w(TAG, "[$reason] Sending Android Auto video focus for display $displayId")
+        sh("am broadcast -a ts.car.androidauto.view_state --es state foreground --ei displayId $displayId")
+        sh("am broadcast -a com.ts.androidauto.action.AndroidAutoService --es \"command\" \"requestVideoFocus\" --ei \"displayId\" $displayId")
+    }
+
+    private fun startAndroidAutoActivity(displayId: Int, reason: String) {
+        val escapedActivity = ANDROID_AUTO_ACTIVITY.replace("$", "\\$")
+        val command = if (displayId == 0) {
+            "am start -n $ANDROID_AUTO_PACKAGE/$escapedActivity --display 0 --windowingMode 1 -f 0x14000000"
+        } else {
+            "am start --display $displayId --windowingMode 5 --activity-multiple-task -f $ANDROID_AUTO_START_FLAGS -n $ANDROID_AUTO_PACKAGE/$escapedActivity"
+        }
+        Log.w(TAG, "[$reason] Starting Android Auto activity on display $displayId")
+        sh(command)
+    }
+
+    private fun notifyAndroidAutoDisplayHandoff(displayId: Int, previousDisplay: Int?) {
+        notifyDisplayStateChanged(displayId)
+        if (previousDisplay != null && previousDisplay != displayId) {
+            notifyDisplayStateChanged(previousDisplay)
+        }
+        if (displayId == 0) {
+            notifyDisplayStateChanged(3)
+            notifyBottomBarUpdate()
+        }
+    }
+
+    private fun resizeAndFocusAndroidAuto(
+        taskInfo: TaskInfo,
+        displayId: Int,
+        bounds: IntArray,
+        reason: String
+    ) {
+        if (displayId == 0) {
+            sh("am stack set-windowing-mode ${taskInfo.stackId} 1")
+        }
+        sh("am stack resize ${taskInfo.stackId} ${bounds[0]} ${bounds[1]} ${bounds[2]} ${bounds[3]}")
+        Thread.sleep(160)
+        sendAndroidAutoFocus(displayId, reason)
+    }
+
+    private fun bringOtherTaskInStackToFront(stackId: Int, excludePackage: String, reason: String): Boolean {
+        val otherTask = findOtherTaskInStack(stackId, excludePackage)
+        if (otherTask == null) {
+            Log.w(TAG, "[$reason] No sibling task found in stack $stackId")
+            return false
+        }
+
+        val escapedActivity = otherTask.activityName.replace("$", "\\$")
+        Log.w(
+            TAG,
+            "[$reason] Bringing sibling task ${otherTask.taskId} (${otherTask.packageName}) to front before projection display handoff"
+        )
+        sh("am start -n ${otherTask.packageName}/$escapedActivity --display ${otherTask.displayId} -f 0x14000000")
+        return true
+    }
+
+    private fun bringNonProjectionTaskOnDisplayToFront(displayId: Int, reason: String): Boolean {
+        val task = findFirstNonProjectionTaskOnDisplay(displayId)
+        if (task == null) {
+            Log.w(TAG, "[$reason] No non-projection task found on display $displayId to defocus CarPlay")
+            return false
+        }
+
+        val escapedActivity = task.activityName.replace("$", "\\$")
+        Log.w(
+            TAG,
+            "[$reason] Bringing display $displayId task ${task.taskId} (${task.packageName}) to front before CarPlay retarget"
+        )
+        sh("am start -n ${task.packageName}/$escapedActivity --display $displayId --windowingMode 1 -f 0x14000000")
+        return true
+    }
+
+    private fun closeAndroidAutoVisualStacks(reason: String, exceptStackId: Int? = null) {
+        val tasks = findAllTasksForPackage(ANDROID_AUTO_PACKAGE)
+        tasks
+            .filter { it.stackId != exceptStackId }
+            .map { it.stackId to it.displayId }
+            .distinct()
+            .forEach { (stackId, displayId) ->
+                val tasksInStack = countTasksInStack(stackId)
+                if (tasksInStack > 1) {
+                    Log.w(
+                        TAG,
+                        "[$reason] Keeping mixed Android Auto stack $stackId on display $displayId ($tasksInStack tasks)"
+                    )
+                    return@forEach
+                }
+                Log.w(TAG, "[$reason] Removing duplicate Android Auto visual stack $stackId from display $displayId")
+                sh("am stack remove $stackId")
+            }
+    }
+
+    private suspend fun startAndroidAutoOnDisplay(
+        sourceConfig: DisplayAppConfig,
+        reason: String
+    ) {
+        val config = getAndroidAutoConfigForDisplay(sourceConfig.displayId, sourceConfig)
+        val displayId = config.displayId
+        val bounds = getEffectiveBounds(config)
+        val previousDisplay = findTaskForPackage(ANDROID_AUTO_PACKAGE)?.displayId
+
+        AndroidAutoPatchManager.ensureMounted()
+        configureAndroidAutoProjection(reason)
+
+        if (displayId != 0) {
+            evictOtherAppsFromDisplay(displayId, ANDROID_AUTO_PACKAGE)
+            BottomBarState.restoredApps.remove(ANDROID_AUTO_PACKAGE)
+        } else if (!BottomBarState.restoredApps.contains(ANDROID_AUTO_PACKAGE)) {
+            BottomBarState.restoredApps.add(ANDROID_AUTO_PACKAGE)
+        }
+
+        var targetTask = findTaskForPackageOnDisplay(ANDROID_AUTO_PACKAGE, displayId)
+        if (targetTask != null) {
+            resizeAndFocusAndroidAuto(targetTask, displayId, bounds, "${reason}_ALREADY_ON_TARGET")
+            closeAndroidAutoVisualStacks("${reason}_ALREADY_ON_TARGET_CLEAN_DUPLICATES", exceptStackId = targetTask.stackId)
+            notifyAndroidAutoDisplayHandoff(displayId, previousDisplay)
+            return
+        }
+
+        val currentTask = findTaskForPackage(ANDROID_AUTO_PACKAGE)
+        if (currentTask != null && currentTask.displayId != displayId) {
+            saveCurrentBounds(ANDROID_AUTO_PACKAGE, currentTask)
+            val tasksInStack = countTasksInStack(currentTask.stackId)
+
+            if (tasksInStack > 1) {
+                Log.w(
+                    TAG,
+                    "[$reason] Android Auto is in mixed stack ${currentTask.stackId} ($tasksInStack tasks); re-targeting activity without moving sibling apps"
+                )
+                bringOtherTaskInStackToFront(currentTask.stackId, ANDROID_AUTO_PACKAGE, reason)
+                Thread.sleep(220)
+                startAndroidAutoActivity(displayId, "${reason}_MIXED_STACK_START")
+            } else {
+                Log.w(TAG, "[$reason] Moving Android Auto stack ${currentTask.stackId} to display $displayId")
+                val result = sh("am display move-stack ${currentTask.stackId} $displayId")
+                if (result.contains("Exception") || result.contains("Error")) {
+                    Log.e(TAG, "[$reason] Android Auto move-stack failed: $result")
+                    startAndroidAutoActivity(displayId, "${reason}_MOVE_FAILED_START")
+                }
+            }
+        } else {
+            startAndroidAutoActivity(displayId, "${reason}_START")
+        }
+
+        Thread.sleep(700)
+        targetTask = findTaskForPackageOnDisplay(ANDROID_AUTO_PACKAGE, displayId)
+
+        if (targetTask == null) {
+            val wrongDisplayTask = findTaskForPackage(ANDROID_AUTO_PACKAGE)
+            if (wrongDisplayTask != null && wrongDisplayTask.displayId != displayId) {
+                Log.w(
+                    TAG,
+                    "[$reason] Android Auto remained on display ${wrongDisplayTask.displayId}; retrying with visual app restart only"
+                )
+            } else {
+                Log.w(TAG, "[$reason] Android Auto task not found; retrying with visual app restart")
+            }
+
+            // Last resort for a black/stuck visual Activity. Do not force-stop
+            // com.ts.androidauto so the phone-side projection service can recover.
+            sh("am force-stop $ANDROID_AUTO_PACKAGE")
+            Thread.sleep(650)
+            configureAndroidAutoProjection("${reason}_VISUAL_RESTART")
+            startAndroidAutoActivity(displayId, "${reason}_VISUAL_RESTART")
+            Thread.sleep(900)
+            targetTask = findTaskForPackageOnDisplay(ANDROID_AUTO_PACKAGE, displayId)
+        }
+
+        if (targetTask != null) {
+            resizeAndFocusAndroidAuto(targetTask, displayId, bounds, "${reason}_POST_START")
+            closeAndroidAutoVisualStacks("${reason}_POST_START_CLEAN_DUPLICATES", exceptStackId = targetTask.stackId)
+
+            CoroutineScope(Dispatchers.IO).launch {
+                delay(500)
+                sendAndroidAutoFocus(displayId, "${reason}_POST_START_P1")
+                delay(900)
+                sendAndroidAutoFocus(displayId, "${reason}_POST_START_P2")
+            }
+        } else {
+            Log.e(TAG, "[$reason] Android Auto task was not found on display $displayId after recovery")
+        }
+
+        notifyAndroidAutoDisplayHandoff(displayId, previousDisplay)
+    }
+
+    private fun getCarPlayDisplayBounds(displayId: Int): IntArray {
+        val res = getDisplayResolution(displayId)
+        return intArrayOf(0, 0, res.first, res.second)
+    }
+
+    private fun getCarPlayConfigForDisplay(
+        displayId: Int,
+        source: DisplayAppConfig? = null
+    ): DisplayAppConfig {
+        val base = source
+            ?: getAppConfig(CARPLAY_PACKAGE)
+            ?: PREDEFINED_APPS.first { it.packageName == CARPLAY_PACKAGE }
+        val res = getDisplayResolution(displayId)
+        return base.copy(
+            activityName = CARPLAY_ACTIVITY,
+            displayId = displayId,
+            x = 0,
+            y = 0,
+            width = res.first,
+            height = res.second,
+            overrideThemeDimensions = true
+        )
+    }
+
+    private fun configureCarPlayProjection(reason: String) {
+        Log.w(TAG, "[$reason] Preparing CarPlay projection services")
+        sh("setprop persist.haval.carplay.video.height 720")
+        sh("am startservice -n $CARPLAY_HOST_SERVICE")
+        sh("am startservice -n $CARPLAY_REMOTE_SERVICE")
+    }
+
+    private fun sendCarPlayFocus(displayId: Int, reason: String) {
+        Log.w(TAG, "[$reason] Sending CarPlay video focus for display $displayId")
+        sh("am broadcast -a ts.car.carplay.view_state --es state foreground --ei displayId $displayId")
+        sh("am broadcast -a com.ts.carplay.action.VIDEO_FOCUS_CHANGE --es \"focus\" \"$CARPLAY_PACKAGE\" --ei \"displayId\" $displayId")
+    }
+
+    private fun sendCarPlayVideoFocusOnly(displayId: Int, reason: String) {
+        Log.w(TAG, "[$reason] Sending lite CarPlay video focus for display $displayId")
+        sh("am broadcast -a com.ts.carplay.action.VIDEO_FOCUS_CHANGE --es \"focus\" \"$CARPLAY_PACKAGE\" --ei \"displayId\" $displayId")
+    }
+
+    private fun sendCarPlayRenderRefresh(displayId: Int, reason: String) {
+        Log.w(TAG, "[$reason] Requesting CarPlay render refresh for display $displayId")
+        sh("am broadcast -a $CARPLAY_REFRESH_RENDER_ACTION --ei displayId $displayId")
+    }
+
+    @Synchronized
+    fun startCarPlayClusterContractWatchdog() {
+        if (carPlayClusterWatchdogStarted) return
+        carPlayClusterWatchdogStarted = true
+
+        scope.launch {
+            delay(CARPLAY_CLUSTER_WATCHDOG_START_DELAY_MS)
+            while (true) {
+                try {
+                    enforceCarPlayClusterContractFromWatchdog()
+                } catch (e: Exception) {
+                    Log.e(TAG, "[CARPLAY_CLUSTER_WATCHDOG] Failed to verify CarPlay task placement", e)
+                }
+                delay(CARPLAY_CLUSTER_WATCHDOG_INTERVAL_MS)
+            }
+        }
+        Log.w(TAG, "[CARPLAY_CLUSTER_WATCHDOG] Started")
+    }
+
+    private suspend fun enforceCarPlayClusterContractFromWatchdog() {
+        if (!isCarPlayDesiredOnCluster()) return
+
+        val tasks = findAllTasksForPackage(CARPLAY_PACKAGE)
+        if (tasks.isEmpty()) return
+
+        val clusterTask = tasks.firstOrNull { it.displayId == 3 }
+        val mainTask = tasks.firstOrNull { it.displayId == 0 }
+
+        if (clusterTask != null && mainTask != null && clusterTask.stackId != mainTask.stackId) {
+            cleanupMainDisplayCarPlayDuplicate(mainTask, clusterTask, "CARPLAY_CLUSTER_WATCHDOG")
+            return
+        }
+
+        if (clusterTask == null && mainTask != null) {
+            val now = System.currentTimeMillis()
+            if (now - lastCarPlayWatchdogRestoreAt < CARPLAY_WATCHDOG_RESTORE_COOLDOWN_MS) {
+                Log.w(
+                    TAG,
+                    "[CARPLAY_CLUSTER_WATCHDOG] Skipping direct restore because cooldown is active"
+                )
+                return
+            }
+            lastCarPlayWatchdogRestoreAt = now
+            restoreOrRefreshCarPlayClusterContract(
+                "CARPLAY_CLUSTER_WATCHDOG_DIRECT",
+                ExistingClusterCarPlayAction.VERIFY_ONLY
+            )
+        }
+    }
+
+    private fun cleanupMainDisplayCarPlayDuplicate(
+        mainTask: TaskInfo,
+        clusterTask: TaskInfo,
+        reason: String
+    ) {
+        val now = System.currentTimeMillis()
+        if (now - lastCarPlayMainDuplicateCleanupAt < CARPLAY_MAIN_DUPLICATE_CLEANUP_COOLDOWN_MS) {
+            Log.w(
+                TAG,
+                "[$reason] Skipping display 0 CarPlay duplicate cleanup because cooldown is active"
+            )
+            return
+        }
+        lastCarPlayMainDuplicateCleanupAt = now
+
+        val tasksInStack = countTasksInStack(mainTask.stackId)
+        if (tasksInStack > 1) {
+            Log.w(
+                TAG,
+                "[$reason] Preserving mixed CarPlay stack ${mainTask.stackId} on display 0 " +
+                        "($tasksInStack tasks); cluster stack ${clusterTask.stackId} remains active"
+            )
+            return
+        }
+
+        Log.w(
+            TAG,
+            "[$reason] Removing duplicate CarPlay stack ${mainTask.stackId} from display 0; " +
+                    "cluster stack ${clusterTask.stackId} remains active"
+        )
+        sh("am stack remove ${mainTask.stackId}")
+        notifyCarPlayDisplayHandoff(3, 0)
+    }
+
+    private fun startCarPlayActivity(
+        displayId: Int,
+        windowingMode: Int,
+        escapedActivity: String,
+        reason: String
+    ): String {
+        Log.w(TAG, "[$reason] Starting CarPlay on display $displayId")
+        return sh(
+            "am start --display $displayId --windowingMode $windowingMode " +
+                    "--activity-multiple-task -f $CARPLAY_START_FLAGS " +
+                    "-n $CARPLAY_PACKAGE/$escapedActivity"
+        )
+    }
+
+    private fun wasTopMostInstanceReused(commandOutput: String): Boolean {
+        val normalized = commandOutput.lowercase()
+        return normalized.contains("activity not started") &&
+                normalized.contains("currently running top-most instance")
+    }
+
+    private fun currentEpochSeconds(): Double = System.currentTimeMillis() / 1000.0
+
+    private fun logcatEpoch(line: String): Double? {
+        val token = line.trim().split(Regex("\\s+"), limit = 2).firstOrNull() ?: return null
+        return token.toDoubleOrNull()
+    }
+
+    private fun inspectCarPlayHealthSince(sinceEpoch: Double, reason: String): CarPlayHealth {
+        val logs = sh(
+            "logcat -d -v threadtime,epoch -t 800 | grep -Ei " +
+                    "'cpScreen|NdkMediaCodec|MediaCodec|jsurface|setSurface|isCarPlayConnected|mCarPlayConnected|notifyConnectedStatusChange|UsbCarplay|DeviceConnectedState|CarPlaySession|CarPlayIconManager|MC-driver|DcController' || true"
+        )
+        if (logs.isBlank()) {
+            return CarPlayHealth(false, false, false, false, "")
+        }
+
+        val recentLines = logs.lines()
+            .mapNotNull { line ->
+                val ts = logcatEpoch(line) ?: return@mapNotNull null
+                if (ts >= sinceEpoch - 1.0) line else null
+            }
+
+        if (recentLines.isEmpty()) {
+            return CarPlayHealth(false, false, false, false, "")
+        }
+
+        // Require *sustained* evidence. Native camera/AVM/HVAC focus grabs routinely
+        // produce 1-3 transient `jsurface NULL` + `dequeueInputBuffer invalid bufidx-1`
+        // lines while the host renegotiates the route — the decoder recovers on its
+        // own within a few frames. Treating those bursts as failure was triggering the
+        // destructive visual-recovery path during normal camera/AVM events, producing
+        // the user-visible cluster black-out and 3->0->3 bounce.
+        // Thresholds derived from live capture during AVM transitions: healthy bursts
+        // peaked at 3 codec lines / 2 surface lines; chronic failures sustained 5+ per
+        // category.
+        val codecIssueCount = recentLines.count { line ->
+            line.contains("invalid bufidx", ignoreCase = true) ||
+                    line.contains("sf error code: -38", ignoreCase = true) ||
+                    line.contains("errcode=-19", ignoreCase = true) ||
+                    ((line.contains("NdkMediaCodec", ignoreCase = true) ||
+                            line.contains("MediaCodec", ignoreCase = true) ||
+                            line.contains("cpScreen", ignoreCase = true)) &&
+                            (line.contains("error", ignoreCase = true) ||
+                                    line.contains("fail", ignoreCase = true) ||
+                                    line.contains("invalid", ignoreCase = true)))
+        }
+        val nullSurfaceCount = recentLines.count { line ->
+            line.contains("jsurface is NULL", ignoreCase = true) ||
+                    (line.contains("setSurface", ignoreCase = true) &&
+                            line.contains("NULL", ignoreCase = true))
+        }
+        val hasCodecIssue = codecIssueCount >= CARPLAY_HEALTH_CODEC_NOISE_THRESHOLD
+        val hasNullSurface = nullSurfaceCount >= CARPLAY_HEALTH_SURFACE_NOISE_THRESHOLD
+        val sessionDisconnected = recentLines.any { line ->
+            line.contains("isCarPlayConnected=false", ignoreCase = true) ||
+                    line.contains("mCarPlayConnected=== false", ignoreCase = true) ||
+                    line.contains("mIsCarPlayConnected === false", ignoreCase = true) ||
+                    line.contains("mDeviceConnectedState=0", ignoreCase = true)
+        }
+
+        val evidence = recentLines.takeLast(12).joinToString(" | ")
+        val health = CarPlayHealth(
+            hasIssue = hasCodecIssue || hasNullSurface || sessionDisconnected,
+            hasCodecIssue = hasCodecIssue,
+            hasNullSurface = hasNullSurface,
+            sessionDisconnected = sessionDisconnected,
+            evidence = evidence
+        )
+
+        if (health.hasIssue) {
+            Log.e(
+                TAG,
+                "[$reason] CarPlay render/session issue detected: " +
+                        "codec=${health.hasCodecIssue}, nullSurface=${health.hasNullSurface}, " +
+                        "sessionDisconnected=${health.sessionDisconnected}, evidence=[${health.evidence}]"
+            )
+        }
+
+        return health
+    }
+
+    private fun inspectRecentCarPlayHealth(
+        sinceEpoch: Double,
+        reason: String
+    ): CarPlayHealth {
+        val recentSince = maxOf(
+            sinceEpoch + CARPLAY_HEALTH_TRANSITION_GRACE_SEC,
+            currentEpochSeconds() - CARPLAY_HEALTH_RECENT_WINDOW_SEC
+        )
+        return inspectCarPlayHealthSince(recentSince, reason)
+    }
+
+    private fun recreateCarPlayVisualTask(
+        displayId: Int,
+        bounds: IntArray,
+        windowingMode: Int,
+        escapedActivity: String,
+        reason: String
+    ): TaskInfo? {
+        Log.w(TAG, "[$reason] Recreating CarPlay visual activity without restarting host")
+        configureCarPlayProjection("${reason}_PREPARE")
+        val existingTargetTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, displayId)
+        if (displayId == 0) {
+            closeCarPlayVisualStacks("${reason}_CLEAN_START")
+            Thread.sleep(250)
+        } else {
+            Log.w(
+                TAG,
+                "[$reason] Preserving existing CarPlay visual stack until display $displayId Surface is ready"
+            )
+        }
+
+        startCarPlayActivity(displayId, windowingMode, escapedActivity, "${reason}_START")
+        Thread.sleep(900)
+
+        var recreatedTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, displayId)
+        if (
+                displayId != 0 &&
+                        existingTargetTask != null &&
+                        recreatedTask != null &&
+                        recreatedTask.stackId == existingTargetTask.stackId
+        ) {
+            Log.w(
+                    TAG,
+                    "[$reason] CarPlay visual recovery reused existing target stack ${existingTargetTask.stackId}; removing stale visual stack and retrying clean start"
+            )
+            sh("am stack remove ${existingTargetTask.stackId}")
+            Thread.sleep(300)
+            startCarPlayActivity(
+                    displayId,
+                    windowingMode,
+                    escapedActivity,
+                    "${reason}_RETRY_AFTER_TARGET_REMOVE"
+            )
+            Thread.sleep(900)
+            recreatedTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, displayId)
+        }
+        if (recreatedTask != null) {
+            resizeAndFocusCarPlay(recreatedTask, displayId, bounds, "${reason}_POST_START")
+            closeCarPlayVisualStacks("${reason}_POST_START_CLEAN_DUPLICATES", exceptStackId = recreatedTask.stackId)
+            recreatedTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, displayId) ?: recreatedTask
+        } else {
+            Log.e(TAG, "[$reason] CarPlay task was not found after visual recreation")
+        }
+        return recreatedTask
+    }
+
+    private fun recoverCarPlayRenderIfNeeded(
+        displayId: Int,
+        bounds: IntArray,
+        windowingMode: Int,
+        escapedActivity: String,
+        sinceEpoch: Double,
+        reason: String
+    ): TaskInfo? {
+        // Hard rule: if the CarPlay Activity is alive on the target display, never run the
+        // destructive visual-recovery path. `jsurface is NULL` / `dequeueInputBuffer invalid
+        // bufidx-1` are normal transient decoder noise during native camera/AVM/HVAC focus
+        // grabs — the host renegotiates the route on its own within a couple of frames.
+        // Recreating the stack at this moment was producing the very black-out + 3->0->3
+        // bounce users reported (logs: AVM_PREVIEW_STATUS_1_..._RESTORE_CLUSTER_VISUAL_RECOVERY
+        // tearing down stack 22, then `am start` returning "delivered to currently running
+        // top-most instance", then `am stack remove` of the live stack). Only emit a light
+        // refresh broadcast and bail out.
+        val liveTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, displayId)
+        if (liveTask != null) {
+            sendCarPlayRenderRefresh(displayId, "${reason}_RENDER_REFRESH_LITE")
+            Log.w(
+                TAG,
+                "[$reason] CarPlay Activity alive on display $displayId (stack ${liveTask.stackId}); skipping visual recovery to avoid tearing down a healthy decoder"
+            )
+            return liveTask
+        }
+
+        sendCarPlayRenderRefresh(displayId, "${reason}_RENDER_REFRESH_RETRY")
+        sendCarPlayFocus(displayId, "${reason}_FOCUS_RETRY")
+        Thread.sleep(650)
+
+        var health = inspectRecentCarPlayHealth(sinceEpoch, "${reason}_HEALTH_CHECK_AFTER_RETRY")
+        if (!health.hasIssue) return null
+
+        // Visual recreation is only worth attempting when evidence points to decoder/surface failure.
+        // Session disconnect alone is often a USB/transport state and should not trigger restarts.
+        if (!health.hasCodecIssue && !health.hasNullSurface) {
+            Log.w(
+                TAG,
+                "[$reason] Skipping CarPlay visual recovery: session disconnect without codec/surface failure evidence"
+            )
+            return null
+        }
+
+        // Even with codec/surface evidence, double-check the task hasn't reappeared on the
+        // target display during the retry window — by the time we get here, the native UI
+        // transition may have completed and the Activity is fine again.
+        val taskAfterRetry = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, displayId)
+        if (taskAfterRetry != null) {
+            Log.w(
+                TAG,
+                "[$reason] CarPlay Activity reappeared on display $displayId (stack ${taskAfterRetry.stackId}) after retry; skipping visual recovery"
+            )
+            return taskAfterRetry
+        }
+
+        val visualRecoveryTask = recreateCarPlayVisualTask(
+            displayId = displayId,
+            bounds = bounds,
+            windowingMode = windowingMode,
+            escapedActivity = escapedActivity,
+            reason = "${reason}_VISUAL_RECOVERY"
+        )
+        if (visualRecoveryTask != null) {
+            Thread.sleep(850)
+            health = inspectRecentCarPlayHealth(sinceEpoch, "${reason}_VISUAL_RECOVERY_HEALTH_CHECK")
+            if (!health.hasIssue || (!health.hasCodecIssue && !health.hasNullSurface)) {
+                Log.w(TAG, "[$reason] CarPlay visual recovery succeeded without host restart")
+                return visualRecoveryTask
+            }
+        }
+
+        Log.e(
+            TAG,
+            "[$reason] CarPlay decoder/surface errors persisted after visual recovery; " +
+                    "skipping host restart during handoff to avoid USB/session reset"
+        )
+        return visualRecoveryTask
+    }
+
+    private fun closeCarPlayVisualStacks(reason: String, exceptStackId: Int? = null): Set<Int> {
+        val tasks = findAllTasksForPackage(CARPLAY_PACKAGE)
+        if (tasks.isEmpty()) return emptySet()
+
+        val affectedDisplays = mutableSetOf<Int>()
+        tasks
+            .filter { it.stackId != exceptStackId }
+            .map { it.stackId to it.displayId }
+            .distinct()
+            .forEach { (stackId, displayId) ->
+                affectedDisplays.add(displayId)
+                val tasksInStack = countTasksInStack(stackId)
+                if (tasksInStack > 1) {
+                    Log.w(
+                        TAG,
+                        "[$reason] Preserving mixed CarPlay stack $stackId on display $displayId ($tasksInStack tasks)"
+                    )
+                    return@forEach
+                }
+                Log.w(TAG, "[$reason] Removing CarPlay visual stack $stackId from display $displayId")
+                sh("am stack remove $stackId")
+            }
+        return affectedDisplays
+    }
+
+    private fun notifyCarPlayDisplayHandoff(displayId: Int, previousDisplay: Int?) {
+        notifyDisplayStateChanged(displayId)
+        if (previousDisplay != null && previousDisplay != displayId) {
+            notifyDisplayStateChanged(previousDisplay)
+        }
+        if (displayId == 0) {
+            notifyDisplayStateChanged(3)
+            notifyBottomBarUpdate()
+        }
+    }
+
+    private fun resizeAndFocusCarPlay(
+        taskInfo: TaskInfo,
+        displayId: Int,
+        bounds: IntArray,
+        reason: String
+    ) {
+        if (displayId == 0) {
+            sh("am stack set-windowing-mode ${taskInfo.stackId} 1")
+        }
+        sh("am stack resize ${taskInfo.stackId} ${bounds[0]} ${bounds[1]} ${bounds[2]} ${bounds[3]}")
+        sendCarPlayRenderRefresh(displayId, reason)
+        Thread.sleep(120)
+        sendCarPlayFocus(displayId, reason)
+    }
+
+    private suspend fun restoreOrRefreshCarPlayClusterContract(
+        reason: String,
+        existingClusterAction: ExistingClusterCarPlayAction
+    ) {
+        if (!isCarPlayDesiredOnCluster()) return
+
+        if (existingClusterAction == ExistingClusterCarPlayAction.FULL_REFRESH) {
+            configureCarPlayProjection("${reason}_KEEPALIVE")
+        }
+
+        val clusterTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 3)
+        if (clusterTask != null) {
+            when (existingClusterAction) {
+                ExistingClusterCarPlayAction.FULL_REFRESH -> {
+                    resizeAndFocusCarPlay(
+                        clusterTask,
+                        3,
+                        getCarPlayDisplayBounds(3),
+                        "${reason}_REFRESH_CLUSTER"
+                    )
+                }
+                ExistingClusterCarPlayAction.VIDEO_FOCUS_ONLY,
+                ExistingClusterCarPlayAction.VERIFY_ONLY -> {
+                    // Contract rule 21: when the real CarPlay task is on cluster 3, the
+                    // guard must not steal the video route. Sending VIDEO_FOCUS_CHANGE
+                    // here on the live headunit was renegotiating the decoder route
+                    // (cpScreen/NdkMediaCodec) for camera/AC/window-focus events,
+                    // producing a 1-2 frame black-out on the cluster. Reduce the
+                    // primary-pass to a verify too.
+                    Log.w(
+                        TAG,
+                        "[$reason] CarPlay live on display 3 (stack ${clusterTask.stackId}); guard verify-only, no broadcast"
+                    )
+                }
+            }
+            return
+        }
+
+        val mainTask = waitForSustainedCarPlayOnMainDisplay(reason) ?: return
+        Log.w(
+            TAG,
+            "[$reason] Desired CarPlay target is cluster 3 but visual task sustained on display 0 " +
+                    "(stack ${mainTask.stackId}); restoring cluster"
+        )
+        startCarPlayOnDisplay(
+            getCarPlayConfigForDisplay(3),
+            "${reason}_RESTORE_CLUSTER",
+            rememberTarget = false
+        )
+    }
+
+    private suspend fun waitForSustainedCarPlayOnMainDisplay(reason: String): TaskInfo? {
+        val deadline = System.currentTimeMillis() + CARPLAY_RESTORE_MAX_WAIT_MS
+        var firstMainSeenAt: Long? = null
+        var lastMainTask: TaskInfo? = null
+
+        while (System.currentTimeMillis() <= deadline) {
+            val clusterTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 3)
+            if (clusterTask != null) {
+                Log.w(
+                    TAG,
+                    "[$reason] CarPlay re-appeared on cluster 3 (stack ${clusterTask.stackId}); skipping restore"
+                )
+                return null
+            }
+
+            val mainTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 0)
+            if (mainTask != null) {
+                lastMainTask = mainTask
+                val firstSeen = firstMainSeenAt ?: System.currentTimeMillis().also { firstMainSeenAt = it }
+                val sustainedMs = System.currentTimeMillis() - firstSeen
+                if (sustainedMs >= CARPLAY_RESTORE_REQUIRED_DISPLAY0_MS) {
+                    return mainTask
+                }
+                Log.w(
+                    TAG,
+                    "[$reason] CarPlay visible on display 0 for ${sustainedMs}ms; waiting for sustained state before restore"
+                )
+            } else {
+                if (firstMainSeenAt != null) {
+                    Log.w(TAG, "[$reason] CarPlay left display 0 before restore threshold; resetting probe")
+                }
+                firstMainSeenAt = null
+                lastMainTask = null
+                Log.w(TAG, "[$reason] Desired CarPlay target is cluster 3 but no visual task is active; probing")
+            }
+
+            delay(CARPLAY_RESTORE_PROBE_INTERVAL_MS)
+        }
+
+        if (lastMainTask != null) {
+            Log.w(
+                TAG,
+                "[$reason] CarPlay was seen on display 0 but did not remain stable long enough; skipping restore"
+            )
+        } else {
+            Log.w(TAG, "[$reason] Desired CarPlay target is cluster 3 but no visual task became active")
+        }
+        return null
+    }
+
+    fun preserveCarPlayClusterContract(reason: String) {
+        if (!isCarPlayDesiredOnCluster()) return
+
+        val now = System.currentTimeMillis()
+        if (now - lastCarPlayClusterGuardAt < CARPLAY_CLUSTER_GUARD_COOLDOWN_MS) {
+            Log.w(TAG, "[$reason] Skipping CarPlay cluster guard because cooldown is active")
+            return
+        }
+        lastCarPlayClusterGuardAt = now
+
+        scope.launch {
+            // Two passes, both verify-only: when the CarPlay task is live on display 3
+            // we must not broadcast VIDEO_FOCUS_CHANGE (it renegotiates the decoder
+            // route and blinks the cluster black during camera/AC/app transitions).
+            // The 0->3 restore inside restoreOrRefreshCarPlayClusterContract still
+            // kicks in if the task actually settles on display 0.
+            delay(900)
+            restoreOrRefreshCarPlayClusterContract(
+                "${reason}_CONTRACT_PRIMARY",
+                ExistingClusterCarPlayAction.VERIFY_ONLY
+            )
+
+            delay(1800)
+            restoreOrRefreshCarPlayClusterContract(
+                "${reason}_CONTRACT_VERIFY",
+                ExistingClusterCarPlayAction.VERIFY_ONLY
+            )
+        }
+    }
+
+    private fun preserveCarPlayClusterContractAfterWindowChange(packageName: String) {
+        if (!isCarPlayDesiredOnCluster()) return
+        if (packageName == App.getContext().packageName || isProjectionMirrorPackage(packageName)) return
+
+        val now = System.currentTimeMillis()
+        if (now - lastCarPlayWindowFocusGuardAt < CARPLAY_WINDOW_FOCUS_GUARD_COOLDOWN_MS) {
+            Log.w(TAG, "[WINDOW_CHANGE_$packageName] Skipping CarPlay window guard because cooldown is active")
+            return
+        }
+        lastCarPlayWindowFocusGuardAt = now
+
+        val safePackage = packageName.replace(Regex("[^A-Za-z0-9_.-]"), "_").take(80)
+        scope.launch {
+            // Native AC/camera/AVM/HVAC window-focus events on display 0 must not
+            // touch the CarPlay video route while the task is live on display 3.
+            // Even a "lite" VIDEO_FOCUS_CHANGE broadcast was enough to bump the
+            // decoder and produce a visible black-out on the cluster. Both passes
+            // are verify-only — the 0->3 restore path inside
+            // restoreOrRefreshCarPlayClusterContract still triggers if the task
+            // actually moved to display 0.
+            delay(1100)
+            restoreOrRefreshCarPlayClusterContract(
+                "WINDOW_CHANGE_${safePackage}_CONTRACT_PRIMARY",
+                ExistingClusterCarPlayAction.VERIFY_ONLY
+            )
+
+            delay(2200)
+            restoreOrRefreshCarPlayClusterContract(
+                "WINDOW_CHANGE_${safePackage}_CONTRACT_VERIFY",
+                ExistingClusterCarPlayAction.VERIFY_ONLY
+            )
+        }
+    }
+
+    private suspend fun startCarPlayOnDisplay(
+        sourceConfig: DisplayAppConfig,
+        reason: String,
+        rememberTarget: Boolean = true
+    ) {
+        val config = getCarPlayConfigForDisplay(sourceConfig.displayId, sourceConfig)
+        val displayId = config.displayId
+        val bounds = getCarPlayDisplayBounds(displayId)
+        val previousDisplay = findTaskForPackage(CARPLAY_PACKAGE)?.displayId
+        val handoffStartedEpoch = currentEpochSeconds()
+        val escapedActivity = CARPLAY_ACTIVITY.replace("$", "\\$")
+        val windowingMode = if (displayId == 0) 1 else 5
+
+        if (rememberTarget) {
+            rememberCarPlayDisplayTarget(displayId, reason)
+        }
+
+        val currentTask = findTaskForPackage(CARPLAY_PACKAGE)
+        if (displayId != 0 && currentTask != null && currentTask.displayId != displayId) {
+            saveCurrentBounds(CARPLAY_PACKAGE, currentTask)
+            val tasksInStack = countTasksInStack(currentTask.stackId)
+            if (tasksInStack > 1) {
+                Log.w(
+                    TAG,
+                    "[$reason] CarPlay is in mixed stack ${currentTask.stackId} ($tasksInStack tasks); bringing sibling task to front before retargeting"
+                )
+                if (bringOtherTaskInStackToFront(currentTask.stackId, CARPLAY_PACKAGE, reason)) {
+                    Thread.sleep(220)
+                }
+            }
+        }
+
+        if (displayId != 0) {
+            evictOtherAppsFromDisplay(displayId, CARPLAY_PACKAGE)
+            BottomBarState.restoredApps.remove(CARPLAY_PACKAGE)
+        } else if (!BottomBarState.restoredApps.contains(CARPLAY_PACKAGE)) {
+            BottomBarState.restoredApps.add(CARPLAY_PACKAGE)
+        }
+
+        configureCarPlayProjection(reason)
+
+        if (displayId == 0) {
+            val liveSecondaryTask = findAllTasksForPackage(CARPLAY_PACKAGE)
+                .firstOrNull { it.displayId != 0 }
+            if (liveSecondaryTask != null) {
+                Log.w(
+                    TAG,
+                    "[$reason] Moving live CarPlay stack ${liveSecondaryTask.stackId} from display ${liveSecondaryTask.displayId} to display 0"
+                )
+                sh("am display move-stack ${liveSecondaryTask.stackId} 0")
+                Thread.sleep(700)
+
+                var movedTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 0)
+                if (movedTask != null) {
+                    resizeAndFocusCarPlay(movedTask, displayId, bounds, "${reason}_MOVE_TO_MAIN")
+                    closeCarPlayVisualStacks("${reason}_MOVE_TO_MAIN_CLEAN_DUPLICATES", exceptStackId = movedTask.stackId)
+                    movedTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 0) ?: movedTask
+                    val recoveredTask = recoverCarPlayRenderIfNeeded(
+                        displayId = displayId,
+                        bounds = bounds,
+                        windowingMode = windowingMode,
+                        escapedActivity = escapedActivity,
+                        sinceEpoch = handoffStartedEpoch,
+                        reason = "${reason}_MOVE_TO_MAIN"
+                    )
+                    if (recoveredTask != null) {
+                        movedTask = recoveredTask
+                    }
+                    Log.w(TAG, "[$reason] CarPlay live stack restored on display 0 as stack ${movedTask.stackId}")
+                    notifyCarPlayDisplayHandoff(displayId, previousDisplay)
+                    return
+                }
+
+                Log.e(
+                    TAG,
+                    "[$reason] move-stack did not place CarPlay on display 0; falling back to clean recreate"
+                )
+            }
+        }
+
+        if (displayId == 0) {
+            closeCarPlayVisualStacks("${reason}_CLEAN_START")
+            Thread.sleep(250)
+        } else {
+            Log.w(
+                TAG,
+                "[$reason] Preserving existing CarPlay visual stack until display $displayId Surface is ready"
+            )
+        }
+
+        Log.w(TAG, "[$reason] Starting CarPlay on display $displayId fullscreen=[${bounds.joinToString(",")}]")
+        var startResult = startCarPlayActivity(displayId, windowingMode, escapedActivity, reason)
+
+        Thread.sleep(700)
+        var taskInfo = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, displayId)
+
+        if (taskInfo == null) {
+            val wrongDisplayTask = findTaskForPackage(CARPLAY_PACKAGE)
+            if (wrongDisplayTask != null && wrongDisplayTask.displayId != displayId) {
+                Log.w(
+                    TAG,
+                    "[$reason] CarPlay reopened on display ${wrongDisplayTask.displayId}; recreating once on $displayId"
+                )
+                val reusedTopMost = wasTopMostInstanceReused(startResult)
+                if (displayId != 0 && reusedTopMost) {
+                    val tasksInStack = countTasksInStack(wrongDisplayTask.stackId)
+                    if (tasksInStack > 1 && bringOtherTaskInStackToFront(wrongDisplayTask.stackId, CARPLAY_PACKAGE, "${reason}_RETRY_AFTER_SIBLING_FRONT")) {
+                        Thread.sleep(220)
+                        configureCarPlayProjection("${reason}_RETRY_AFTER_SIBLING_FRONT")
+                        startResult = startCarPlayActivity(
+                            displayId,
+                            windowingMode,
+                            escapedActivity,
+                            "${reason}_RETRY_AFTER_SIBLING_FRONT"
+                        )
+                        Thread.sleep(700)
+                        taskInfo = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, displayId)
+                    }
+
+                    if (
+                        taskInfo == null &&
+                                bringNonProjectionTaskOnDisplayToFront(
+                                    wrongDisplayTask.displayId,
+                                    "${reason}_RETRY_AFTER_TOPMOST_REUSE"
+                                )
+                    ) {
+                        Thread.sleep(220)
+                        configureCarPlayProjection("${reason}_RETRY_AFTER_TOPMOST_REUSE")
+                        startResult = startCarPlayActivity(
+                            displayId,
+                            windowingMode,
+                            escapedActivity,
+                            "${reason}_RETRY_AFTER_TOPMOST_REUSE"
+                        )
+                        Thread.sleep(700)
+                        taskInfo = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, displayId)
+                    }
+
+                    if (taskInfo == null) {
+                        Log.e(
+                            TAG,
+                            "[$reason] ActivityManager reused the top-most CarPlay instance on display ${wrongDisplayTask.displayId}; no task was created on display $displayId"
+                        )
+                        notifyCarPlayDisplayHandoff(displayId, previousDisplay)
+                        return
+                    }
+                }
+
+                if (taskInfo != null) {
+                    // Retry after sibling front succeeded.
+                } else if (displayId == 0) {
+                    sh("am stack remove ${wrongDisplayTask.stackId}")
+                    Thread.sleep(250)
+                    configureCarPlayProjection("${reason}_RETRY")
+                    startResult = startCarPlayActivity(displayId, windowingMode, escapedActivity, "${reason}_RETRY")
+                    Thread.sleep(700)
+                    taskInfo = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, displayId)
+                } else {
+                    Log.w(
+                        TAG,
+                        "[$reason] Preserving wrong-display CarPlay stack ${wrongDisplayTask.stackId} during retry"
+                    )
+                    if (!reusedTopMost) {
+                        configureCarPlayProjection("${reason}_RETRY")
+                        startResult = startCarPlayActivity(displayId, windowingMode, escapedActivity, "${reason}_RETRY")
+                        Thread.sleep(700)
+                        taskInfo = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, displayId)
+                    } else {
+                        Log.e(
+                            TAG,
+                            "[$reason] Skipping aggressive retry because CarPlay remained top-most on display ${wrongDisplayTask.displayId}"
+                        )
+                    }
+                }
+            }
+        }
+
+        if (taskInfo != null) {
+            resizeAndFocusCarPlay(taskInfo, displayId, bounds, "${reason}_POST_START")
+            closeCarPlayVisualStacks("${reason}_POST_START_CLEAN_DUPLICATES", exceptStackId = taskInfo.stackId)
+            taskInfo = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, displayId) ?: taskInfo
+        } else {
+            Log.e(TAG, "[$reason] CarPlay task was not found on display $displayId after start")
+        }
+
+        recoverCarPlayRenderIfNeeded(
+            displayId = displayId,
+            bounds = bounds,
+            windowingMode = windowingMode,
+            escapedActivity = escapedActivity,
+            sinceEpoch = handoffStartedEpoch,
+            reason = reason
+        )
+
+        notifyCarPlayDisplayHandoff(displayId, previousDisplay)
+    }
 
     /**
      * Resolves the label and icon for a given package name, handling pre-defined apps as first-class items.
@@ -269,6 +1386,10 @@ object DisplayAppLauncher {
     }
 
     fun getEffectiveBounds(config: DisplayAppConfig): IntArray {
+        if (isCarPlayPackage(config.packageName)) {
+            return getCarPlayDisplayBounds(config.displayId)
+        }
+
         val prefs = getPrefs()
         val virtualClusterEnabled = prefs.getBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, true)
 
@@ -321,6 +1442,15 @@ object DisplayAppLauncher {
 
     suspend fun launchApp(config: DisplayAppConfig) {
         withContext(Dispatchers.IO) {
+            if (isCarPlayPackage(config.packageName)) {
+                startCarPlayOnDisplay(config, "LAUNCH_APP")
+                return@withContext
+            }
+            if (isAndroidAutoPackage(config.packageName)) {
+                startAndroidAutoOnDisplay(config, "LAUNCH_APP")
+                return@withContext
+            }
+
             // Any fresh launch clears the 'Restored' status to ensure standard layout
             // SnapshotStateList operations are thread-safe and can run here
             if (BottomBarState.restoredApps.contains(config.packageName)) {
@@ -391,10 +1521,15 @@ object DisplayAppLauncher {
      */
     suspend fun resizeApp(config: DisplayAppConfig) = withContext(Dispatchers.IO) {
         try {
-            val x = config.x
-            val y = config.y
-            val right = config.x + config.width
-            val bottom = config.y + config.height
+            val bounds = if (isCarPlayPackage(config.packageName)) {
+                getCarPlayDisplayBounds(config.displayId)
+            } else {
+                intArrayOf(config.x, config.y, config.x + config.width, config.y + config.height)
+            }
+            val x = bounds[0]
+            val y = bounds[1]
+            val right = bounds[2]
+            val bottom = bounds[3]
             
             val stackId = findStackIdForPackage(config.packageName, config.displayId)
             if (stackId != null) {
@@ -478,6 +1613,13 @@ object DisplayAppLauncher {
      */
     suspend fun killApp(packageName: String) = withContext(Dispatchers.IO) {
         try {
+            if (isCarPlayPackage(packageName)) {
+                closeCarPlayVisualStacks("KILL_APP_KEEP_CARPLAY_SESSION")
+                configureCarPlayProjection("KILL_APP_KEEP_CARPLAY_SESSION")
+                notifyDisplayStateChanged(3)
+                return@withContext
+            }
+
             sh("am force-stop $packageName")
             notifyDisplayStateChanged(3) // Check Display 3 specifically as it's our focus
         } catch (e: Exception) {
@@ -495,6 +1637,7 @@ object DisplayAppLauncher {
     private fun notifyBottomBarUpdate() {
         Log.w(TAG, "Triggering immediate BottomBar overscan refresh")
         val intent = Intent("br.com.redesurftank.havalshisuku.UPDATE_BAR_POSITION")
+            .setPackage(App.getContext().packageName)
         App.getContext().sendBroadcast(intent)
     }
 
@@ -509,6 +1652,15 @@ object DisplayAppLauncher {
      */
     suspend fun launchAnyApp(context: Context, packageName: String, activityName: String? = null) = withContext(Dispatchers.IO) {
         try {
+            if (isCarPlayPackage(packageName)) {
+                startCarPlayOnDisplay(getCarPlayConfigForDisplay(0), "LAUNCH_MAIN_ICON")
+                return@withContext
+            }
+            if (isAndroidAutoPackage(packageName)) {
+                startAndroidAutoOnDisplay(getAndroidAutoConfigForDisplay(0), "LAUNCH_MAIN_ICON")
+                return@withContext
+            }
+
             // First try to find if it's already on another display and move it
             val taskInfo = findTaskForPackage(packageName)
             if (taskInfo != null && taskInfo.displayId != 0) {
@@ -568,6 +1720,7 @@ object DisplayAppLauncher {
 
                         // Force BottomBar to re-apply overscan immediately
                         notifyBottomBarUpdate()
+                        preserveCarPlayClusterContract("LAUNCH_MAIN_AFTER_MOVE_$packageName")
                         return@withContext
                     }
                 }
@@ -606,6 +1759,7 @@ object DisplayAppLauncher {
                     Log.e(TAG, "Could not launch $packageName: no launcher intent and no known activityName")
                 }
             }
+            preserveCarPlayClusterContract("LAUNCH_MAIN_AFTER_START_$packageName")
         } catch (e: Exception) {
             Log.e(TAG, "Error launching $packageName", e)
         }
@@ -670,6 +1824,17 @@ object DisplayAppLauncher {
             val pkg = findPackageNameForStack(stackId, stackList)
             Log.w(TAG, "Moving stack $stackId ($pkg) from display $displayId to display 0")
 
+            if (pkg != null && isCarPlayPackage(pkg)) {
+                movedPackages.add(pkg)
+                startCarPlayOnDisplay(getCarPlayConfigForDisplay(0), "BRING_ALL_TO_MAIN_CARPLAY")
+                continue
+            }
+            if (pkg != null && isAndroidAutoPackage(pkg)) {
+                movedPackages.add(pkg)
+                startAndroidAutoOnDisplay(getAndroidAutoConfigForDisplay(0), "BRING_ALL_TO_MAIN_ANDROID_AUTO")
+                continue
+            }
+
             val result = sh("am display move-stack $stackId 0")
             if (result.contains("Exception") || result.contains("Error")) {
                 Log.e(TAG, "Failed to move stack $stackId: $result")
@@ -730,6 +1895,15 @@ object DisplayAppLauncher {
      */
     suspend fun sendToDisplay(config: DisplayAppConfig) = withContext(Dispatchers.IO) {
         try {
+            if (isCarPlayPackage(config.packageName)) {
+                startCarPlayOnDisplay(config, "SEND_TO_DISPLAY")
+                return@withContext
+            }
+            if (isAndroidAutoPackage(config.packageName)) {
+                startAndroidAutoOnDisplay(config, "SEND_TO_DISPLAY")
+                return@withContext
+            }
+
             val bounds = getEffectiveBounds(config)
 
             // Already on target display — just resize
@@ -836,6 +2010,41 @@ object DisplayAppLauncher {
         for (stackId in stacksToEvict) {
             val pkg = findPackageNameForStack(stackId, stackList)
             if (pkg == null || pkg == excludePackage || pkg == "com.android.systemui") continue
+
+            if (isCarPlayPackage(pkg)) {
+                Log.w(TAG, "Evicting CarPlay visual stack $stackId from display $displayId without force-stop")
+                sh("am stack remove $stackId")
+                continue
+            }
+            if (isAndroidAutoPackage(pkg)) {
+                Log.w(TAG, "Evicting Android Auto stack $stackId from display $displayId to display 0 without stopping projection service")
+                val task = findTaskForPackage(pkg)
+                if (task != null) {
+                    saveCurrentBounds(pkg, task)
+                }
+                val result = sh("am display move-stack $stackId 0")
+                if (result.contains("Exception") || result.contains("Error")) {
+                    Log.e(TAG, "Failed to evict Android Auto: $result")
+                    continue
+                }
+
+                val movedTask = findTaskForPackageOnDisplay(ANDROID_AUTO_PACKAGE, 0)
+                if (movedTask != null) {
+                    val res = getDisplayResolution(0)
+                    val effectiveHeight = applyOverscanToDisplay0Height(pkg, res.second)
+                    resizeAndFocusAndroidAuto(
+                        movedTask,
+                        0,
+                        intArrayOf(0, 0, res.first, effectiveHeight),
+                        "EVICTION_ANDROID_AUTO"
+                    )
+                }
+
+                if (!BottomBarState.restoredApps.contains(pkg)) {
+                    BottomBarState.restoredApps.add(pkg)
+                }
+                continue
+            }
             
             Log.w(TAG, "Evicting $pkg (stack $stackId) from display $displayId → display 0")
             
@@ -1017,7 +2226,101 @@ object DisplayAppLauncher {
     }
 
     private data class StackInfo(val stackId: Int, val windowingMode: String, val isFreeform: Boolean)
+    private data class StackTaskInfo(
+        val taskId: Int,
+        val packageName: String,
+        val activityName: String,
+        val displayId: Int
+    )
     data class TaskInfo(val taskId: Int, val stackId: Int, val displayId: Int, val bounds: IntArray? = null)
+
+    private fun findTaskMatchingOnDisplay(displayId: Int, matcher: (String) -> Boolean): TaskInfo? {
+        return findTaskMatching { packageName, taskDisplayId ->
+            taskDisplayId == displayId && matcher(packageName)
+        }
+    }
+
+    private fun findTaskMatching(matcher: (String, Int) -> Boolean): TaskInfo? {
+        var currentStackId: Int? = null
+        var currentDisplayId: Int? = null
+        var currentBounds: IntArray? = null
+
+        for (line in getStackList().lines()) {
+            val stackMatch = Regex("""Stack id=(\d+).*displayId=(\d+)""").find(line)
+            if (stackMatch != null) {
+                currentStackId = stackMatch.groupValues[1].toIntOrNull()
+                currentDisplayId = stackMatch.groupValues[2].toIntOrNull()
+                val boundsMatch = Regex("""[m]?bounds=\[(\d+),(\d+)\]\[(\d+),(\d+)\]""").find(line)
+                currentBounds = if (boundsMatch != null) {
+                    intArrayOf(
+                        boundsMatch.groupValues[1].toInt(),
+                        boundsMatch.groupValues[2].toInt(),
+                        boundsMatch.groupValues[3].toInt(),
+                        boundsMatch.groupValues[4].toInt()
+                    )
+                } else {
+                    currentDisplayId?.let { id ->
+                        val res = getDisplayResolution(id)
+                        intArrayOf(0, 0, res.first, res.second)
+                    }
+                }
+                continue
+            }
+
+            val taskMatch = Regex("""taskId=(\d+):\s*([a-zA-Z0-9._]+)/""").find(line)
+            if (taskMatch != null && currentStackId != null && currentDisplayId != null) {
+                val taskId = taskMatch.groupValues[1].toIntOrNull() ?: continue
+                val packageName = taskMatch.groupValues[2]
+                val displayIdForTask = currentDisplayId ?: continue
+                if (matcher(packageName, displayIdForTask)) {
+                    return TaskInfo(taskId, currentStackId!!, displayIdForTask, currentBounds)
+                }
+            }
+        }
+
+        return null
+    }
+
+    private fun findAllTasksForPackage(packageName: String, stackList: String = getStackList()): List<TaskInfo> {
+        val tasks = mutableListOf<TaskInfo>()
+        var currentStackId: Int? = null
+        var currentDisplayId: Int? = null
+        var currentBounds: IntArray? = null
+
+        for (line in stackList.lines()) {
+            val stackMatch = Regex("""Stack id=(\d+).*displayId=(\d+)""").find(line)
+            if (stackMatch != null) {
+                currentStackId = stackMatch.groupValues[1].toIntOrNull()
+                currentDisplayId = stackMatch.groupValues[2].toIntOrNull()
+                val bMatch = Regex("""[m]?bounds=\[(\d+),(\d+)\]\[(\d+),(\d+)\]""").find(line)
+                currentBounds = if (bMatch != null) {
+                    intArrayOf(
+                        bMatch.groupValues[1].toInt(),
+                        bMatch.groupValues[2].toInt(),
+                        bMatch.groupValues[3].toInt(),
+                        bMatch.groupValues[4].toInt()
+                    )
+                } else {
+                    currentDisplayId?.let { id ->
+                        val res = getDisplayResolution(id)
+                        intArrayOf(0, 0, res.first, res.second)
+                    }
+                }
+                continue
+            }
+
+            val taskMatch = Regex("""taskId=(\d+):\s*\Q$packageName\E/""").find(line)
+            if (taskMatch != null && currentStackId != null && currentDisplayId != null) {
+                val taskId = taskMatch.groupValues[1].toIntOrNull() ?: continue
+                tasks.add(TaskInfo(taskId, currentStackId, currentDisplayId, currentBounds))
+            }
+        }
+        return tasks
+    }
+
+    private fun findTaskForPackageOnDisplay(packageName: String, displayId: Int): TaskInfo? {
+        return findAllTasksForPackage(packageName).firstOrNull { it.displayId == displayId }
+    }
 
     fun findTaskForPackage(packageName: String): TaskInfo? {
         var currentStackId: Int? = null
@@ -1135,6 +2438,62 @@ object DisplayAppLauncher {
         return count
     }
 
+    private fun findOtherTaskInStack(stackId: Int, excludePackage: String): StackTaskInfo? {
+        var inTargetStack = false
+        var currentDisplayId: Int? = null
+        for (line in getStackList().lines()) {
+            val stackMatch = Regex("""Stack id=(\d+).*displayId=(\d+)""").find(line)
+            if (stackMatch != null) {
+                inTargetStack = stackMatch.groupValues[1].toIntOrNull() == stackId
+                currentDisplayId = stackMatch.groupValues[2].toIntOrNull()
+                continue
+            }
+
+            if (!inTargetStack) continue
+
+            val taskMatch = Regex("""taskId=(\d+):\s*([^/]+)/([^\s]+)""").find(line) ?: continue
+            val taskId = taskMatch.groupValues[1].toIntOrNull() ?: continue
+            val packageName = taskMatch.groupValues[2]
+            val activityName = taskMatch.groupValues[3]
+            if (packageName != excludePackage) {
+                return StackTaskInfo(
+                    taskId = taskId,
+                    packageName = packageName,
+                    activityName = activityName,
+                    displayId = currentDisplayId ?: 0
+                )
+            }
+        }
+        return null
+    }
+
+    private fun findFirstNonProjectionTaskOnDisplay(displayId: Int): StackTaskInfo? {
+        var currentDisplayId: Int? = null
+        for (line in getStackList().lines()) {
+            val stackMatch = Regex("""Stack id=(\d+).*displayId=(\d+)""").find(line)
+            if (stackMatch != null) {
+                currentDisplayId = stackMatch.groupValues[2].toIntOrNull()
+                continue
+            }
+
+            if (currentDisplayId != displayId) continue
+
+            val taskMatch = Regex("""taskId=(\d+):\s*([^/]+)/([^\s]+)""").find(line) ?: continue
+            val taskId = taskMatch.groupValues[1].toIntOrNull() ?: continue
+            val packageName = taskMatch.groupValues[2]
+            val activityName = taskMatch.groupValues[3]
+            if (packageName == "com.android.systemui" || isProjectionMirrorPackage(packageName)) continue
+
+            return StackTaskInfo(
+                taskId = taskId,
+                packageName = packageName,
+                activityName = activityName,
+                displayId = displayId
+            )
+        }
+        return null
+    }
+
     suspend fun enableFreeformMode() = withContext(Dispatchers.IO) {
         try {
             sh("settings put global enable_freeform_support 1")
@@ -1155,6 +2514,7 @@ object DisplayAppLauncher {
      * fullscreen mode works fine after move-stack.
      */
     fun onAppWindowChanged(packageName: String) {
+        preserveCarPlayClusterContractAfterWindowChange(packageName)
 
         val config = getAllConfigs().find { it.packageName == packageName } ?: return
         if (config.displayId == 0) return
@@ -1214,21 +2574,27 @@ object DisplayAppLauncher {
                 if (taskInfo == null) continue
                 if (taskInfo.displayId != 1 && taskInfo.displayId != 3) continue
 
-                val sb = StringBuilder()
-                // 1. CARPLAY focus broadcast
-                sb.append("am broadcast -a com.ts.carplay.action.VIDEO_FOCUS_CHANGE --es \"focus\" \"${config.packageName}\" --ei \"displayId\" ${taskInfo.displayId}; ")
-                // 2. ANDROID AUTO focus broadcast
-                sb.append("am broadcast -a com.ts.androidauto.action.AndroidAutoService --es \"command\" \"requestVideoFocus\" --ei \"displayId\" ${taskInfo.displayId}; ")
-                // 3. Force activity to front with aggressive flags (NEW_TASK | REORDER_TO_FRONT | CLEAR_TOP)
-                val escapedActivity = config.activityName.replace("$", "\\$")
-                sb.append("am start -n ${config.packageName}/$escapedActivity --display ${taskInfo.displayId} --windowingMode 1 -f 0x14000000; ")
-
                 Log.w("FOCUS_SYNC", "Executing focus poke (Trigger: $triggerSource, Display: ${taskInfo.displayId}, App: ${config.packageName})")
-                sh(sb.toString())
+                if (isCarPlayPackage(config.packageName)) {
+                    configureCarPlayProjection("FOCUS_SYNC_$triggerSource")
+                    sendCarPlayFocus(taskInfo.displayId, "FOCUS_SYNC_$triggerSource")
+                } else if (isAndroidAutoPackage(config.packageName)) {
+                    configureAndroidAutoProjection("FOCUS_SYNC_$triggerSource")
+                    sendAndroidAutoFocus(taskInfo.displayId, "FOCUS_SYNC_$triggerSource")
+                } else {
+                    val sb = StringBuilder()
+                    // 1. CARPLAY focus broadcast
+                    sb.append("am broadcast -a com.ts.carplay.action.VIDEO_FOCUS_CHANGE --es \"focus\" \"${config.packageName}\" --ei \"displayId\" ${taskInfo.displayId}; ")
+                    // 2. ANDROID AUTO focus broadcast
+                    sb.append("am broadcast -a com.ts.androidauto.action.AndroidAutoService --es \"command\" \"requestVideoFocus\" --ei \"displayId\" ${taskInfo.displayId}; ")
+                    // 3. Force activity to front with aggressive flags (NEW_TASK | REORDER_TO_FRONT | CLEAR_TOP)
+                    val escapedActivity = config.activityName.replace("$", "\\$")
+                    sb.append("am start -n ${config.packageName}/$escapedActivity --display ${taskInfo.displayId} --windowingMode 1 -f 0x14000000; ")
+                    sh(sb.toString())
+                }
             }
         }
     }
-
 
 
     fun discoverAndroidAutoBroadcasts(): List<String> {

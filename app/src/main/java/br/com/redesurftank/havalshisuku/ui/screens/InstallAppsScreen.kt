@@ -75,7 +75,9 @@ fun InstallAppsTab() {
     var urlProgress by remember { mutableFloatStateOf(0f) }
     var isPatchInstalled by remember { mutableStateOf(AndroidAutoPatchManager.isPatchInstalled()) }
     var isMounted by remember { mutableStateOf(AndroidAutoPatchManager.isMounted()) }
-    var isCarPlayPatchInstalled by remember { mutableStateOf(CarPlayPatchManager.isPatchInstalled()) }
+    var isCarPlayPatchInstalled by remember {
+        mutableStateOf(CarPlayPatchManager.isPatchInstalled())
+    }
     var isCarPlayMounted by remember { mutableStateOf(CarPlayPatchManager.isMounted()) }
     var showDiagnostics by remember { mutableStateOf(false) }
     var diagnosticsText by remember { mutableStateOf("") }
@@ -86,8 +88,10 @@ fun InstallAppsTab() {
     var aaPatchAutoMount by remember {
         mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.AA_PATCH_AUTO_MOUNT.key, false))
     }
-    var carplayPatchAutoMount by remember {
-        mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.CARPLAY_PATCH_AUTO_MOUNT.key, false))
+    var carPlayPatchAutoMount by remember {
+        mutableStateOf(
+                prefs.getBoolean(SharedPreferencesKeys.CARPLAY_PATCH_AUTO_MOUNT.key, false)
+        )
     }
 
     LaunchedEffect(Unit) {
@@ -439,7 +443,7 @@ fun InstallAppsTab() {
                                     .border(
                                             width = 1.dp,
                                             color =
-                                                    if (isCarPlayMounted) Color(0xFF4A9EFF)
+                                                    if (isCarPlayMounted) Color(0xFF34C759)
                                                     else Color(0xFF1D2430),
                                             shape = RoundedCornerShape(12.dp)
                                     ),
@@ -457,15 +461,15 @@ fun InstallAppsTab() {
                             contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                                Icons.Default.Shield,
+                                Icons.Default.PhoneIphone,
                                 contentDescription = null,
-                                tint = if (isCarPlayMounted) Color(0xFF4A9EFF) else Color.White,
+                                tint = if (isCarPlayMounted) Color(0xFF34C759) else Color.White,
                                 modifier = Modifier.size(24.dp)
                         )
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                                "CarPlay (Patch Impulse) - Bloqueia fechamento, ativa resize dinâmico e remove barra no cluster",
+                                "Apple CarPlay (Patch Cluster) - Redimensiona o espelhamento, preserva foco e remove barra no cluster",
                                 color = Color.White,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
@@ -478,7 +482,9 @@ fun InstallAppsTab() {
                                                     "Status: Instalado (Pronto para ativar)"
                                             else -> "Status: Não instalado"
                                         },
-                                color = if (isCarPlayMounted) Color(0xFF4A9EFF) else Color(0xFFB0B8C4),
+                                color =
+                                        if (isCarPlayMounted) Color(0xFF34C759)
+                                        else Color(0xFFB0B8C4),
                                 fontSize = 13.sp
                         )
                         if (isCarPlayPatchInstalled) {
@@ -487,9 +493,9 @@ fun InstallAppsTab() {
                                     modifier = Modifier.padding(top = 4.dp)
                             ) {
                                 Switch(
-                                        checked = carplayPatchAutoMount,
+                                        checked = carPlayPatchAutoMount,
                                         onCheckedChange = {
-                                            carplayPatchAutoMount = it
+                                            carPlayPatchAutoMount = it
                                             prefs.edit()
                                                     .putBoolean(
                                                             SharedPreferencesKeys
@@ -503,7 +509,7 @@ fun InstallAppsTab() {
                                         colors =
                                                 SwitchDefaults.colors(
                                                         checkedThumbColor = Color.White,
-                                                        checkedTrackColor = Color(0xFF4A9EFF)
+                                                        checkedTrackColor = Color(0xFF34C759)
                                                 )
                                 )
                                 Text(
@@ -527,7 +533,7 @@ fun InstallAppsTab() {
                                     },
                                     colors =
                                             ButtonDefaults.buttonColors(
-                                                    containerColor = Color(0xFF4A9EFF)
+                                                    containerColor = Color(0xFF34C759)
                                             ),
                                     shape = RoundedCornerShape(8.dp)
                             ) { Text("Instalar", color = Color.White) }
@@ -567,7 +573,7 @@ fun InstallAppsTab() {
                             ) {
                                 Icon(
                                         Icons.Default.Delete,
-                                        contentDescription = "Remover Patch",
+                                        contentDescription = "Remover Patch CarPlay",
                                         tint = Color.Gray
                                 )
                             }
@@ -579,7 +585,7 @@ fun InstallAppsTab() {
                             ) {
                                 Icon(
                                         Icons.Default.BugReport,
-                                        contentDescription = "Diagnóstico",
+                                        contentDescription = "Diagnóstico CarPlay",
                                         tint = Color.Gray
                                 )
                             }

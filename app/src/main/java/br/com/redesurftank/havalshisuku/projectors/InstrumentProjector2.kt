@@ -40,6 +40,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
     private val TAG = "InstrumentProjector2"
     private val DEBUG_EXTERNAL_APP_HTML = "/data/local/tmp/app.html"
+    private val FORCE_MAP_DISPLAY_AS_DEFAULT_FOR_TESTS = false
+    private val MAP_DISPLAY_TEST_VALUE = "Mapa"
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val clockRunnable =
             object : Runnable {
@@ -71,6 +73,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private var isAnyAppOnDisplay1 = false
     private var currentCard = 0
     private var isWarningActive = false
+    private var testDefaultDisplayOverrideActive = FORCE_MAP_DISPLAY_AS_DEFAULT_FOR_TESTS
     private val dismissedWarnings = java.util.concurrent.ConcurrentHashMap<String, String>()
     private var isWarningDismissed = false
     private var lastWarningActiveTime = 0L
@@ -86,12 +89,17 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
             mutableMapOf<String, br.com.redesurftank.havalshisuku.models.DisplayAppConfig>()
 
     private var lastHeartbeatTime = System.currentTimeMillis()
+    private var lastCarPlayInDash: Boolean? = null
+    private var lastProjectionMirrorInDash: Boolean? = null
     private val watchdogRunnable =
             object : Runnable {
                 override fun run() {
                     val now = System.currentTimeMillis()
                     // If no heartbeat for 15 seconds, and the projector should be visible, reload
-                    if (now - lastHeartbeatTime > 15000 && shouldShowProjector() && root.isVisible
+                    if (now - lastHeartbeatTime > 15000 &&
+                                    shouldShowProjector() &&
+                                    ::root.isInitialized &&
+                                    root.isVisible
                     ) {
                         Log.e(
                                 TAG,
@@ -101,6 +109,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         lastHeartbeatTime =
                                 System.currentTimeMillis() // Reset to avoid immediate re-trigger
                     }
+                    refreshProjectionStateFromDisplay("WATCHDOG")
                     handler.postDelayed(this, 5000) // Check every 5s
                 }
             }
@@ -200,7 +209,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                             )
                         }
                         root.isVisible =
-                                shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn
+                                shouldShowProjector() &&
+                                        ServiceManager.getInstance().isMainScreenOn
                         updateVirtualClusterVisibility()
                     }
                 } else if (key == SharedPreferencesKeys.INSTRUMENT_REVISION_KM.key) {
@@ -237,6 +247,50 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 )
     }
 
+    private fun isCarPlayInDash(): Boolean {
+        return br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.isCarPlayOnDisplay(3)
+    }
+
+    private fun isProjectionMirrorInDash(): Boolean {
+        return br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                .isProjectionMirrorOnDisplay(3)
+    }
+
+    private fun resetProjectionStateCache() {
+        lastCarPlayInDash = null
+        lastProjectionMirrorInDash = null
+    }
+
+    private fun pushProjectionStateToWebView(
+            carPlayInDash: Boolean,
+            projectionMirrorInDash: Boolean,
+            force: Boolean = false
+    ) {
+        if (force || lastCarPlayInDash != carPlayInDash) {
+            evaluateJsIfReady(webView, "control('carPlayInDash', $carPlayInDash)")
+            lastCarPlayInDash = carPlayInDash
+        }
+        if (force || lastProjectionMirrorInDash != projectionMirrorInDash) {
+            evaluateJsIfReady(webView, "control('projectionMirrorInDash', $projectionMirrorInDash)")
+            lastProjectionMirrorInDash = projectionMirrorInDash
+        }
+    }
+
+    private fun refreshProjectionStateFromDisplay(reason: String) {
+        val carPlayInDash = isCarPlayInDash()
+        val projectionMirrorInDash = isProjectionMirrorInDash()
+        if (
+                lastCarPlayInDash != carPlayInDash ||
+                        lastProjectionMirrorInDash != projectionMirrorInDash
+        ) {
+            Log.w(
+                    TAG,
+                    "[$reason] Projection state changed: carPlayInDash=$carPlayInDash projectionMirrorInDash=$projectionMirrorInDash"
+            )
+            updateVirtualClusterVisibility(carPlayInDash, projectionMirrorInDash)
+        }
+    }
+
     private val eventListener =
             br.com.redesurftank.havalshisuku.listeners.IServiceManagerEvent { event, args ->
                 ensureUi {
@@ -245,8 +299,18 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                             currentCard = args[0] as Int
                             lastAppliedConfigs
                                     .clear() // Invalidate cache on card change to force re-sync
+                            // Re-assert projection state BEFORE the cardId change reaches JS,
+                            // and force-push it (bypassing the dedup cache). Without this, a
+                            // race exists where JS would re-render with `screen-aircon` /
+                            // `screen-main-menu` while `carPlayInDash`/`projectionMirrorInDash`
+                            // were stale-false in JS state, briefly removing the
+                            // `theme-mirror-cluster` class and letting opaque component
+                            // backgrounds repaint over the CarPlay frame.
+                            val carPlayInDash = isCarPlayInDash()
+                            val projectionMirrorInDash = isProjectionMirrorInDash()
+                            pushProjectionStateToWebView(carPlayInDash, projectionMirrorInDash, force = true)
                             evaluateJsIfReady(webView, "control('cardId', $currentCard)")
-                            updateVirtualClusterVisibility()
+                            updateVirtualClusterVisibility(carPlayInDash, projectionMirrorInDash)
                             syncSecondaryDisplayApps(3)
                             MainUiManager.getInstance().handleCardChange(currentCard)
                             if (currentCard == 1 || currentCard == 3) {
@@ -268,6 +332,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                             } else if (action is String) {
                                 evaluateJsIfReady(webView, "control('acAction', '$action')")
                             }
+                            br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                                    .preserveCarPlayClusterContract("STEERING_WHEEL_AC_CONTROL")
                         }
                         ServiceManagerEventType.GRAPH_SCREEN_NAVIGATION -> {
                             val screen = args[0]
@@ -279,6 +345,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                             val arg0 = args[0]
                             if (arg0 is Screen) {
                                 evaluateJsIfReady(webView, "showScreen('${arg0.jsName}')")
+                                if (arg0.jsName == "aircon") {
+                                    br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                                            .preserveCarPlayClusterContract("UPDATE_SCREEN_AIRCON")
+                                }
                             } else {
                                 evaluateJsIfReady(webView, "control('updateScreen', true)")
                             }
@@ -380,7 +450,9 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         updateVirtualClusterVisibility()
         setupDataListeners()
 
-        root.isVisible = shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn
+        root.isVisible =
+                shouldShowProjector() &&
+                        ServiceManager.getInstance().isMainScreenOn
     }
 
     override fun onStop() {
@@ -634,6 +706,11 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                             // Prime the warning state once so the UI reflects the current car warnings.
                                             syncInitialWarnings()
 
+                                            // Pending JS is intentionally dropped on load; re-send projection
+                                            // state immediately so CarPlay/AA display overrides never stay stale.
+                                            resetProjectionStateCache()
+                                            updateVirtualClusterVisibility()
+
                                             // Inject Heartbeat
                                             wv.evaluateJavascript(
                                                     "setInterval(() => { if (window.Android && window.Android.heartbeat) window.Android.heartbeat(); }, 2000);",
@@ -830,11 +907,24 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         evaluateJsIfReady(view, jsBuilder.toString())
     }
 
-    private fun updateVirtualClusterVisibility() {
+    private fun updateVirtualClusterVisibility(
+            carPlayInDash: Boolean = isCarPlayInDash(),
+            projectionMirrorInDash: Boolean = isProjectionMirrorInDash()
+    ) {
         val clusterEnabled =
                 preferences.getBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, true)
         var isLeftCovered = false
         var isRightCovered = false
+
+        if (projectionMirrorInDash) {
+            isLeftCovered = true
+            isRightCovered = true
+            if (::root.isInitialized) {
+                root.isVisible = shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn
+            }
+        } else if (::root.isInitialized) {
+            root.isVisible = shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn
+        }
 
         val configs = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()
 
@@ -847,6 +937,11 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
             val appsOnDisplay =
                     configs.filter { config ->
+                        if (br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                                        .isProjectionMirrorPackage(config.packageName)
+                        ) {
+                            return@filter false
+                        }
                         val task =
                                 br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
                                         .findTaskForPackage(config.packageName)
@@ -887,6 +982,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
         evaluateJsIfReady(webView, "control('clusterEnabled', $clusterEnabled)")
         evaluateJsIfReady(webView, "control('appInDash', $appInDashValue)")
+        pushProjectionStateToWebView(carPlayInDash, projectionMirrorInDash)
     }
 
     private fun syncSecondaryDisplayApps(displayId: Int) {
@@ -900,6 +996,11 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         val appsOnDisplay =
                 br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()
                         .filter { config ->
+                            if (br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                                            .isProjectionMirrorPackage(config.packageName)
+                            ) {
+                                return@filter false
+                            }
                             val task =
                                     br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
                                             .findTaskForPackage(config.packageName)
@@ -973,8 +1074,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     }
 
     private fun getThemeBaseUrl(): String {
-        val customThemeName =
-                preferences.getString(SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key, "") ?: ""
+        val customThemeName = getActiveCustomThemeName()
         if (customThemeName.isNotEmpty()) {
             val themeDir = File(File(outerContext.filesDir, "themes"), customThemeName)
             if (themeDir.exists()) {
@@ -991,8 +1091,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
             }
         }
 
-        val customThemeName =
-                preferences.getString(SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key, "") ?: ""
+        val customThemeName = getActiveCustomThemeName()
         if (customThemeName.isNotEmpty()) {
             try {
                 val themeManager =
@@ -1017,6 +1116,12 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
         Log.d(TAG, "Loading base HTML from resource: app.html")
         return context.resources.openRawResource(R.raw.app).bufferedReader().use { it.readText() }
+    }
+
+    private fun getActiveCustomThemeName(): String {
+        val themeName =
+                preferences.getString(SharedPreferencesKeys.ACTIVE_CUSTOM_THEME.key, "") ?: ""
+        return if (themeName.equals("Default", ignoreCase = true)) "" else themeName
     }
 
     private fun tryLoadExternalDebugHtml(): String? {
@@ -1157,6 +1262,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     }
 
     private fun getSavedClusterDisplay(): String {
+        if (testDefaultDisplayOverrideActive) {
+            return MAP_DISPLAY_TEST_VALUE
+        }
+
         val savedDisplay =
                 preferences.getString(
                         SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key,
@@ -1168,12 +1277,13 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
     private fun normalizeClusterDisplay(display: String): String {
         return when (display) {
-            "Normal", "Esportivo", "Reduzido", "Clean" -> display
+            "Normal", "Esportivo", "Reduzido", "Clean", "Mapa" -> display
             else -> "Normal"
         }
     }
 
     private fun saveClusterDisplay(display: String) {
+        testDefaultDisplayOverrideActive = false
         val normalizedDisplay = normalizeClusterDisplay(display)
         preferences.edit()
                 .putString(SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key, normalizedDisplay)

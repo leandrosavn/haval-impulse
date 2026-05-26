@@ -103,6 +103,7 @@ public class ServiceManager {
             CarConstants.CAR_HVAC_POWER_MODE,
             CarConstants.CAR_HVAC_SYNC_ENABLE,
             CarConstants.CAR_HVAC_AUTO_ENABLE,
+            CarConstants.CAR_HVAC_PANEL_DISPLAY_NOTIFY,
             CarConstants.CAR_HVAC_SETTING_COMFORT_CURVE,
             CarConstants.CAR_IPK_SETTING_BRIGHTNESS_CONFIG,
             CarConstants.SYS_AVM_AUTO_PREVIEW_ENABLE,
@@ -234,6 +235,21 @@ public class ServiceManager {
     private final Map<String, String> previousAcState = new HashMap<>();
     private boolean isMaxAcActive = false;
     private Runnable maxAcTimeoutRunnable;
+
+    // Counter-pulse for `bean.pui.scene_notify`:
+    // the native Its_IntelligentVehicleControlService raises this signal to value 8
+    // (SCENE_BACKCAMERA) when AVM/backup camera activates, which makes the CarPlay
+    // host's VideoModel suspend the cluster decoder (priority 7 wins over CarPlay's
+    // priority 1) and the cluster goes black even though the camera itself never
+    // physically occupies display 3. The camera is shown on display 0 by a separate
+    // channel (sys.avm.preview_status), so re-asserting scene_notify=0 keeps the
+    // cluster's CarPlay video alive without affecting the camera feed on display 0.
+    // We only counter-pulse while CarPlay is alive on cluster 3 and only react to
+    // signals that didn't originate from our own write.
+    private static final String BEAN_PUI_SCENE_BACKCAMERA = "8";
+    private static final String BEAN_PUI_SCENE_NEUTRAL = "0";
+    private static final long SCENE_NOTIFY_COUNTER_PULSE_DELAY_MS = 70;
+    private volatile boolean isSelfWritingSceneNotify = false;
 
     private static final String HVAC_PACKAGE_NAME = "com.beantechs.hvac";
     private static final long HVAC_RESUME_DELAY_MS = 300;
@@ -628,6 +644,7 @@ public class ServiceManager {
                         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                         App.getContext().startActivity(launchIntent);
                         Log.w(TAG, "Launching app: " + packageName);
+                        DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("SERVICE_OPEN_APP_" + packageName);
                     } else {
                         Log.e(TAG, "App not found: " + packageName);
                     }
@@ -645,10 +662,12 @@ public class ServiceManager {
                         delayNextAVM = true;
                         dvr.setAVM(1);
                         Log.w(TAG, "Camera AVM temporarily triggered");
+                        DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("OPEN_AVM_ONCE_OPEN");
                     } else {
                         delayNextAVM = false;
                         dvr.setAVM(0);
                         Log.w(TAG, "Camera AVM closed");
+                        DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("OPEN_AVM_ONCE_CLOSE");
                     }
                 } catch (RemoteException e) {
                     Log.w(TAG, "Error to launch AVM camera");
@@ -936,6 +955,63 @@ public class ServiceManager {
         }
     }
 
+    private void maybeCounterPulseSceneNotify(String value) {
+        // Ignore re-entrant notifications produced by our own counter-pulse write.
+        if (isSelfWritingSceneNotify) {
+            Log.w(TAG, "scene_notify=" + value + " ignored (self-write echo)");
+            return;
+        }
+        // Only counter-pulse the BACKCAMERA scene that suspends the cluster decoder.
+        if (!BEAN_PUI_SCENE_BACKCAMERA.equals(value)) {
+            return;
+        }
+        // Only act when CarPlay is actually live on cluster 3 — otherwise the system
+        // signal is meaningful and we shouldn't interfere with backup-camera audio
+        // routing or other coordinated behavior.
+        if (!DisplayAppLauncher.INSTANCE.isCarPlayOnDisplay(3)) {
+            Log.w(TAG, "scene_notify=8 received but CarPlay not on cluster 3; no counter-pulse");
+            return;
+        }
+        Log.w(TAG, "scene_notify=8 (SCENE_BACKCAMERA) intercepted with CarPlay on cluster 3; scheduling counter-pulse to 0");
+        if (backgroundHandler == null) {
+            // Fallback: synchronous write if no background handler yet.
+            writeSceneNotifyNeutral();
+            return;
+        }
+        backgroundHandler.postDelayed(this::writeSceneNotifyNeutral, SCENE_NOTIFY_COUNTER_PULSE_DELAY_MS);
+    }
+
+    private void writeSceneNotifyNeutral() {
+        if (!isControlServiceAlive()) {
+            Log.e(TAG, "scene_notify counter-pulse skipped: control service not initialized");
+            return;
+        }
+        // Double-check CarPlay is still on cluster 3 by the time the pulse fires —
+        // backup-camera may have closed already, in which case the natural exit
+        // event (value=0) is on its way and we shouldn't race it.
+        if (!DisplayAppLauncher.INSTANCE.isCarPlayOnDisplay(3)) {
+            Log.w(TAG, "scene_notify counter-pulse aborted: CarPlay no longer on cluster 3");
+            return;
+        }
+        isSelfWritingSceneNotify = true;
+        try {
+            controlService.request("cmd.common.request.set",
+                    CarConstants.BEAN_PUI_SCENE_NOTIFY.getValue(),
+                    BEAN_PUI_SCENE_NEUTRAL);
+            Log.w(TAG, "scene_notify counter-pulse written (=0) to keep CarPlay video alive on cluster 3");
+        } catch (Exception e) {
+            Log.e(TAG, "Error writing scene_notify counter-pulse", e);
+        } finally {
+            // Release the re-entrancy flag on the same thread shortly after the
+            // write so the echo from OnDataChanged passes through harmlessly.
+            if (backgroundHandler != null) {
+                backgroundHandler.postDelayed(() -> isSelfWritingSceneNotify = false, 250);
+            } else {
+                isSelfWritingSceneNotify = false;
+            }
+        }
+    }
+
     public void updateData(String key, String value) {
         if (!isControlServiceAlive()) {
             Log.e(TAG, "ControlService not initialized");
@@ -1033,6 +1109,15 @@ public class ServiceManager {
             return;
         }
         try {
+            if (key.equals(CarConstants.SYS_AVM_PREVIEW_STATUS.getValue())) {
+                DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("AVM_PREVIEW_STATUS_" + value);
+            }
+            if (key.equals(CarConstants.CAR_HVAC_PANEL_DISPLAY_NOTIFY.getValue())) {
+                DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("HVAC_PANEL_DISPLAY_" + value);
+            }
+            if (key.equals(CarConstants.BEAN_PUI_SCENE_NOTIFY.getValue())) {
+                maybeCounterPulseSceneNotify(value);
+            }
             if (key.equals(CarConstants.CAR_FRS_SETTING_DISTRACTION_DETECTION_ENABLE.getValue()) && value.equals("1")) {
                 boolean isForceDisableMonitoring = sharedPreferences.getBoolean(SharedPreferencesKeys.DISABLE_MONITORING.getKey(), false);
                 if (isForceDisableMonitoring) {

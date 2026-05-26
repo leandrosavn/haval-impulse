@@ -10,6 +10,9 @@ object CarPlayPatchManager {
     private const val TAG = "CARPLAY_PATCH_MGR"
     private const val PATCH_DIR = "/data/local/tmp/carplay_patches"
     private const val APP_APK = "TsCarPlayApp.apk"
+    private const val PATCH_RUNTIME_ENABLED = false
+    private const val DISABLED_REASON =
+        "CarPlay native patch disabled: current patch caused black/dirty frames on display 0"
 
     const val SYSTEM_APP_PATH = "/system/app/TsCarPlayApp/TsCarPlayApp.apk"
 
@@ -32,6 +35,11 @@ object CarPlayPatchManager {
     }
 
     fun installPatches(context: Context): Boolean {
+        if (!PATCH_RUNTIME_ENABLED) {
+            Log.w(TAG, "installPatches skipped. $DISABLED_REASON")
+            return false
+        }
+
         try {
             Log.i(TAG, "Starting CarPlay patch installation...")
             ShizukuUtils.runCommandAndGetOutput(arrayOf("mkdir", "-p", PATCH_DIR))
@@ -65,6 +73,11 @@ object CarPlayPatchManager {
     }
 
     fun applyMounts(): Boolean {
+        if (!PATCH_RUNTIME_ENABLED) {
+            Log.w(TAG, "applyMounts skipped. $DISABLED_REASON")
+            return false
+        }
+
         if (!isPatchInstalled()) {
             Log.e(TAG, "Cannot apply mounts: CarPlay patches not installed")
             return false
@@ -130,6 +143,11 @@ object CarPlayPatchManager {
      * No-op if patches aren't installed or are already mounted.
      */
     fun ensureMounted() {
+        if (!PATCH_RUNTIME_ENABLED) {
+            Log.w(TAG, "ensureMounted skipped. $DISABLED_REASON")
+            return
+        }
+
         try {
             if (isPatchInstalled() && !isMounted()) {
                 Log.i(TAG, "CarPlay patches installed but not mounted — auto-mounting...")

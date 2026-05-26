@@ -26,6 +26,19 @@ let menuWrapper = null;
 let dashboardCleanup = null;
 const screenCache = {};
 
+function isProjectionMapDisplayActive() {
+    return get('projectionMirrorInDash') === true || get('carPlayInDash') === true;
+}
+
+function getEffectiveDisplayMode() {
+    // Projection on display 3 temporarily uses the Mapa layout without
+    // persisting over the user's saved display choice.
+    if (isProjectionMapDisplayActive()) {
+        return 'Mapa';
+    }
+    return get('display') || 'Normal';
+}
+
 // Initial state from URL parameters
 const urlParams = new URLSearchParams(window.location.search);
 const nativeMockEnabled =
@@ -106,16 +119,28 @@ function initializeLayout() {
 function render() {
     logger.enter('render', { screen: get('screen'), display: get('display') });
     const screen = get('screen');
-    const displayMode = get('display') || 'Normal';
+    const projectionMapDisplayActive = isProjectionMapDisplayActive();
+    const displayMode = getEffectiveDisplayMode();
 
     // Update app class based on display mode
     if (appContainer) {
         logger.log('Rendering screen:', screen);
-        let classes = appContainer.className.split(' ').filter(c => !c.startsWith('display-') && !c.startsWith('theme-') && c !== 'cluster-disabled' && c !== 'warn-is-active');
+        let classes = appContainer.className.split(' ').filter(c => !c.startsWith('display-') && !c.startsWith('theme-') && !c.startsWith('screen-') && c !== 'cluster-disabled' && c !== 'warn-is-active' && c !== 'carplay-in-dash' && c !== 'projection-mirror-in-dash' && c !== 'projection-map-display-active');
         classes.push('display-' + displayMode.toLowerCase());
+        classes.push('screen-' + String(screen).replace(/_/g, '-'));
 
         if (get('clusterEnabled') === false) {
             classes.push('cluster-disabled');
+        }
+
+        if (projectionMapDisplayActive) {
+            classes.push('theme-mirror-cluster');
+            classes.push('projection-mirror-in-dash');
+            classes.push('projection-map-display-active');
+        }
+
+        if (get('carPlayInDash') === true) {
+            classes.push('carplay-in-dash');
         }
 
         if (get('warningDismissed') !== true && (get('cardId') == 0 || get('warningActive') === true)) {
@@ -149,6 +174,11 @@ function render() {
         if (el && el.parentNode === menuWrapper) {
             menuWrapper.removeChild(el);
         }
+    }
+
+    if (menuWrapper) {
+        const rightMenuVisible = !(get('cardId') == 0 && get('warningDismissed') !== true);
+        menuWrapper.style.display = projectionMapDisplayActive || !rightMenuVisible ? 'none' : 'block';
     }
 
     if (screenCache[screen]) {
@@ -206,6 +236,8 @@ subscribe('screen', render);
 subscribe('display', render);
 
 subscribe('clusterEnabled', render);
+subscribe('carPlayInDash', render);
+subscribe('projectionMirrorInDash', render);
 // subscribe('cardId', render); // REMOVED: Triggers double-render as cardId listener already sets screen
 render();
 
@@ -226,7 +258,7 @@ subscribe('cardId', (cardId) => {
 
     // 0 = hide the right menu display
     if (menuWrapper) {
-        menuWrapper.style.display = (cardId == 0 && get('warningDismissed') !== true) ? 'none' : 'block';
+        menuWrapper.style.display = isProjectionMapDisplayActive() || (cardId == 0 && get('warningDismissed') !== true) ? 'none' : 'block';
     }
 
     if (cardId == 1) {
