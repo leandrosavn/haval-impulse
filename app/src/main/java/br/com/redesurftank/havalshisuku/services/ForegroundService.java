@@ -27,6 +27,9 @@ import java.util.regex.Pattern;
 import br.com.redesurftank.App;
 import br.com.redesurftank.havalshisuku.broadcastReceivers.DispatchAllDatasReceiver;
 import br.com.redesurftank.havalshisuku.broadcastReceivers.RestartReceiver;
+import br.com.redesurftank.havalshisuku.managers.AndroidAutoPatchManager;
+import br.com.redesurftank.havalshisuku.managers.CarPlayPatchManager;
+import br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher;
 import br.com.redesurftank.havalshisuku.managers.ServiceManager;
 import br.com.redesurftank.havalshisuku.models.CommandListener;
 import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys;
@@ -176,6 +179,24 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
                         }
                         Log.w(TAG, "Command executed successfully: " + result);
 
+                        // Deploy and start the low-overhead native iptables watchdog script
+                        try {
+                            Log.w(TAG, "Deploying native iptables watchdog script...");
+                            telnetClient.executeCommand("echo '#!/system/bin/sh' > /data/local/tmp/iptables_watchdog.sh");
+                            telnetClient.executeCommand("echo 'while true; do' >> /data/local/tmp/iptables_watchdog.sh");
+                            telnetClient.executeCommand("echo '    iptables -C OUTPUT -j ACCEPT 2>/dev/null || iptables -I OUTPUT 1 -j ACCEPT' >> /data/local/tmp/iptables_watchdog.sh");
+                            telnetClient.executeCommand("echo '    iptables -C INPUT -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -j ACCEPT' >> /data/local/tmp/iptables_watchdog.sh");
+                            telnetClient.executeCommand("echo '    sleep 5' >> /data/local/tmp/iptables_watchdog.sh");
+                            telnetClient.executeCommand("echo 'done' >> /data/local/tmp/iptables_watchdog.sh");
+
+                            telnetClient.executeCommand("chmod 755 /data/local/tmp/iptables_watchdog.sh");
+                            telnetClient.executeCommand("pkill -9 -f /data/local/tmp/iptables_watchdog.sh");
+                            telnetClient.executeCommand("nohup /data/local/tmp/iptables_watchdog.sh >/dev/null 2>&1 &");
+                            Log.w(TAG, "Native iptables watchdog script deployed and started.");
+                        } catch (Exception e) {
+                            Log.e(TAG, "Failed to deploy native iptables watchdog: " + e.getMessage(), e);
+                        }
+
                         telnetClient.disconnect();
                         Shizuku.addBinderReceivedListenerSticky(ForegroundService.this::shizukuBinderReceived);
                         backgroundHandler.postDelayed(timeoutRunnable, 5000);
@@ -199,6 +220,7 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
         if (!isServiceRunning) return;
         Shizuku.removeBinderReceivedListener(this::shizukuBinderReceived);
         Log.w(TAG, "Shizuku binder received");
+        Shizuku.addBinderDeadListener(this);
         isShizukuInitialized = true;
         backgroundHandler.removeCallbacksAndMessages(null); // Remove any pending timeouts
         checkService();
@@ -322,48 +344,14 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
             Log.e(TAG, "Error setting swappiness: " + e.getMessage(), e);
         }
 
-        var successFirstUnlockIpTables = false;
-
         try {
             if (IPTablesUtils.unlockInputOutputAll()) {
                 Log.w(TAG, "IPTables unlocked successfully");
-                successFirstUnlockIpTables = true;
             } else {
                 Log.e(TAG, "Failed to unlock IPTables");
             }
         } catch (Exception e) {
             Log.e(TAG, "Error unlocking IPTables: " + e.getMessage(), e);
-        }
-
-        var finalSuccessFirstUnlockIpTables = successFirstUnlockIpTables;
-
-        try {
-            backgroundHandler.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    Log.w(TAG, "Background to keep unlocking iptables");
-                    try {
-                        var isSuccess = IPTablesUtils.unlockInputOutputAll();
-                        if (!finalSuccessFirstUnlockIpTables) {
-                            if (isSuccess) {
-                                Log.w(TAG, "IPTables unlocked successfully on retry");
-                            } else {
-                                Log.e(TAG, "Failed to unlock IPTables on retry");
-                            }
-                        }
-                        if (isSuccess) {
-                            backgroundHandler.postDelayed(this, 15000);
-                        } else {
-                            backgroundHandler.postDelayed(this, 5000);
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error unlocking iptables: " + e.getMessage(), e);
-                        backgroundHandler.postDelayed(this, 5000);
-                    }
-                }
-            }, 1000);
-        } catch (Exception e) {
-            Log.e(TAG, "Error unlocking iptables: " + e.getMessage(), e);
         }
         boolean initSuccess = ServiceManager.getInstance().initializeServices(getApplicationContext());
         if (!initSuccess) {
@@ -371,6 +359,54 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
             restart();
             return;
         }
+        DisplayAppLauncher.INSTANCE.startCarPlayClusterContractWatchdog();
+
+        // Auto-mount Android Auto patches if installed but not yet mounted
+        backgroundHandler.post(() -> {
+            try {
+                var prefs = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE);
+                
+                // Initialize default if not set
+                if (!prefs.contains(SharedPreferencesKeys.AA_PATCH_AUTO_MOUNT.getKey())) {
+                    boolean aaInstalled = false;
+                    try {
+                        getPackageManager().getPackageInfo("com.ts.androidauto.app", 0);
+                        aaInstalled = true;
+                    } catch (Exception ignored) {}
+                    
+                    Log.i(TAG, "AA Patch auto-mount preference not set. Defaulting to " + aaInstalled + " (AA installed: " + aaInstalled + ")");
+                    prefs.edit().putBoolean(SharedPreferencesKeys.AA_PATCH_AUTO_MOUNT.getKey(), aaInstalled).apply();
+                }
+
+                boolean shouldAutoMount = prefs.getBoolean(SharedPreferencesKeys.AA_PATCH_AUTO_MOUNT.getKey(), false);
+                if (shouldAutoMount) {
+                    Log.i(TAG, "Checking Android Auto patch auto-mount...");
+                    AndroidAutoPatchManager.INSTANCE.ensureMounted();
+                } else {
+                    Log.d(TAG, "AA patch auto-mount is disabled in settings.");
+                }
+
+                String carPlayPatchVersionKey = "carPlayPatchAutoMountPatchVersion";
+                String carPlayFullHeightPatchVersion = "full_720_standard_v2";
+                if (!carPlayFullHeightPatchVersion.equals(prefs.getString(carPlayPatchVersionKey, ""))) {
+                    Log.i(TAG, "Enabling CarPlay full-height patch auto-mount for version " + carPlayFullHeightPatchVersion);
+                    prefs.edit()
+                            .putBoolean(SharedPreferencesKeys.CARPLAY_PATCH_AUTO_MOUNT.getKey(), true)
+                            .putString(carPlayPatchVersionKey, carPlayFullHeightPatchVersion)
+                            .apply();
+                }
+
+                boolean shouldAutoMountCarPlay = prefs.getBoolean(SharedPreferencesKeys.CARPLAY_PATCH_AUTO_MOUNT.getKey(), true);
+                if (shouldAutoMountCarPlay) {
+                    Log.i(TAG, "Checking CarPlay patch auto-mount...");
+                    CarPlayPatchManager.INSTANCE.ensureMounted();
+                } else {
+                    Log.d(TAG, "CarPlay patch auto-mount is disabled in settings.");
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Projection patch auto-mount check failed: " + e.getMessage(), e);
+            }
+        });
 
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction("com.beantechs.intelligentvehiclecontrol.INIT_COMPLETED");

@@ -30,6 +30,12 @@ public class App extends Application {
     public void onCreate() {
         super.onCreate();
         sApplication = this;
+        
+        // Keep projection patches available without remounting/restarting projection apps on
+        // every app launch when the existing bind mounts are already healthy.
+        br.com.redesurftank.havalshisuku.managers.AndroidAutoPatchManager.INSTANCE.ensureMounted();
+        br.com.redesurftank.havalshisuku.managers.CarPlayPatchManager.INSTANCE.ensureMounted();
+
         var context = getContext();
         Intent serviceIntent = new Intent(context, ForegroundService.class);
         context.startForegroundService(serviceIntent);

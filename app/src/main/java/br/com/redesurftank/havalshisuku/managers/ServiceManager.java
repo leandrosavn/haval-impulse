@@ -103,6 +103,7 @@ public class ServiceManager {
             CarConstants.CAR_HVAC_POWER_MODE,
             CarConstants.CAR_HVAC_SYNC_ENABLE,
             CarConstants.CAR_HVAC_AUTO_ENABLE,
+            CarConstants.CAR_HVAC_PANEL_DISPLAY_NOTIFY,
             CarConstants.CAR_HVAC_SETTING_COMFORT_CURVE,
             CarConstants.CAR_IPK_SETTING_BRIGHTNESS_CONFIG,
             CarConstants.SYS_AVM_AUTO_PREVIEW_ENABLE,
@@ -234,6 +235,21 @@ public class ServiceManager {
     private final Map<String, String> previousAcState = new HashMap<>();
     private boolean isMaxAcActive = false;
     private Runnable maxAcTimeoutRunnable;
+
+    // Counter-pulse for `bean.pui.scene_notify`:
+    // the native Its_IntelligentVehicleControlService raises this signal to value 8
+    // (SCENE_BACKCAMERA) when AVM/backup camera activates, which makes the CarPlay
+    // host's VideoModel suspend the cluster decoder (priority 7 wins over CarPlay's
+    // priority 1) and the cluster goes black even though the camera itself never
+    // physically occupies display 3. The camera is shown on display 0 by a separate
+    // channel (sys.avm.preview_status), so re-asserting scene_notify=0 keeps the
+    // cluster's CarPlay video alive without affecting the camera feed on display 0.
+    // We only counter-pulse while CarPlay is alive on cluster 3 and only react to
+    // signals that didn't originate from our own write.
+    private static final String BEAN_PUI_SCENE_BACKCAMERA = "8";
+    private static final String BEAN_PUI_SCENE_NEUTRAL = "0";
+    private static final long SCENE_NOTIFY_COUNTER_PULSE_DELAY_MS = 70;
+    private volatile boolean isSelfWritingSceneNotify = false;
 
     private static final String HVAC_PACKAGE_NAME = "com.beantechs.hvac";
     private static final long HVAC_RESUME_DELAY_MS = 300;
@@ -509,9 +525,6 @@ public class ServiceManager {
             if (sharedPreferences.getBoolean(SharedPreferencesKeys.DISABLE_AVAS.getKey(), false)) setAvasEnabled(false);
             if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_AUTO_BRIGHTNESS.getKey(), false)) AutoBrightnessManager.Companion.getInstance().setEnabled(true);
             if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_FRIDA_HOOKS.getKey(), false)) pendingTasks.add(this::initializeFrida);
-            if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_SEAT_VENTILATION_ON_AC_ON.getKey(), false) && "1".equals(getUpdatedData(CarConstants.CAR_HVAC_POWER_MODE.getValue()))) {
-                updateData(CarConstants.CAR_COMFORT_SETTING_DRIVER_SEAT_VENTILATION_LEVEL.getValue(), "3");
-            }
             ensureSteeringWheelButtonIntegration();
             ensureSystemApps();
             TripConsistencyManager.Companion.getInstance().initialize();
@@ -631,6 +644,7 @@ public class ServiceManager {
                         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                         App.getContext().startActivity(launchIntent);
                         Log.w(TAG, "Launching app: " + packageName);
+                        DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("SERVICE_OPEN_APP_" + packageName);
                     } else {
                         Log.e(TAG, "App not found: " + packageName);
                     }
@@ -648,10 +662,12 @@ public class ServiceManager {
                         delayNextAVM = true;
                         dvr.setAVM(1);
                         Log.w(TAG, "Camera AVM temporarily triggered");
+                        DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("OPEN_AVM_ONCE_OPEN");
                     } else {
                         delayNextAVM = false;
                         dvr.setAVM(0);
                         Log.w(TAG, "Camera AVM closed");
+                        DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("OPEN_AVM_ONCE_CLOSE");
                     }
                 } catch (RemoteException e) {
                     Log.w(TAG, "Error to launch AVM camera");
@@ -821,15 +837,27 @@ public class ServiceManager {
     }
 
     public void dispatchAllData() {
-        if (controlService == null) return;
+        if (!isControlServiceAlive()) return;
         try {
             String[] allKeys = getCombinedKeys();
             String[] currentValues = controlService.fetchDatas(allKeys);
             for (int i = 0; i < currentValues.length; i++) {
                 OnDataChanged(allKeys[i], currentValues[i]);
             }
-        } catch (RemoteException e) {
+        } catch (Exception e) {
             Log.e(TAG, "Error dispatching data", e);
+        }
+    }
+
+    private boolean isControlServiceAlive() {
+        IIntelligentVehicleControlService svc = controlService;
+        if (svc == null) return false;
+        try {
+            if (!Shizuku.pingBinder()) return false;
+            IBinder binder = svc.asBinder();
+            return binder != null && binder.isBinderAlive();
+        } catch (Throwable t) {
+            return false;
         }
     }
 
@@ -898,7 +926,7 @@ public class ServiceManager {
         if (dataCache.containsKey(key)) {
             return dataCache.get(key);
         }
-        if (controlService == null) {
+        if (!isControlServiceAlive()) {
             Log.e(TAG, "ControlService not initialized");
             return null;
         }
@@ -906,14 +934,14 @@ public class ServiceManager {
             String value = controlService.fetchData(key);
             dataCache.put(key, value);
             return value;
-        } catch (RemoteException e) {
+        } catch (Exception e) {
             Log.e(TAG, "Error fetching data", e);
             return null;
         }
     }
 
     public String getUpdatedData(String key) {
-        if (controlService == null) {
+        if (!isControlServiceAlive()) {
             Log.e(TAG, "ControlService not initialized");
             return null;
         }
@@ -921,14 +949,71 @@ public class ServiceManager {
             String value = controlService.fetchData(key);
             dataCache.put(key, value);
             return value;
-        } catch (RemoteException e) {
+        } catch (Exception e) {
             Log.e(TAG, "Error fetching data", e);
             return null;
         }
     }
 
+    private void maybeCounterPulseSceneNotify(String value) {
+        // Ignore re-entrant notifications produced by our own counter-pulse write.
+        if (isSelfWritingSceneNotify) {
+            Log.w(TAG, "scene_notify=" + value + " ignored (self-write echo)");
+            return;
+        }
+        // Only counter-pulse the BACKCAMERA scene that suspends the cluster decoder.
+        if (!BEAN_PUI_SCENE_BACKCAMERA.equals(value)) {
+            return;
+        }
+        // Only act when CarPlay is actually live on cluster 3 — otherwise the system
+        // signal is meaningful and we shouldn't interfere with backup-camera audio
+        // routing or other coordinated behavior.
+        if (!DisplayAppLauncher.INSTANCE.isCarPlayOnDisplay(3)) {
+            Log.w(TAG, "scene_notify=8 received but CarPlay not on cluster 3; no counter-pulse");
+            return;
+        }
+        Log.w(TAG, "scene_notify=8 (SCENE_BACKCAMERA) intercepted with CarPlay on cluster 3; scheduling counter-pulse to 0");
+        if (backgroundHandler == null) {
+            // Fallback: synchronous write if no background handler yet.
+            writeSceneNotifyNeutral();
+            return;
+        }
+        backgroundHandler.postDelayed(this::writeSceneNotifyNeutral, SCENE_NOTIFY_COUNTER_PULSE_DELAY_MS);
+    }
+
+    private void writeSceneNotifyNeutral() {
+        if (!isControlServiceAlive()) {
+            Log.e(TAG, "scene_notify counter-pulse skipped: control service not initialized");
+            return;
+        }
+        // Double-check CarPlay is still on cluster 3 by the time the pulse fires —
+        // backup-camera may have closed already, in which case the natural exit
+        // event (value=0) is on its way and we shouldn't race it.
+        if (!DisplayAppLauncher.INSTANCE.isCarPlayOnDisplay(3)) {
+            Log.w(TAG, "scene_notify counter-pulse aborted: CarPlay no longer on cluster 3");
+            return;
+        }
+        isSelfWritingSceneNotify = true;
+        try {
+            controlService.request("cmd.common.request.set",
+                    CarConstants.BEAN_PUI_SCENE_NOTIFY.getValue(),
+                    BEAN_PUI_SCENE_NEUTRAL);
+            Log.w(TAG, "scene_notify counter-pulse written (=0) to keep CarPlay video alive on cluster 3");
+        } catch (Exception e) {
+            Log.e(TAG, "Error writing scene_notify counter-pulse", e);
+        } finally {
+            // Release the re-entrancy flag on the same thread shortly after the
+            // write so the echo from OnDataChanged passes through harmlessly.
+            if (backgroundHandler != null) {
+                backgroundHandler.postDelayed(() -> isSelfWritingSceneNotify = false, 250);
+            } else {
+                isSelfWritingSceneNotify = false;
+            }
+        }
+    }
+
     public void updateData(String key, String value) {
-        if (controlService == null) {
+        if (!isControlServiceAlive()) {
             Log.e(TAG, "ControlService not initialized");
             return;
         }
@@ -940,7 +1025,7 @@ public class ServiceManager {
 
         try {
             controlService.request("cmd.common.request.set", key, value);
-        } catch (RemoteException e) {
+        } catch (Exception e) {
             Log.e(TAG, "Error updating data", e);
         }
 
@@ -972,9 +1057,9 @@ public class ServiceManager {
 
     private boolean isHvacAppInForeground() {
         try {
-            // Check if the HVAC app is currently resumed (more reliable than window focus on some units)
-            String output = ShizukuUtils.runCommandAndGetOutput(new String[]{"sh", "-c", "dumpsys activity activities | grep ResumedActivity"});
-            boolean isForeground = output != null && output.contains(HVAC_PACKAGE_NAME);
+            // Check if the HVAC app is currently resumed via lightweight am stack list
+            String topApp = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.INSTANCE.getTopPackageOnDisplay(0);
+            boolean isForeground = HVAC_PACKAGE_NAME.equals(topApp);
             if (isForeground) {
                 Log.w(TAG, "Detection: HVAC app IS resumed in foreground");
             }
@@ -1007,8 +1092,10 @@ public class ServiceManager {
     private void OnDataChanged(String key, String value) {
         Intent broadcastIntent = new Intent("android.intent.haval." + key);
         broadcastIntent.putExtra("value", value);
+        broadcastIntent.setPackage(App.getContext().getPackageName());
         App.getContext().sendBroadcast(broadcastIntent);
         broadcastIntent = new Intent("android.intent.haval." + key + "_" + value);
+        broadcastIntent.setPackage(App.getContext().getPackageName());
         App.getContext().sendBroadcast(broadcastIntent);
         for (IDataChanged listener : new ArrayList<>(dataChangedListeners)) {
             try {
@@ -1018,7 +1105,19 @@ public class ServiceManager {
             }
         }
         dataCache.put(key, value);
+        if (!servicesInitialized) {
+            return;
+        }
         try {
+            if (key.equals(CarConstants.SYS_AVM_PREVIEW_STATUS.getValue())) {
+                DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("AVM_PREVIEW_STATUS_" + value);
+            }
+            if (key.equals(CarConstants.CAR_HVAC_PANEL_DISPLAY_NOTIFY.getValue())) {
+                DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("HVAC_PANEL_DISPLAY_" + value);
+            }
+            if (key.equals(CarConstants.BEAN_PUI_SCENE_NOTIFY.getValue())) {
+                maybeCounterPulseSceneNotify(value);
+            }
             if (key.equals(CarConstants.CAR_FRS_SETTING_DISTRACTION_DETECTION_ENABLE.getValue()) && value.equals("1")) {
                 boolean isForceDisableMonitoring = sharedPreferences.getBoolean(SharedPreferencesKeys.DISABLE_MONITORING.getKey(), false);
                 if (isForceDisableMonitoring) {
@@ -1236,27 +1335,27 @@ public class ServiceManager {
     }
 
     public void setMonitoringEnabled(boolean b) {
-        if (controlService == null) {
+        if (!isControlServiceAlive()) {
             Log.e(TAG, "ControlService not initialized");
             return;
         }
         try {
             controlService.request("cmd.common.request.set", CarConstants.CAR_FRS_SETTING_DISTRACTION_DETECTION_ENABLE.getValue(), b ? "1" : "0");
             Log.w(TAG, "Distraction detection monitoring set to: " + b);
-        } catch (RemoteException e) {
+        } catch (Exception e) {
             Log.e(TAG, "Error setting monitoring", e);
         }
     }
 
     public void setAvasEnabled(boolean b) {
-        if (controlService == null) {
+        if (!isControlServiceAlive()) {
             Log.e(TAG, "ControlService not initialized");
             return;
         }
         try {
             controlService.request("cmd.common.request.set", CarConstants.CAR_EV_SETTING_AVAS_ENABLE.getValue(), b ? "1" : "0");
             Log.w(TAG, "AVAS enabled: " + b);
-        } catch (RemoteException e) {
+        } catch (Exception e) {
             Log.e(TAG, "Error setting AVAS", e);
         }
     }
@@ -1331,16 +1430,22 @@ public class ServiceManager {
             maxAcTimeoutRunnable = null;
         }
 
-        // Force POWER as 1 (ON) to ensure it stays ON after MAX AC finishes
-        updateData(CarConstants.CAR_HVAC_POWER_MODE.getValue(), "1");
-        updateData(CarConstants.CAR_HVAC_AC_ENABLE.getValue(), "1");
-
-        // Restores previous AC state
+        // Restores previous AC settings (excluding power/enable keys so they can be restored last)
         for (Map.Entry<String, String> entry : previousAcState.entrySet()) {
-            if (entry.getValue() != null) {
+            if (entry.getValue() != null && 
+                !entry.getKey().equals(CarConstants.CAR_HVAC_POWER_MODE.getValue()) && 
+                !entry.getKey().equals(CarConstants.CAR_HVAC_AC_ENABLE.getValue())) {
                 updateData(entry.getKey(), entry.getValue());
             }
         }
+
+        // Restore AC power mode and AC enable last to ensure the system is correctly turned ON/OFF
+        String restoredPower = previousAcState.get(CarConstants.CAR_HVAC_POWER_MODE.getValue());
+        String restoredAcEnable = previousAcState.get(CarConstants.CAR_HVAC_AC_ENABLE.getValue());
+
+        updateData(CarConstants.CAR_HVAC_AC_ENABLE.getValue(), restoredAcEnable != null ? restoredAcEnable : "1");
+        updateData(CarConstants.CAR_HVAC_POWER_MODE.getValue(), restoredPower != null ? restoredPower : "1");
+
         previousAcState.clear();
         clearPersistedMaxAcState();
         dispatchServiceManagerEvent(ServiceManagerEventType.MAX_AUTO_AC_STATUS_CHANGED, 0);
@@ -1361,9 +1466,13 @@ public class ServiceManager {
             if (tempStr == null) return;
             float currentTemp = Float.parseFloat(tempStr);
             
-            if ((currentTemp >= 85.0f || currentTemp <= -40.0f) && retryCount < 5) {
-                Log.w(TAG, "Invalid temp " + currentTemp + " at startup, delaying Max AC check... retry: " + retryCount);
-                backgroundHandler.postDelayed(() -> enableMaxAcOnWithRetry(retryCount + 1), 1000);
+            if (currentTemp >= 85.0f || currentTemp <= -40.0f) {
+                if (retryCount < 5) {
+                    Log.w(TAG, "Invalid temp " + currentTemp + " at startup, delaying Max AC check... retry: " + retryCount);
+                    backgroundHandler.postDelayed(() -> enableMaxAcOnWithRetry(retryCount + 1), 1000);
+                } else {
+                    Log.e(TAG, "Invalid temp " + currentTemp + " after max retries, aborting Max AC activation");
+                }
                 return;
             }
 
@@ -1372,6 +1481,8 @@ public class ServiceManager {
 
                 tryRestoreMaxAcState();
                 if (previousAcState.isEmpty()) {
+                    String prevPower = getUpdatedData(CarConstants.CAR_HVAC_POWER_MODE.getValue());
+                    String prevAcEnable = getUpdatedData(CarConstants.CAR_HVAC_AC_ENABLE.getValue());
                     String prevFan = getUpdatedData(CarConstants.CAR_HVAC_FAN_SPEED.getValue());
                     String prevDriverTemp = getUpdatedData(CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.getValue());
                     String prevPassTemp = getUpdatedData(CarConstants.CAR_HVAC_PASS_TEMPERATURE.getValue());
@@ -1382,6 +1493,8 @@ public class ServiceManager {
                     String prevComfortCurve = getUpdatedData(CarConstants.CAR_HVAC_SETTING_COMFORT_CURVE.getValue());
                     String prevCycleMode = getUpdatedData(CarConstants.CAR_HVAC_CYCLE_MODE.getValue());
 
+                    previousAcState.put(CarConstants.CAR_HVAC_POWER_MODE.getValue(), prevPower);
+                    previousAcState.put(CarConstants.CAR_HVAC_AC_ENABLE.getValue(), prevAcEnable);
                     previousAcState.put(CarConstants.CAR_HVAC_FAN_SPEED.getValue(), prevFan);
                     previousAcState.put(CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.getValue(), prevDriverTemp);
                     previousAcState.put(CarConstants.CAR_HVAC_PASS_TEMPERATURE.getValue(), prevPassTemp);
@@ -1780,15 +1893,7 @@ public class ServiceManager {
     public boolean isMainScreenOn() {
         try {
             String engineState = getData(CarConstants.CAR_BASIC_ENGINE_STATE.getValue());
-            if (engineState == null || engineState.isEmpty()) {
-                Log.w(TAG, "[HavalDev] Engine state unavailable during visibility check; defaulting main screen to ON");
-                return true;
-            }
-
-            return !engineState.equals("-1") &&
-                    !engineState.equals("10") &&
-                    !engineState.equals("14") &&
-                    !engineState.equals("15");
+            return br.com.redesurftank.havalshisuku.models.EngineState.isMainScreenOn(engineState);
         } catch (Exception e) {
             Log.w(TAG, "[HavalDev] Failed to read engine state during visibility check; defaulting main screen to ON", e);
             return true;
