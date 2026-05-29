@@ -24,6 +24,9 @@ Usage:
   ./tools/headunit-dev/headunit.sh deploy-apk
   ./tools/headunit-dev/headunit.sh deploy-apk-adb
   ./tools/headunit-dev/headunit.sh deploy-air-control [http-url]
+  ./tools/headunit-dev/headunit.sh carplay-baseline <label>
+  ./tools/headunit-dev/headunit.sh carplay-compare <capture-a> <capture-b>
+  ./tools/headunit-dev/headunit.sh carplay-visual [label]
   ./tools/headunit-dev/headunit.sh logcat
   ./tools/headunit-dev/headunit.sh logcat-app
   ./tools/headunit-dev/headunit.sh dump-info
@@ -202,6 +205,26 @@ case "${1:-}" in
     else
       exec "$SCRIPT_DIR/deploy-air-control.sh"
     fi
+    ;;
+  carplay-baseline)
+    shift
+    if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+      exec "$SCRIPT_DIR/carplay-baseline-capture.sh" --help
+    fi
+    [[ $# -ge 1 ]] || { usage >&2; exit 1; }
+    exec "$SCRIPT_DIR/carplay-baseline-capture.sh" "$1"
+    ;;
+  carplay-compare)
+    shift
+    if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+      exec "$SCRIPT_DIR/carplay-baseline-compare.sh" --help
+    fi
+    [[ $# -ge 2 ]] || { usage >&2; exit 1; }
+    exec "$SCRIPT_DIR/carplay-baseline-compare.sh" "$1" "$2"
+    ;;
+  carplay-visual)
+    shift
+    exec "$SCRIPT_DIR/carplay-visual-capture.sh" "${1:-carplay-visual}"
     ;;
   logcat)
     remote_exec "logcat -d -v time | tail -n 400"

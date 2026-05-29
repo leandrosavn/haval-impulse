@@ -27,7 +27,7 @@ data class ResolvedAppInfo(
 )
 
 object DisplayAppLauncher {
-    
+
     /**
      * Attempts to launch Android Auto using common system package names.
      */
@@ -106,6 +106,7 @@ object DisplayAppLauncher {
     private const val CARPLAY_REMOTE_SERVICE = "com.ts.carplay.app/.service.CarPlayRemoteService"
     private const val CARPLAY_START_FLAGS = "0x18000000"
     private const val PREF_DESIRED_CARPLAY_DISPLAY_ID = "desiredCarPlayDisplayId"
+    private const val PREF_CARPLAY_BOOT_AUTOSTART_BOOT_TOKEN = "carPlayBootAutostartBootToken"
     private const val CARPLAY_REFRESH_RENDER_ACTION = "br.com.redesurftank.havalshisuku.carplay.REFRESH_RENDER"
     private const val CARPLAY_HEALTH_TRANSITION_GRACE_SEC = 1.2
     private const val CARPLAY_HEALTH_RECENT_WINDOW_SEC = 2.2
@@ -118,8 +119,11 @@ object DisplayAppLauncher {
     private const val CARPLAY_RESTORE_MAX_WAIT_MS = 3_000L
     private const val CARPLAY_CLUSTER_WATCHDOG_START_DELAY_MS = 4_000L
     private const val CARPLAY_CLUSTER_WATCHDOG_INTERVAL_MS = 1_000L
+    private const val CARPLAY_BOOT_AUTOSTART_ATTEMPTS = 30
+    private const val CARPLAY_BOOT_AUTOSTART_INTERVAL_MS = 2_000L
     private const val CARPLAY_MAIN_DUPLICATE_CLEANUP_COOLDOWN_MS = 3_500L
     private const val CARPLAY_WATCHDOG_RESTORE_COOLDOWN_MS = 3_500L
+    private const val CARPLAY_MISSING_VISUAL_RESTORE_WINDOW_MS = 60_000L
 
     private val gson = Gson()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -128,6 +132,7 @@ object DisplayAppLauncher {
     @Volatile private var carPlayClusterWatchdogStarted = false
     @Volatile private var lastCarPlayMainDuplicateCleanupAt = 0L
     @Volatile private var lastCarPlayWatchdogRestoreAt = 0L
+    @Volatile private var lastCarPlayClusterVisualSeenAt = 0L
 
     // Memory cache for app bounds per display: packageName -> Map<displayId, bounds>
     private val lastKnownDisplayBounds = mutableMapOf<String, MutableMap<Int, IntArray>>()
@@ -179,7 +184,20 @@ object DisplayAppLauncher {
         getPrefs().edit()
             .putInt(PREF_DESIRED_CARPLAY_DISPLAY_ID, displayId)
             .apply()
+        syncCarPlayDesiredDisplayProperty(displayId, reason)
         Log.w(TAG, "[$reason] Desired CarPlay display set to $displayId")
+    }
+
+    private fun syncCarPlayDesiredDisplayProperty(displayId: Int, reason: String) {
+        if (displayId != 0 && displayId != 3) return
+        sh("setprop persist.haval.carplay.desired_display $displayId")
+        Log.w(TAG, "[$reason] Desired CarPlay display property set to $displayId")
+    }
+
+    private fun currentBootToken(): String {
+        val output = sh("cat /proc/sys/kernel/random/boot_id 2>/dev/null || true").trim()
+        return Regex("[0-9a-fA-F-]{16,}").find(output)?.value
+            ?: "unknown-${System.currentTimeMillis()}"
     }
 
     fun isCarPlayDesiredOnCluster(): Boolean {
@@ -484,6 +502,15 @@ object DisplayAppLauncher {
         carPlayClusterWatchdogStarted = true
 
         scope.launch {
+            val desiredDisplay = getPrefs().getInt(PREF_DESIRED_CARPLAY_DISPLAY_ID, -1)
+            if (desiredDisplay == 3 && findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 3) == null) {
+                clearStaleCarPlayClusterTarget("CARPLAY_CLUSTER_WATCHDOG_START_NO_CLUSTER_TASK")
+            } else {
+                syncCarPlayDesiredDisplayProperty(
+                    desiredDisplay,
+                    "CARPLAY_CLUSTER_WATCHDOG_START"
+                )
+            }
             delay(CARPLAY_CLUSTER_WATCHDOG_START_DELAY_MS)
             while (true) {
                 try {
@@ -497,11 +524,89 @@ object DisplayAppLauncher {
         Log.w(TAG, "[CARPLAY_CLUSTER_WATCHDOG] Started")
     }
 
+    fun startCarPlayMainDisplayBootAutostart() {
+        scope.launch {
+            val bootToken = currentBootToken()
+            val prefs = getPrefs()
+            if (prefs.getString(PREF_CARPLAY_BOOT_AUTOSTART_BOOT_TOKEN, "") == bootToken) {
+                Log.w(TAG, "[BOOT_USB_CARPLAY_D0_AUTOSTART] Already evaluated for this boot")
+                return@launch
+            }
+
+            repeat(CARPLAY_BOOT_AUTOSTART_ATTEMPTS) { attempt ->
+                val mainTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 0)
+                if (mainTask != null) {
+                    rememberCarPlayDisplayTarget(0, "BOOT_USB_CARPLAY_D0_ALREADY_VISIBLE")
+                    prefs.edit()
+                        .putString(PREF_CARPLAY_BOOT_AUTOSTART_BOOT_TOKEN, bootToken)
+                        .apply()
+                    Log.w(
+                        TAG,
+                        "[BOOT_USB_CARPLAY_D0_AUTOSTART] CarPlay already visible on D0 stack ${mainTask.stackId}"
+                    )
+                    return@launch
+                }
+
+                if (!isProjectionUsbConfigured()) {
+                    Log.w(
+                        TAG,
+                        "[BOOT_USB_CARPLAY_D0_AUTOSTART] USB not configured on attempt ${attempt + 1}; waiting"
+                    )
+                    delay(CARPLAY_BOOT_AUTOSTART_INTERVAL_MS)
+                    return@repeat
+                }
+
+                val clusterTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 3)
+                if (clusterTask != null) {
+                    Log.w(
+                        TAG,
+                        "[BOOT_USB_CARPLAY_D0_AUTOSTART] CarPlay appeared on D3 after boot; moving to D0"
+                    )
+                } else {
+                    Log.w(
+                        TAG,
+                        "[BOOT_USB_CARPLAY_D0_AUTOSTART] USB configured and no CarPlay visual task; starting on D0"
+                    )
+                }
+
+                startCarPlayOnDisplay(
+                    getCarPlayConfigForDisplay(0),
+                    "BOOT_USB_CARPLAY_D0_AUTOSTART"
+                )
+
+                val startedMainTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 0)
+                if (startedMainTask != null) {
+                    prefs.edit()
+                        .putString(PREF_CARPLAY_BOOT_AUTOSTART_BOOT_TOKEN, bootToken)
+                        .apply()
+                    Log.w(
+                        TAG,
+                        "[BOOT_USB_CARPLAY_D0_AUTOSTART] CarPlay confirmed on D0 stack ${startedMainTask.stackId}"
+                    )
+                    return@launch
+                }
+
+                Log.w(
+                    TAG,
+                    "[BOOT_USB_CARPLAY_D0_AUTOSTART] Start attempt ${attempt + 1} did not create D0 task; retrying"
+                )
+                delay(CARPLAY_BOOT_AUTOSTART_INTERVAL_MS)
+            }
+
+            Log.w(TAG, "[BOOT_USB_CARPLAY_D0_AUTOSTART] Finished without confirmed D0 CarPlay task")
+        }
+    }
+
     private suspend fun enforceCarPlayClusterContractFromWatchdog() {
+        reconcileCarPlayClusterTargetFromRealTask()
         if (!isCarPlayDesiredOnCluster()) return
 
         val tasks = findAllTasksForPackage(CARPLAY_PACKAGE)
         if (tasks.isEmpty()) {
+            if (!isMissingCarPlayVisualRestoreEligible("CARPLAY_CLUSTER_WATCHDOG_NO_TASK")) {
+                clearStaleCarPlayClusterTarget("CARPLAY_CLUSTER_WATCHDOG_NO_TASK_STALE_TARGET")
+                return
+            }
             val now = System.currentTimeMillis()
             if (now - lastCarPlayWatchdogRestoreAt < CARPLAY_WATCHDOG_RESTORE_COOLDOWN_MS) {
                 Log.w(
@@ -521,6 +626,10 @@ object DisplayAppLauncher {
 
         val clusterTask = tasks.firstOrNull { it.displayId == 3 }
         val mainTask = tasks.firstOrNull { it.displayId == 0 }
+
+        if (clusterTask != null) {
+            markCarPlayClusterVisualSeen("CARPLAY_CLUSTER_WATCHDOG")
+        }
 
         if (clusterTask != null && mainTask != null && clusterTask.stackId != mainTask.stackId) {
             cleanupMainDisplayCarPlayDuplicate(mainTask, clusterTask, "CARPLAY_CLUSTER_WATCHDOG")
@@ -544,6 +653,56 @@ object DisplayAppLauncher {
             )
             restoreCarPlayFromMainDisplayToCluster(mainTask, "CARPLAY_CLUSTER_WATCHDOG_DIRECT")
         }
+    }
+
+    private fun reconcileCarPlayClusterTargetFromRealTask() {
+        val clusterTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 3) ?: return
+        val mainTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 0)
+        if (mainTask != null) return
+
+        val desiredDisplay = getPrefs().getInt(PREF_DESIRED_CARPLAY_DISPLAY_ID, -1)
+        if (desiredDisplay == 3) return
+
+        Log.w(
+            TAG,
+            "[CARPLAY_CLUSTER_WATCHDOG_RECONCILE_TARGET] CarPlay is only on D3 " +
+                    "(stack ${clusterTask.stackId}) but desired target is $desiredDisplay; syncing target to D3"
+        )
+        rememberCarPlayDisplayTarget(3, "CARPLAY_CLUSTER_WATCHDOG_RECONCILE_TARGET")
+    }
+
+    private fun markCarPlayClusterVisualSeen(reason: String) {
+        lastCarPlayClusterVisualSeenAt = System.currentTimeMillis()
+        Log.d(TAG, "[$reason] CarPlay visual confirmed on cluster; missing-task restore is armed")
+    }
+
+    private fun isMissingCarPlayVisualRestoreEligible(reason: String): Boolean {
+        val lastSeenAt = lastCarPlayClusterVisualSeenAt
+        val ageMs = if (lastSeenAt > 0L) System.currentTimeMillis() - lastSeenAt else Long.MAX_VALUE
+        if (ageMs <= CARPLAY_MISSING_VISUAL_RESTORE_WINDOW_MS) {
+            return true
+        }
+
+        Log.w(
+            TAG,
+            "[$reason] Skipping missing CarPlay visual restore because no recent cluster visual was observed; " +
+                    "prevents post-reboot Impulse launch loop"
+        )
+        return false
+    }
+
+    private fun clearStaleCarPlayClusterTarget(reason: String) {
+        if (getPrefs().getInt(PREF_DESIRED_CARPLAY_DISPLAY_ID, -1) != 3) return
+
+        getPrefs().edit()
+            .putInt(PREF_DESIRED_CARPLAY_DISPLAY_ID, 0)
+            .apply()
+        lastCarPlayClusterVisualSeenAt = 0L
+        syncCarPlayDesiredDisplayProperty(0, reason)
+        Log.w(
+            TAG,
+            "[$reason] Clearing stale desired CarPlay cluster target because no recent cluster visual/session was observed"
+        )
     }
 
     private fun cleanupMainDisplayCarPlayDuplicate(
@@ -587,6 +746,15 @@ object DisplayAppLauncher {
         reason: String
     ): String {
         Log.w(TAG, "[$reason] Starting CarPlay on display $displayId")
+        if (displayId == 0) {
+            // `am start --display 0` can crash ActivityManager on this firmware, and
+            // `am stack start 0` creates empty stacks before the Activity is ready.
+            // A plain explicit start is the stable display-0 clean-start path; live
+            // D3 -> D0 handoff is handled earlier with move-stack.
+            return sh(
+                "am start -f 0x14000000 -n $CARPLAY_PACKAGE/$escapedActivity"
+            )
+        }
         return sh(
             "am start --display $displayId --windowingMode $windowingMode " +
                     "--activity-multiple-task -f $CARPLAY_START_FLAGS " +
@@ -597,7 +765,11 @@ object DisplayAppLauncher {
     private fun wasTopMostInstanceReused(commandOutput: String): Boolean {
         val normalized = commandOutput.lowercase()
         return normalized.contains("activity not started") &&
-                normalized.contains("currently running top-most instance")
+                (
+                        normalized.contains("currently running top-most instance") ||
+                                normalized.contains("current task has been brought to the front") ||
+                                normalized.contains("brought to the front")
+                        )
     }
 
     private fun currentEpochSeconds(): Double = System.currentTimeMillis() / 1000.0
@@ -996,6 +1168,7 @@ object DisplayAppLauncher {
 
         val clusterTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 3)
         if (clusterTask != null) {
+            markCarPlayClusterVisualSeen(reason)
             when (existingClusterAction) {
                 ExistingClusterCarPlayAction.FULL_REFRESH -> {
                     resizeAndFocusCarPlay(
@@ -1025,7 +1198,12 @@ object DisplayAppLauncher {
         val mainTask = waitForSustainedCarPlayOnMainDisplay(reason)
         if (mainTask == null) {
             if (findAllTasksForPackage(CARPLAY_PACKAGE).isEmpty()) {
-                recreateMissingCarPlayVisualTaskOnCluster("${reason}_RESTORE_MISSING_VISUAL")
+                val missingVisualReason = "${reason}_RESTORE_MISSING_VISUAL"
+                if (isMissingCarPlayVisualRestoreEligible(missingVisualReason)) {
+                    recreateMissingCarPlayVisualTaskOnCluster(missingVisualReason)
+                } else {
+                    clearStaleCarPlayClusterTarget("${missingVisualReason}_STALE_TARGET")
+                }
             }
             return
         }
@@ -1181,6 +1359,13 @@ object DisplayAppLauncher {
                 if (bringOtherTaskInStackToFront(currentTask.stackId, CARPLAY_PACKAGE, reason)) {
                     Thread.sleep(220)
                 }
+            } else if (currentTask.displayId == 0) {
+                Log.w(
+                    TAG,
+                    "[$reason] Defocusing display-0 CarPlay before D3 start to avoid ActivityManager task reuse"
+                )
+                bringNonProjectionTaskOnDisplayToFront(0, "${reason}_DEFOCUS_DISPLAY0_BEFORE_CLUSTER_START")
+                Thread.sleep(300)
             }
         }
 
@@ -1354,11 +1539,11 @@ object DisplayAppLauncher {
      */
     fun resolveAppInfo(context: Context, packageName: String, customName: String? = null): ResolvedAppInfo {
         val pm = context.packageManager
-        
+
         // 1. Determine Label
         val label = when {
             !customName.isNullOrBlank() -> customName
-            packageName.contains("androidauto", ignoreCase = true) || 
+            packageName.contains("androidauto", ignoreCase = true) ||
             packageName.contains("gearhead", ignoreCase = true) -> "Android Auto"
             packageName.contains("carplay", ignoreCase = true) ||
             packageName.contains("carlink", ignoreCase = true) ||
@@ -1378,7 +1563,7 @@ object DisplayAppLauncher {
         // 2. Determine Icon
         // Prioritize our custom icons for known system/predefined apps
         val icon = when {
-            packageName.contains("androidauto", ignoreCase = true) || 
+            packageName.contains("androidauto", ignoreCase = true) ||
             packageName.contains("gearhead", ignoreCase = true) -> context.getDrawable(R.drawable.ic_android_auto_default)
             packageName.contains("carplay", ignoreCase = true) ||
             packageName.contains("carlink", ignoreCase = true) ||
@@ -1590,7 +1775,7 @@ object DisplayAppLauncher {
                 val y = bounds[1]
                 val right = bounds[2]
                 val bottom = bounds[3]
-                
+
                 val escapedActivity = config.activityName.replace("$", "\\$")
                 val isOwnPackage = config.packageName == App.getContext().packageName
 
@@ -1623,7 +1808,7 @@ object DisplayAppLauncher {
                 } else {
                     Log.w(TAG, "Skipping force-stop/start for own package ${config.packageName}")
                 }
-                
+
                 Thread.sleep(300)
                 val newStackId = findStackIdForPackage(config.packageName, config.displayId)
                 if (newStackId != null) {
@@ -1657,7 +1842,7 @@ object DisplayAppLauncher {
             val y = bounds[1]
             val right = bounds[2]
             val bottom = bounds[3]
-            
+
             val stackId = findStackIdForPackage(config.packageName, config.displayId)
             if (stackId != null) {
                 sh("am stack resize $stackId $x $y $right $bottom")
@@ -1797,10 +1982,10 @@ object DisplayAppLauncher {
                 Log.w(TAG, "Moving stack ${taskInfo.stackId} to display 0")
                 val result = sh("am display move-stack ${taskInfo.stackId} 0")
                 notifyDisplayStateChanged(taskInfo.displayId)
-                
+
                 // Explicitly bring to front after move to ensure it's visible on Display 0
                 sh("am stack move-task-to-front ${taskInfo.taskId}")
-                
+
                 if (!result.contains("Exception") && !result.contains("Error")) {
                     val movedTask = findTaskForPackage(packageName)
                     if (movedTask != null && movedTask.displayId == 0) {
@@ -1905,7 +2090,7 @@ object DisplayAppLauncher {
             }
             if (inTargetStack) {
                 if (line.contains("Stack id=")) break
-                
+
                 val taskMatch = Regex("""taskId=(\d+):\s*([^/]+)/""").find(line)
                 if (taskMatch != null) {
                     return taskMatch.groupValues[2]
@@ -1993,7 +2178,7 @@ object DisplayAppLauncher {
                     }
                 }
             }
-            
+
             if (pkg != null) {
                 if (!BottomBarState.restoredApps.contains(pkg)) {
                     withContext(Dispatchers.Main) {
@@ -2001,7 +2186,7 @@ object DisplayAppLauncher {
                     }
                 }
             }
-            
+
             val res = getDisplayResolution(0)
             // v2.3: respect overscan when restoring to Display 0 fullscreen
             val effectiveHeight = if (pkg != null) applyOverscanToDisplay0Height(pkg, res.second) else res.second
@@ -2116,10 +2301,10 @@ object DisplayAppLauncher {
      */
     private fun evictOtherAppsFromDisplay(displayId: Int, excludePackage: String) {
         if (displayId == 0) return
-        
+
         val stackList = getStackList()
         val stacksToEvict = mutableListOf<Int>()
-        
+
         var currentDisplayId: Int? = null
         for (line in stackList.lines()) {
             val m = Regex("""Stack id=(\d+).*displayId=(\d+)""").find(line)
@@ -2172,9 +2357,9 @@ object DisplayAppLauncher {
                 }
                 continue
             }
-            
+
             Log.w(TAG, "Evicting $pkg (stack $stackId) from display $displayId → display 0")
-            
+
             val task = findTaskForPackage(pkg)
             if (task != null) {
                 saveCurrentBounds(pkg, task)
@@ -2199,17 +2384,17 @@ object DisplayAppLauncher {
                         App.getContext().startActivity(it)
                     }
                 }
-                
+
                 // Mark evicted app as restored
                 if (!BottomBarState.restoredApps.contains(pkg)) {
                     BottomBarState.restoredApps.add(pkg)
                 }
-                
+
                 val cached = lastKnownDisplayBounds[pkg]?.get(0)
                 val overscanPx = getOverscanForPackage(pkg)
                 val density = App.getContext().resources.displayMetrics.density
                 val overscanDp = (overscanPx / density).toInt()
-                
+
                 if (cached != null) {
                     var y2 = cached[3]
                     if (y2 >= 710) y2 = 720
@@ -2248,7 +2433,7 @@ object DisplayAppLauncher {
     private fun getOverscanForPackage(packageName: String): Int {
         val prefs = getPrefs()
         val density = App.getContext().resources.displayMetrics.density
-        
+
         // Priority 1: Dynamic Overrides from SharedPreferences (User defined)
         val overridesJson = prefs.getString(SharedPreferencesKeys.BOTTOM_BAR_OVERRIDES.key, null)
         if (overridesJson != null) {
@@ -2271,7 +2456,7 @@ object DisplayAppLauncher {
                 Log.e(TAG, "Error parsing BOTTOM_BAR_OVERRIDES for $packageName", e)
             }
         }
-        
+
         // Priority 2: Hardcoded App Overrides (matching BottomBarService)
         val hardcodedOverscan = when (packageName) {
             "com.google.android.apps.messaging", "deezer.android.app" -> 60
@@ -2297,7 +2482,7 @@ object DisplayAppLauncher {
             val stackList = getStackList()
             var currentDisplayId: Int? = null
             val regex = Regex("""taskId=\d+:\s*([a-zA-Z0-9._]+)/""")
-            
+
             for (line in stackList.lines()) {
                 val stackMatch = Regex("""displayId=(\d+)""").find(line)
                 if (stackMatch != null) {
@@ -2310,7 +2495,7 @@ object DisplayAppLauncher {
                     }
                 }
             }
-            
+
             // Fallback to dumpsys if am stack list is not helping
             val output = ShizukuUtils.runCommandAndGetOutput(
                 arrayOf("sh", "-c", "dumpsys activity activities | sed -n '/Display #$displayId/,/Display #/p' | grep -E 'mResumedActivity|mCurrentFocus|mFocusedActivity'")
@@ -2336,12 +2521,12 @@ object DisplayAppLauncher {
                     3 -> br.com.redesurftank.havalshisuku.models.ServiceManagerEventType.DISPLAY_3_APP_STATE_CHANGED
                     else -> null
                 }
-                
+
                 if (eventType != null) {
                     Log.w(TAG, "Display $displayId app state changed (delay $d): isActive=$isActive")
                     ServiceManager.getInstance().dispatchServiceManagerEvent(eventType, isActive)
                 }
-                
+
                 // If we found it active, we're likely done with launch updates
                 if (isActive) break
             }
@@ -2453,7 +2638,7 @@ object DisplayAppLauncher {
         var currentStackId: Int? = null
         var currentDisplayId: Int? = null
         var currentBounds: IntArray? = null
-        
+
         val stackList = getStackList()
         for (line in stackList.lines()) {
             val stackMatch = Regex("""Stack id=(\d+).*displayId=(\d+)""").find(line)
@@ -2484,11 +2669,11 @@ object DisplayAppLauncher {
                     }
                 }
             }
-            
+
             val taskMatch = Regex("""taskId=(\d+):\s*\Q$packageName\E/""").find(line)
             if (taskMatch != null && currentStackId != null && currentDisplayId != null) {
                 val taskId = taskMatch.groupValues[1].toIntOrNull()
-                
+
                 // Final check: the task line ITSELF might have the bounds in some scenarios
                 val tbMatch = Regex("""[m]?bounds=\[(\d+),(\d+)\]\[(\d+),(\d+)\]""").find(line)
                 if (tbMatch != null) {
@@ -2499,7 +2684,7 @@ object DisplayAppLauncher {
                         tbMatch.groupValues[4].toInt()
                     )
                 }
-                
+
                 if (taskId != null) return TaskInfo(taskId, currentStackId, currentDisplayId, currentBounds)
             }
         }
@@ -2609,7 +2794,13 @@ object DisplayAppLauncher {
             val taskId = taskMatch.groupValues[1].toIntOrNull() ?: continue
             val packageName = taskMatch.groupValues[2]
             val activityName = taskMatch.groupValues[3]
-            if (packageName == "com.android.systemui" || isProjectionMirrorPackage(packageName)) continue
+            if (
+                packageName == "com.android.systemui" ||
+                packageName == App.getContext().packageName ||
+                isProjectionMirrorPackage(packageName)
+            ) {
+                continue
+            }
 
             return StackTaskInfo(
                 taskId = taskId,
@@ -2658,13 +2849,13 @@ object DisplayAppLauncher {
             if (info.windowingMode == "split-screen-secondary") {
                 recentlyFixed[packageName] = System.currentTimeMillis()
                 Log.w(TAG, "Detected $packageName in ${info.windowingMode}, restarting in freeform")
-                
+
                 val bounds = getEffectiveBounds(config)
                 val x = bounds[0]
                 val y = bounds[1]
                 val right = bounds[2]
                 val bottom = bounds[3]
-                
+
                 val escapedActivity = config.activityName.replace("$", "\\$")
                 sh("am force-stop $packageName")
                 Thread.sleep(200)
@@ -2745,7 +2936,7 @@ object DisplayAppLauncher {
                         discoveredActions.add(action)
                     }
                 }
-                
+
                 // Also look for actions that don't have quotes
                 val regex2 = Regex("""action\s+([a-zA-Z0-9._]+)""")
                 regex2.findAll(output).forEach { match ->

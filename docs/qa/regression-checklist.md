@@ -22,9 +22,14 @@
 - CarPlay cluster 3 -> display 0.
 - Android Auto display 0 -> cluster 3.
 - CarPlay e Android Auto não usam recuperação cruzada.
+- Antes de alterar CarPlay, capturar baseline e candidato com `headunit.sh carplay-baseline` e
+  comparar com `headunit.sh carplay-compare`.
 - Com CarPlay no cluster 3, abrir AC/HVAC no display 0 e tocar na tela do CarPlay: D3 continua
   mostrando CarPlay sem tela preta.
 - Com CarPlay no cluster 3, abrir câmera/AVM física no display 0: D3 continua mostrando CarPlay.
+- Com CarPlay no cluster 3, abrir app comum no D0: D3 continua mostrando CarPlay sem piscar, sem
+  ir para D0 e sem perder `Mapa`.
+- Repetir AC, app comum no D0 e câmera/AVM após reboot da central.
 - Com CarPlay no cluster 3, navegar pelos cards fisicos do volante:
   - `cardId=1` mostra o main menu sobre o CarPlay sem fundo preto;
   - `cardId=3` mostra o card de AC sobre o CarPlay sem fundo preto;
@@ -46,3 +51,4 @@ python3 scripts/carplay-patches/verify_regression_lock.py
 - Comandos executados.
 - Logs relevantes.
 - Screenshots se houver UI.
+- Diretórios de baseline/candidato e comparação salvos em `tools/headunit-dev/output/`.

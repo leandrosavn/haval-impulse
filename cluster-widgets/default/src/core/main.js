@@ -34,6 +34,9 @@ function isProjectionCardOverlayActive() {
     if (!isProjectionMapDisplayActive()) {
         return false;
     }
+    if (get('projectionCardOverlayAllowed') !== true) {
+        return false;
+    }
     const screen = get('screen');
     const cardId = get('cardId');
     return (screen === 'main_menu' && cardId == 1) || (screen === 'aircon' && cardId == 3);
@@ -251,6 +254,7 @@ subscribe('display', render);
 subscribe('clusterEnabled', render);
 subscribe('carPlayInDash', render);
 subscribe('projectionMirrorInDash', render);
+subscribe('projectionCardOverlayAllowed', render);
 // subscribe('cardId', render); // REMOVED: Triggers double-render as cardId listener already sets screen
 render();
 
@@ -330,6 +334,30 @@ window.control = function (key, value) {
     } catch (e) {
         console.error('[Error] Bridge control failed for key ' + key + ':', e);
     }
+};
+
+window.__havalProjectionDebug = function () {
+    const app = document.getElementById('app');
+    const menu = document.querySelector('.dashboard-menu-container');
+    const main = document.querySelector('.main-container');
+    return {
+        carPlayInDash: get('carPlayInDash'),
+        projectionMirrorInDash: get('projectionMirrorInDash'),
+        cardId: get('cardId'),
+        screen: get('screen'),
+        display: get('display'),
+        effectiveDisplay: getEffectiveDisplayMode(),
+        projectionCardOverlayAllowed: get('projectionCardOverlayAllowed'),
+        projectionMapDisplayActive: isProjectionMapDisplayActive(),
+        projectionCardOverlayActive: isProjectionCardOverlayActive(),
+        appClass: app ? app.className : null,
+        menuDisplay: menu ? getComputedStyle(menu).display : null,
+        menuVisibility: menu ? getComputedStyle(menu).visibility : null,
+        menuOpacity: menu ? getComputedStyle(menu).opacity : null,
+        mainDisplay: main ? getComputedStyle(main).display : null,
+        mainVisibility: main ? getComputedStyle(main).visibility : null,
+        mainOpacity: main ? getComputedStyle(main).opacity : null,
+    };
 };
 
 window.cleanup = function () {

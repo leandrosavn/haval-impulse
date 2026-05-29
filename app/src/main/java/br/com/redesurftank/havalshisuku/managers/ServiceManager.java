@@ -232,6 +232,9 @@ public class ServiceManager {
     private boolean isClusterHeartbeatRunning = false;
     private int clusterHeartBeatCount = 0;
     private int clusterCardView = 0;
+    private long lastClusterInputAtMs = 0L;
+    private int lastClusterInputKeyCode = -1;
+    private String lastClusterInputKeyName = "";
     private final Map<String, String> previousAcState = new HashMap<>();
     private boolean isMaxAcActive = false;
     private Runnable maxAcTimeoutRunnable;
@@ -380,9 +383,26 @@ public class ServiceManager {
                 public void callbackMsg(int msgId, ClusterMsgData data) {
                     if (msgId == 133) {
                         int whichCard = data.getIntValue();
+                        int previousCard = clusterCardView;
                         clusterCardView = whichCard;
                         dispatchServiceManagerEvent(ServiceManagerEventType.CLUSTER_CARD_CHANGED, clusterCardView);
-                        Log.w(TAG, "Cluster card changed: " + whichCard);
+                        long sinceInputMs =
+                                lastClusterInputAtMs == 0L
+                                        ? -1L
+                                        : SystemClock.uptimeMillis() - lastClusterInputAtMs;
+                        Log.w(
+                                TAG,
+                                "Cluster card changed: "
+                                        + previousCard
+                                        + " -> "
+                                        + whichCard
+                                        + " lastInputKey="
+                                        + lastClusterInputKeyName
+                                        + "("
+                                        + lastClusterInputKeyCode
+                                        + ") sinceInputMs="
+                                        + sinceInputMs
+                        );
                     } else if (msgId == 134) {
                         if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.getKey(), false)) {
                             if (data.getIntValue() == 2) {
@@ -454,7 +474,27 @@ public class ServiceManager {
                                 key = Screen.Key.BACK_LONG;
                                 break;
                         }
-                        if (key != null) MainUiManager.getInstance().handleGeneralKeyEvents(key);
+                        if (key != null) {
+                            lastClusterInputAtMs = SystemClock.uptimeMillis();
+                            lastClusterInputKeyCode = keyEvent.getKeyCode();
+                            lastClusterInputKeyName = key.name();
+                            Log.w(
+                                    TAG,
+                                    "Cluster input key: "
+                                            + lastClusterInputKeyName
+                                            + "("
+                                            + lastClusterInputKeyCode
+                                            + ") action="
+                                            + keyEvent.getAction()
+                            );
+                            dispatchServiceManagerEvent(
+                                    ServiceManagerEventType.CLUSTER_INPUT_KEY,
+                                    lastClusterInputKeyName,
+                                    lastClusterInputKeyCode,
+                                    keyEvent.getAction()
+                            );
+                            MainUiManager.getInstance().handleGeneralKeyEvents(key);
+                        }
                         if (key == Screen.Key.BACK) {
                             dispatchServiceManagerEvent(ServiceManagerEventType.DISMISS_WARNING);
                         }
@@ -1432,8 +1472,8 @@ public class ServiceManager {
 
         // Restores previous AC settings (excluding power/enable keys so they can be restored last)
         for (Map.Entry<String, String> entry : previousAcState.entrySet()) {
-            if (entry.getValue() != null && 
-                !entry.getKey().equals(CarConstants.CAR_HVAC_POWER_MODE.getValue()) && 
+            if (entry.getValue() != null &&
+                !entry.getKey().equals(CarConstants.CAR_HVAC_POWER_MODE.getValue()) &&
                 !entry.getKey().equals(CarConstants.CAR_HVAC_AC_ENABLE.getValue())) {
                 updateData(entry.getKey(), entry.getValue());
             }
@@ -1465,7 +1505,7 @@ public class ServiceManager {
             String tempStr = getUpdatedData(CarConstants.CAR_BASIC_INSIDE_TEMP.getValue());
             if (tempStr == null) return;
             float currentTemp = Float.parseFloat(tempStr);
-            
+
             if (currentTemp >= 85.0f || currentTemp <= -40.0f) {
                 if (retryCount < 5) {
                     Log.w(TAG, "Invalid temp " + currentTemp + " at startup, delaying Max AC check... retry: " + retryCount);
@@ -1581,17 +1621,17 @@ public class ServiceManager {
                 float minTemp = 16.0f;
                 float prevDriverTemp = (previousAcState.get(prevDriverKey) != null) ? Float.parseFloat(previousAcState.get(prevDriverKey)) : 22.0f;
                 float prevPassTemp = (previousAcState.get(prevPassKey) != null) ? Float.parseFloat(previousAcState.get(prevPassKey)) : 22.0f;
-                
+
                 float newDriverTemp = prevDriverTemp - ((prevDriverTemp - minTemp) * factor);
                 newDriverTemp = Math.min(20, newDriverTemp);
-                
+
                 float newPassTemp = prevPassTemp - ((prevPassTemp - minTemp) * factor);
                 newPassTemp = Math.min(20, newPassTemp);
 
                 updateData(CarConstants.CAR_HVAC_FAN_SPEED.getValue(), String.valueOf(newFan));
                 updateData(prevDriverKey, String.format(Locale.US, "%.1f", newDriverTemp));
                 updateData(prevPassKey, String.format(Locale.US, "%.1f", newPassTemp));
-                
+
                 // Enforce Power and AC Enable to ensure they stay ON during the process
                 updateData(CarConstants.CAR_HVAC_POWER_MODE.getValue(), "1");
                 updateData(CarConstants.CAR_HVAC_AC_ENABLE.getValue(), "1");

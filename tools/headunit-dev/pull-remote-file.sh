@@ -168,6 +168,12 @@ if [[ -z "$REMOTE_SIZE" ]]; then
   echo "[HavalDev] Could not read remote file size: $REMOTE_PATH" >&2
   exit 1
 fi
+if (( REMOTE_SIZE == 0 )); then
+  echo "[HavalDev] Remote file is empty: $REMOTE_PATH"
+  : > "$LOCAL_PATH"
+  echo "[HavalDev] Saved empty file to $LOCAL_PATH"
+  exit 0
+fi
 
 URL="http://${HOST_IP}:${SERVER_PORT}/${LOCAL_NAME}"
 echo "[HavalDev] Pulling $REMOTE_PATH ($REMOTE_SIZE bytes)"

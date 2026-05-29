@@ -279,22 +279,33 @@ object CarPlayPatchManager {
             }
 
             if (mountChanged) {
-                reloadCarPlayProcessesIfIdle("AUTO_MOUNT_AFTER_BOOT")
+                reloadCarPlayProcessesAfterPatchMount("AUTO_MOUNT_AFTER_BOOT")
             }
         } catch (e: Exception) {
             Log.e(TAG, "CarPlay auto-mount failed", e)
         }
     }
 
-    private fun reloadCarPlayProcessesIfIdle(reason: String) {
-        val visualTaskActive =
-            DisplayAppLauncher.isCarPlayOnDisplay(0) || DisplayAppLauncher.isCarPlayOnDisplay(3)
+    private fun reloadCarPlayProcessesAfterPatchMount(reason: String) {
+        val visualTaskOnDisplay0 = DisplayAppLauncher.isCarPlayOnDisplay(0)
+        val visualTaskOnDisplay3 = DisplayAppLauncher.isCarPlayOnDisplay(3)
+        val visualTaskActive = visualTaskOnDisplay0 || visualTaskOnDisplay3
 
         if (visualTaskActive) {
             Log.w(
                 TAG,
-                "[$reason] CarPlay visual task is active; not reloading processes to avoid dropping the session"
+                "[$reason] CarPlay visual task is active; reloading visual and host so mounted HVAC focus patches are loaded"
             )
+            sh("am force-stop com.ts.carplay.app 2>/dev/null || true")
+            sh("am force-stop com.ts.carplay 2>/dev/null || true")
+            sh("sleep 0.3")
+            sh("am startservice -n com.ts.carplay/.CarPlayService 2>/dev/null || true")
+            sh("am startservice -n com.ts.carplay.app/.service.CarPlayRemoteService 2>/dev/null || true")
+            if (visualTaskOnDisplay3) {
+                sh("am start --display 3 --windowingMode 5 --activity-multiple-task -f 0x18000000 -n com.ts.carplay.app/com.ts.carplay.app.ui.display.view.CarPlayDisplayActivity 2>/dev/null || true")
+            } else if (visualTaskOnDisplay0) {
+                sh("am stack start 0 -f 0x14000000 -n com.ts.carplay.app/com.ts.carplay.app.ui.display.view.CarPlayDisplayActivity 2>/dev/null || true")
+            }
             return
         }
 

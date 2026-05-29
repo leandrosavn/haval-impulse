@@ -69,7 +69,7 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
     @Override
     public synchronized int onStartCommand(Intent intent, int flags, int startId) {
         var sharedPreferences = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE);
-        
+
 
         if (isServiceRunning) {
             Log.w(TAG, "Service is already running, skipping start.");
@@ -78,10 +78,10 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
         try {
             isServiceRunning = true; // Marca o serviço como rodando
             Log.w(TAG, "Service started");
-            
+
             // Clear any pending background tasks (retry loops) from previous starts
             backgroundHandler.removeCallbacksAndMessages(null);
-            
+
             var context = getApplicationContext();
             // Criar notificação para o Foreground Service
             Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID).setContentTitle("Aplicação em execução").setContentText("Seu app está rodando em segundo plano").setSmallIcon(android.R.drawable.ic_notification_overlay) // Ícone de notificação
@@ -145,12 +145,12 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
                     try {
                         var sharedPreferences = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE);
                         String shizukuLibLocation = sharedPreferences.getString("shizuku_lib_location", "");
-                        
+
                         var telnetClient = new TelnetClientWrapper();
-                        
-                        
+
+
                         telnetClient.connect("127.0.0.1", 23);
-                        
+
 
                         String filePath = "";
                         if (shizukuLibLocation.isEmpty()) {
@@ -365,7 +365,7 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
         backgroundHandler.post(() -> {
             try {
                 var prefs = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE);
-                
+
                 // Initialize default if not set
                 if (!prefs.contains(SharedPreferencesKeys.AA_PATCH_AUTO_MOUNT.getKey())) {
                     boolean aaInstalled = false;
@@ -373,7 +373,7 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
                         getPackageManager().getPackageInfo("com.ts.androidauto.app", 0);
                         aaInstalled = true;
                     } catch (Exception ignored) {}
-                    
+
                     Log.i(TAG, "AA Patch auto-mount preference not set. Defaulting to " + aaInstalled + " (AA installed: " + aaInstalled + ")");
                     prefs.edit().putBoolean(SharedPreferencesKeys.AA_PATCH_AUTO_MOUNT.getKey(), aaInstalled).apply();
                 }
@@ -387,7 +387,7 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
                 }
 
                 String carPlayPatchVersionKey = "carPlayPatchAutoMountPatchVersion";
-                String carPlayHvacFocusPatchVersion = "app_service_hvac_focus_v3";
+                String carPlayHvacFocusPatchVersion = "app_visual_d0_focus_service_conditional_camera_native1904x704_v12";
                 if (!carPlayHvacFocusPatchVersion.equals(prefs.getString(carPlayPatchVersionKey, ""))) {
                     Log.i(TAG, "Enabling CarPlay HVAC focus patch auto-mount for version " + carPlayHvacFocusPatchVersion);
                     prefs.edit()
@@ -405,6 +405,12 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Projection patch auto-mount check failed: " + e.getMessage(), e);
+            }
+
+            try {
+                DisplayAppLauncher.INSTANCE.startCarPlayMainDisplayBootAutostart();
+            } catch (Exception e) {
+                Log.e(TAG, "CarPlay boot autostart scheduling failed: " + e.getMessage(), e);
             }
         });
 

@@ -101,12 +101,10 @@ permanente, sem buffer cinza/sujo e sem exigir tirar/recolocar o cabo.
     existe stack viva no cluster, ou restaurar `0 -> 3` apos confirmar que o CarPlay ficou
     sustentado no display 0. O watchdog nao substitui eventos manuais nem altera Android Auto.
 25. Quando CarPlay esta realmente no display 3 e um painel nativo do display 0 esta ativo
-    (`sys.avm.preview_status` ou `car.hvac.panel_display_notify`), o app principal pode esconder
-    temporariamente apenas a sua propria `Presentation` fullscreen para nao cobrir a Surface nativa
-    do CarPlay: `windowAlpha=0`, `root/WebView` invisiveis. Ao fechar o painel ou quando CarPlay
-    deixar o display 3, a `Presentation` deve restaurar `windowAlpha=1`. Esse bypass nao pode mover,
-    reiniciar, redimensionar ou enviar broadcast de foco ao CarPlay e nao deve ser aplicado ao
-    Android Auto sem validacao separada.
+    (`sys.avm.preview_status` ou `car.hvac.panel_display_notify`), o app principal deve manter sua
+    `Presentation`/WebView visivel e transparente para preservar o display efetivo `Mapa`. O bypass
+    antigo por `windowAlpha=0` nao deve ser usado durante camera/AVM/HVAC, porque remove os widgets
+    protegidos do `Mapa` mesmo quando a Surface do CarPlay continua saudavel no D3.
 
 ## Operacoes Proibidas Para CarPlay
 
@@ -136,12 +134,19 @@ am display move-stack <CARPLAY_STACK_ID> 0
 
 5. Aplicar fullscreen do display 0 e enviar broadcasts de foco de video do CarPlay.
 6. Limpar somente duplicatas, preservando a stack movida.
-7. Se nao existe CarPlay vivo em display secundario, remover stacks visuais antigas e abrir:
+7. Se nao existe CarPlay vivo em display secundario, remover stacks visuais antigas e abrir por
+   cold-start explicito sem `--display 0`:
 
 ```bash
-am start --display 0 --windowingMode 1 --activity-multiple-task -f 0x18000000 \
+am start -f 0x14000000 \
   -n com.ts.carplay.app/com.ts.carplay.app.ui.display.view.CarPlayDisplayActivity
 ```
+
+Em 2026-05-29, `am start --display 0` foi observado sendo entregue a uma instancia top-most stale
+no display 3 mesmo com alvo `persist.haval.carplay.desired_display=0`. No teste de boot/autostart
+do mesmo dia, `am stack start 0` criou varias stacks vazias antes da Activity estar pronta. O
+caminho aceito para cold-start no display 0 passa a ser o `am start` explicito acima. O handoff
+D3 -> D0 com Surface viva continua usando `am display move-stack`.
 
 8. Notificar display 3 para limpar estado antigo do projector.
 
@@ -181,9 +186,9 @@ am start --display 3 --windowingMode 5 --activity-multiple-task -f 0x18000000 \
 | Enviar CarPlay 0 -> 3 | Cluster 3 exibe CarPlay em fullscreen com display `Mapa` automatico |
 | Com CarPlay no 3, acionar camera/AVM | Camera aparece no display 0 e CarPlay permanece no 3 |
 | Fechar camera/AVM | CarPlay continua no 3 sem tirar cabo |
-| Com CarPlay no 3, acionar ar-condicionado | HVAC aparece no display 0, a `Presentation` do app pode sumir temporariamente e CarPlay permanece visivel no 3 |
+| Com CarPlay no 3, acionar ar-condicionado | HVAC aparece no display 0, a `Presentation` do app permanece visivel/transparente, o display `Mapa` continua ativo e CarPlay permanece visivel no 3 |
 | Fechar ar-condicionado | CarPlay continua no 3 sem tirar cabo |
-| Com CarPlay no 3, acionar camera/AVM | AVM aparece no display 0, a `Presentation` do app pode sumir temporariamente e CarPlay permanece visivel no 3 |
+| Com CarPlay no 3, acionar camera/AVM | AVM aparece no display 0, a `Presentation` do app permanece visivel/transparente, o display `Mapa` continua ativo e CarPlay permanece visivel no 3 |
 | Com CarPlay no 3, janela nativa de camera/AVM/HVAC ganha foco no display 0 | Guardiao pontual usa foco leve ou apenas verifica que CarPlay segue no 3; nao envia `view_state`, nao redimensiona, nao reinicia servicos e nao puxa CarPlay para o 0 |
 | Com CarPlay no 3, abrir outro app no display 0 | App abre no display 0 e CarPlay continua no 3 |
 | Com CarPlay no 3 | Display `Mapa` aparece por cima da projecao; `.display-mapa .mask-top-bar`, `.display-mapa .dashboard-speed-content`, widgets de mapa e gauges esperados permanecem visiveis; esportivo/circulos/fundo fixo/mascara/menu/HVAC nao aparecem por cima salvo overlays transparentes acionados por cards fisicos |
@@ -261,7 +266,8 @@ Quando o alvo desejado do usuario for CarPlay no cluster 3 e a Activity real `co
 
 - stack bounds exatamente `[0,0][1920,720]`;
 - window requested `1920x720`;
-- Surface do CarPlay `1920x720`;
+- SurfaceView visivel em `[0,0][1920,720]`; o buffer nativo validado pode ser
+  `1904x704`, escalado pelo SurfaceFlinger para preencher o cluster sem expor margem cinza;
 - nenhuma duplicata sustentada no display 0.
 
 Se logs/dumps mostrarem bounds parciais, por exemplo `[0,62][1920,658]` ou Surface `1920x596`, o app pode reparar somente o stackId real do CarPlay no display 3 com:
@@ -296,6 +302,11 @@ permitidos. Nesse estado:
 - eventos nativos de camera/AVM/HVAC/app no display 0 nao devem forcar tela invasiva opaca na
   WebView do cluster;
 - navegacao fisica por cards pode renderizar `main_menu` quando `cardId=1` e AC quando `cardId=3`;
+- eventos de bootstrap do `ClusterService` como `0 -> 1 -> 1`, sem tecla fisica recente, nao contam
+  como navegacao fisica e nao podem armar esses overlays sobre o CarPlay;
+- o frontend so pode marcar `projection-card-overlay-active` quando
+  `projectionCardOverlayAllowed=true`, estado armado pelo Kotlin somente apos input real recente do
+  volante; troca automatica de card sem tecla fisica recente deve manter o overlay desligado;
 - esses overlays devem ficar transparentes e sem captura de toque, preservando a Surface nativa da
   projecao abaixo;
 - qualquer outra navegacao deve continuar suprimida enquanto `carPlayInDash` ou
@@ -304,9 +315,12 @@ permitidos. Nesse estado:
 - `html`, `body`, `#app` e o WebView devem permanecer transparentes;
 - se o WebView precisar ficar sobre a Surface nativa, a transparencia deve ser priorizada em vez de
   pintar fallback preto;
-- AC/HVAC, camera/AVM e apps no display 0 nao podem montar componentes opacos no display 3.
+- AC/HVAC, camera/AVM e apps no display 0 nao podem montar componentes opacos no display 3;
+- camera/AVM/HVAC nao podem esconder a `Presentation` inteira por `windowAlpha=0`, pois isso remove
+  o display `Mapa` mesmo com CarPlay renderizando corretamente no D3.
 
-Se CarPlay estiver fullscreen (`[0,0][1920,720]`, Window requested `1920x720`, Surface `1920x720`)
+Se CarPlay estiver fullscreen (`[0,0][1920,720]`, Window requested `1920x720`, SurfaceView visivel
+em `[0,0][1920,720]`)
 e ainda houver tela preta enquanto AC/camera esta ativa no display 0, investigar primeiro se a
 `Presentation` esta pintando preto; so depois investigar foco/decoder nativo (`cpScreen` /
 `NdkMediaCodec`).
@@ -340,7 +354,7 @@ Esta regra substitui temporariamente a Regra 27 apenas para a build de teste ins
 A excecao permitida e estreita:
 
 - CarPlay precisa estar real no display 3;
-- stack/window/Surface do CarPlay precisam permanecer `1920x720`;
+- stack/window do CarPlay precisam permanecer `1920x720`;
 - display 0 em estado passivo (`com.beantechs.vehiclecenter` ou `com.beantechs.mediacenter`) nao
   ativa fallback;
 - display 0 com foreground nao-passivo pode ativar `projectionNativePanelFallbackActive` para evitar
@@ -370,7 +384,18 @@ Contrato atual do patch `TsCarPlayApp.apk`:
 - `onPause()` envia `ts.car.carplay.view_state=foreground`, nunca `background`;
 - a excecao deixou de depender de `Activity.getDisplay()`, que se mostrou ambigua durante HVAC;
 - `VideoModel.lambda$priorityChanged$3` tambem ignora foco HVAC `uiNotification`;
-- nao alterar layout, launch mode, SurfaceView, finish receiver ou fluxo Android Auto.
+- `VideoModel.lambda$priorityChanged$3` ignora retorno normal do display 0
+  (`priority=0/action=1/borrowId=""`) enquanto o CarPlay ainda esta no stack, para evitar que o
+  fechamento do HVAC roteie o video para AppList e force recriacao da task no D3;
+- `SurfaceView` nativo deve usar `match_parent` para preencher o parent fullscreen da Activity no
+  cluster 3. O layout stock `1896x700` centralizado gera margem cinza e buffer alinhado proximo de
+  `1904x704`;
+- `CarPlayDisplayFragment$2.surfaceChanged` deve usar o sentinel
+  `CP_SURFACE_SHOW_NATIVE_1904_704_ON_SECONDARY` para passar `1904x704` ao renderer nativo em
+  displays secundarios, mantendo Activity/window em `1920x720`. Em 2026-05-29, teste fisico
+  confirmou que este buffer alinhado elimina a area cinza no D3 enquanto AC e apps no D0 continuam
+  estaveis;
+- nao alterar launch mode, loops dinamicos de resize, crop/overscan ou fluxo Android Auto.
 
 Evidencia de validacao 2026-05-28:
 
@@ -379,35 +404,159 @@ Evidencia de validacao 2026-05-28:
 - depois do patch v2, HVAC ativo + toque manteve mapa no D3 em
   `artifacts/headunit/screens/20260528-225353-v2-ac-tap-d3.png`.
 
-Camera/AVM continua fora desta regra; qualquer expansao para prioridade/safety de camera exige
-teste fisico separado.
+Camera/AVM continua tratada por regra propria porque envolve o caminho safety de
+`backcamera/backupCamera`.
 
 ## Regra 30 - Estado validado deve ter trava de regressao
 
-O estado validado em 2026-05-28 22:55 deve permanecer reproduzivel por verificacao estatica antes
-de novos deploys envolvendo CarPlay:
+O estado validado em 2026-05-29 10:45 deve permanecer reproduzivel por verificacao estatica antes
+de novos deploys envolvendo CarPlay. Ele inclui a correcao do salto observado no fechamento do AC,
+do app normal no D0 que podia trocar a rota de video, e a camera condicional: camera/AVM fica stock
+no D0, mas nao toma a rota de video quando o alvo desejado do CarPlay e D3.
 
-- `TsCarPlayApp.apk` embarcado deve manter MD5 `6fa2ec71f8a10e11a8de94ab03987344`;
-- `TsCarPlayService.apk` embarcado deve manter MD5 `4a76e74c5f9fc119287c5cc0f823856a`;
-- `ForegroundService` deve manter a versao de auto-mount `app_service_hvac_focus_v3`;
-- `CarPlayPatchManager` deve montar app + service e nao deve executar `force-stop` como parte do
-  auto-mount;
+- `TsCarPlayApp.apk` embarcado deve manter MD5 `ec5053d91d8364d9451937981e08a04a`;
+- `TsCarPlayService.apk` embarcado deve manter MD5 `f0269fc640778825843762dcf55a8b83`;
+- `ForegroundService` deve manter a versao de auto-mount
+  `app_visual_d0_focus_service_conditional_camera_native1904x704_v12`;
+- `CarPlayPatchManager` deve montar app + service e, quando o mount muda com CarPlay visual ativo,
+  pode recarregar `com.ts.carplay.app` e `com.ts.carplay` para carregar o dex patchado, reabrindo a
+  Activity no display onde ela estava; esse caminho e exclusivo de patch load, nao de handoff
+  normal;
 - quando o MD5 embarcado mudar, `CarPlayPatchManager` deve recopy + reaplicar mounts para limpar
   dalvik/oat pelo fluxo `applyMounts()`, mesmo se o APK antigo ja estiver montado;
+- `DisplayAppLauncher` deve manter `persist.haval.carplay.desired_display` sincronizado com a
+  preferencia `desiredCarPlayDisplayId` para que o APK nativo saiba, apos reboot, que apps normais
+  no D0 nao devem tomar a rota de video quando o alvo desejado e D3;
 - `DisplayAppLauncher` deve manter verify-only quando a task real do CarPlay continua viva no D3,
   sem `VIDEO_FOCUS_CHANGE` em eventos de HVAC/camera/app;
 - se o alvo desejado e D3 e a central nativa remover a task visual ou recriar CarPlay no D0, o
   watchdog pode restaurar o visual no D3 com `am start --display 3 ... CarPlayDisplayActivity`,
   sem `force-stop`, defocando antes o D0 e removendo duplicata do D0 somente depois que a task do
   D3 existir;
+- apos reboot ou sem cabo/sessao CarPlay ativa, o watchdog nao pode recriar task visual ausente se
+  nenhuma task real do CarPlay foi observada recentemente no D3; isso evita loop abrindo o Impulse
+  no display 0;
 - `patch_logic_app_focus.py` deve manter os sentinels
-  `CP_KEEP_VIDEO_FOCUS_FOR_HVAC_ONLY`, `CP_KEEP_CLUSTER_VIDEO_ON_SECONDARY_PAUSE` e
-  `CP_KEEP_CLUSTER_VIDEO_FOREGROUND_ON_ANY_PAUSE`;
-- `patch_logic_service.py` deve continuar default HVAC-only; camera `0x7` so pode ser incluida com
-  decisao e teste fisico separados.
+  `CP_KEEP_VIDEO_FOCUS_FOR_HVAC_D0_APPS_AND_NORMAL_RETURN`,
+  `CP_KEEP_CLUSTER_VIDEO_ON_SECONDARY_PAUSE` e
+  `CP_KEEP_CLUSTER_VIDEO_FOREGROUND_ON_ANY_PAUSE`, alem de
+  `CP_IGNORE_FINISH_BROADCAST_ON_SECONDARY_DISPLAY`,
+  `CP_IGNORE_REQUEST_VIDEO_FOCUS_FINISH_ON_SECONDARY_DISPLAY` e
+  `CP_SURFACE_MATCH_PARENT_FULLSCREEN`,
+  `CP_SURFACE_SHOW_NATIVE_1904_704_ON_SECONDARY`;
+- `patch_logic_service.py` deve continuar default HVAC-only, mas a variante embarcada deve ser
+  gerada com `--conditional-camera`, mantendo os sentinels `CARPLAY_HVAC_KEEP_FOREGROUND_PATCH`,
+  `CARPLAY_HVAC_RELEASE_KEEP_FOREGROUND_PATCH` e
+  `CARPLAY_CAMERA_CONDITIONAL_KEEP_FOREGROUND_PATCH`.
 
 Comando obrigatorio antes de deploy ou merge que toque CarPlay:
 
 ```bash
 python3 scripts/carplay-patches/verify_regression_lock.py
 ```
+
+## Regra 31 - D3 ignora FINISH_ACTIVITY de AppList/display 0
+
+O caminho nativo `VideoModel.foregroundViewChanged()` chama `finishCarPlayActivity()` quando a
+Activity topo vira `com.beantechs.applist`. Em AC/HVAC no display 0, esse evento pode ser apenas o
+retorno da UI nativa do D0, mas o broadcast `com.ts.carplay.action.FINISH_ACTIVITY` e recebido pela
+`CarPlayDisplayActivity` que esta no display 3, removendo a task e abandonando a Surface.
+
+Contrato do patch visual v6:
+
+- `CarPlayDisplayActivity$FinishActivityReceiver.onReceive()` deve checar o display da Activity;
+- se `getDisplay().getDisplayId() != 0`, deve registrar
+  `finish receiver patched: ignore finish on secondary display` e retornar sem chamar `finish()`;
+- no display 0, o receiver preserva o comportamento stock e ainda pode chamar `finish()`;
+- desconexao/link status e outros caminhos diretos de `finish()` nao sao bloqueados por esta regra;
+- a regra vale para CarPlay somente; Android Auto nao deve ser alterado junto.
+
+## Regra 32 - D3 ignora requestVideoFocus finish e app normal do D0
+
+Abrir uma aplicacao normal no display 0 pode deixar `VideoModel` com foco topo
+`priority=0/action=1/borrowId=""`, por exemplo `com.android.settings`, mesmo com a Activity e a
+Surface do CarPlay ainda vivas no display 3. No estado ruim pos-reboot de 2026-05-29, esse caminho
+nao removia a task do D3, mas trocava a rota de video e deixava o cluster preto.
+
+Contrato do patch visual v7:
+
+- `VideoModel.lambda$priorityChanged$3` deve ignorar esse foco normal do D0 quando o CarPlay ainda
+  esta no stack ou quando `mConnStatus == 2` e
+  `persist.haval.carplay.desired_display == 3`;
+- o log esperado para esse caminho e
+  `priorityChanged patched: keep CarPlay video focus for D3 display0 normal app`;
+- `CarPlayDisplayActivity.requestVideoFocus(1/2)` deve preservar o comportamento stock no display 0,
+  mas deve retornar sem `finish()` quando `getDisplay().getDisplayId() != 0`;
+- o sentinel obrigatorio desse metodo e
+  `CP_IGNORE_REQUEST_VIDEO_FOCUS_FINISH_ON_SECONDARY_DISPLAY`;
+- o app principal deve sincronizar a property `persist.haval.carplay.desired_display` sempre que
+  grava o alvo desejado do CarPlay e novamente no start do watchdog, para sobreviver a reboot;
+- nao enviar `VIDEO_FOCUS_CHANGE`, `view_state foreground`, resize ou `force-stop` quando a task
+  real do CarPlay continua viva no D3.
+
+Evidencia remota 2026-05-29:
+
+- com `com.android.settings` visivel no display 0, `am stack list` manteve
+  `CarPlayDisplayActivity` na stack `17`, display `3`, bounds `[0,0][1920,720]`;
+- `screencap` raw do display fisico do cluster convertido para PNG em
+  `artifacts/headunit/screenshots/carplay-v7-live-20260529-085558/settings-d3.png` mostrou o mapa
+  do CarPlay renderizado no D3 durante o app do D0.
+
+## Regra 33 - Service embarcado usa camera condicional por desired_display
+
+Camera/AVM usa prioridade nativa `0x7` e o metodo direto
+`ScreenResourceManager.backCameraStatusChangedTo()`. Esse caminho e mais sensivel que HVAC porque
+envolve safety e backup camera. Em 2026-05-29, o isolamento no carro mostrou que
+`TsCarPlayService.apk` camera v7 (`d0aea9eb3fb5e0b9bd4d5e5ce0e0c642`) era suficiente para deixar o
+CarPlay preto no display 0 durante startup, enquanto o service stock/HVAC-only mantinha o D0 limpo.
+A solucao atual e condicionar a camera ao alvo desejado do CarPlay.
+
+Contrato da variante atual:
+
+- o asset embarcado de `TsCarPlayService.apk` deve ser conditional-camera/release, MD5
+  `f0269fc640778825843762dcf55a8b83`;
+- `patch_logic_service.py --include-camera` pode continuar existindo como ferramenta staged, mas o
+  APK gerado por esse caminho nao pode ser o asset de auto-mount sem nova validacao fisica;
+- `0x7` e `backCameraStatusChangedTo(APP_ON/OFF)` permanecem stock quando
+  `persist.haval.carplay.desired_display != 3`;
+- quando `persist.haval.carplay.desired_display == 3`, `0x7` e
+  `backCameraStatusChangedTo(APP_ON/OFF)` devem enviar `sendMessage(6)` para nao emprestar a rota
+  de video do CarPlay no cluster;
+- o patch nao deve abrir, redirecionar, esconder ou substituir a camera original no display 0;
+- Android Auto permanece fora desta regra.
+
+## Regra 34 - Mapa permanece visivel durante camera/AVM/HVAC
+
+Com CarPlay real no display 3, sinais nativos do display 0 como `sys.avm.preview_status` e
+`car.hvac.panel_display_notify` nao podem esconder a `Presentation` do app. O overlay do cluster
+deve permanecer no modo `Mapa`/`theme-mirror-cluster`, transparente sobre a Surface do CarPlay.
+
+Motivo: em 2026-05-29, a camera nao deixava mais o D3 preto, mas o display `Mapa` sumia porque
+`InstrumentProjector2` aplicava `windowAlpha=0` e `root/WebView` invisiveis.
+
+Contrato:
+
+- `InstrumentProjector2` deve manter `windowAlpha=1`, `root` visivel e WebView visivel quando
+  CarPlay esta real no display 3;
+- os sinais nativos de camera/AVM/HVAC podem atualizar estado/logs, mas nao ativam bypass visual;
+- a correcao nao move, reinicia, redimensiona nem envia foco para o CarPlay;
+- Android Auto permanece isolado e nao deve receber logica nova neste caminho.
+
+## Regra 35 - Watchdog nao restaura CarPlay ausente sem sessao visual recente
+
+`desiredCarPlayDisplayId=3` e `persist.haval.carplay.desired_display=3` indicam alvo desejado, nao
+prova de que existe uma sessao CarPlay ativa. Apos reboot com o cabo do celular desconectado, pode
+nao existir nenhuma task visual `com.ts.carplay.app`.
+
+Contrato:
+
+- o watchdog so pode recriar uma task visual ausente se o CarPlay foi visto recentemente no D3;
+- sem task visual recente, o watchdog deve registrar skip e ficar quieto;
+- se o alvo salvo ainda for D3 mas nao houver task real recente no D3, o app deve limpar esse alvo
+  stale para `0` e sincronizar `persist.haval.carplay.desired_display=0`, permitindo que a proxima
+  conexao fisica do cabo comece pelo fluxo nativo normal no D0;
+- o defocus de display 0 nunca pode usar o proprio pacote do Impulse
+  (`br.com.redesurftank.havalshisuku`) como app auxiliar;
+- esse caminho nao pode abrir `SplashActivity`/`MainActivity` em loop;
+- quando o usuario conectar o cabo e acionar CarPlay para D3, o fluxo normal volta a gravar o alvo
+  e armar o watchdog a partir de uma task real.

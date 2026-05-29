@@ -38,6 +38,26 @@ Para voltar ao empacotado:
 
 As saídas ficam em `tools/headunit-dev/output/`.
 
+## Fluxo 4 - Baseline CarPlay D3
+
+Captura read-only do estado atual por cenário:
+
+```bash
+./tools/headunit-dev/headunit.sh carplay-baseline cp-02-d3-clean
+```
+
+Comparação entre baseline conhecido e nova tentativa:
+
+```bash
+./tools/headunit-dev/headunit.sh carplay-compare \
+  tools/headunit-dev/output/carplay-baseline-<baseline> \
+  tools/headunit-dev/output/carplay-baseline-<candidate>
+```
+
+Use esse fluxo antes de qualquer deploy novo que toque CarPlay no D3. O objetivo é comparar
+props, mounts, task real, Surface, logcat filtrado e screenshots auxiliares sem depender de memória
+da sessão anterior.
+
 ## Comandos úteis
 
 ```bash
