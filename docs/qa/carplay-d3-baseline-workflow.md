@@ -61,6 +61,31 @@ python3 scripts/carplay-patches/verify_regression_lock.py
 | `cp-08-reboot-app-d0` | Apos reboot, com app comum no D0 | CarPlay permanece visivel no D3 |
 | `cp-09-reboot-camera` | Apos reboot, com camera/AVM ativa | CarPlay permanece visivel no D3 |
 
+## Matriz de Campo Para Primeiro Handoff Frio
+
+Use esta matriz quando o usuario reportar diferenca entre a primeira conexao USB apos repouso da
+central e a segunda conexao USB.
+
+| Cenario | Quando capturar | Esperado/objetivo |
+| --- | --- | --- |
+| `cp-field-00-arrival-before-touch` | Antes de conectar/reconectar USB ou acionar CarPlay | Estado frio real da central, patch, props e processos |
+| `cp-field-01-first-usb-d0-clean` | Primeira conexao USB com CarPlay limpo no D0 | Provar que D0 inicial esta limpo e patch/mount ja estao ativos |
+| `cp-field-02-first-d3-dirty` | Imediatamente apos primeiro D0 -> D3 sujo | Capturar o estado ruim sem reiniciar nem reconectar |
+| `cp-field-03-second-usb-d0-clean` | Apos reconexao USB manual com D0 limpo | Capturar diferenca de enumeracao/renderer |
+| `cp-field-04-second-d3-clean` | Segundo D0 -> D3 limpo | Comparar contra o primeiro D3 sujo |
+
+Comparacao obrigatoria antes de corrigir:
+
+```bash
+./tools/headunit-dev/headunit.sh carplay-compare \
+  tools/headunit-dev/output/carplay-baseline-<cp-field-02-first-d3-dirty> \
+  tools/headunit-dev/output/carplay-baseline-<cp-field-04-second-d3-clean>
+```
+
+Nao considerar AC/HVAC ou camera/AVM como causa principal se eles permanecem sem tela preta no
+mesmo estado. Nesse caso, tratar AC/camera como regressao obrigatoria depois de mexer no handoff
+frio.
+
 ## Evidencia Minima
 
 Cada captura deve conter:
