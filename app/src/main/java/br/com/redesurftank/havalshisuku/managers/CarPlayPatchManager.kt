@@ -22,6 +22,16 @@ object CarPlayPatchManager {
     private const val SYSTEM_APP_OAT = "/system/app/TsCarPlayApp/oat"
     private const val SYSTEM_SERVICE_OAT = "/vendor/app/TsCarPlayService/oat"
 
+    private data class BundledPatchInstallResult(
+        val success: Boolean,
+        val refreshed: Boolean
+    )
+
+    private data class MountResult(
+        val success: Boolean,
+        val changed: Boolean
+    )
+
     private fun sh(command: String): String {
         val output = ShizukuUtils.runCommandAndGetOutput(arrayOf("sh", "-c", "$command 2>&1"))
         Log.d(TAG, "sh: $command -> $output")
@@ -72,36 +82,36 @@ object CarPlayPatchManager {
         return digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
     }
 
-    private fun ensureBundledPatchesInstalled(context: Context): Boolean {
+    private fun ensureBundledPatchesInstalled(context: Context): BundledPatchInstallResult {
         return try {
             val bundledServiceMd5 = assetMd5(context, SERVICE_APK)
             val bundledAppMd5 = assetMd5(context, APP_APK)
             val installedServiceMd5 = readRemoteMd5("$PATCH_DIR/$SERVICE_APK")
             val installedAppMd5 = readRemoteMd5("$PATCH_DIR/$APP_APK")
-            if (
+            val refreshed =
                 bundledServiceMd5.isBlank() ||
                     bundledAppMd5.isBlank() ||
                     bundledServiceMd5 != installedServiceMd5 ||
                     bundledAppMd5 != installedAppMd5
-            ) {
+            if (refreshed) {
                 Log.w(
                     TAG,
                     "Refreshing CarPlay HVAC focus patches. " +
                         "service installed=$installedServiceMd5 bundled=$bundledServiceMd5; " +
                         "app installed=$installedAppMd5 bundled=$bundledAppMd5"
                 )
-                installPatches(context)
+                BundledPatchInstallResult(installPatches(context), true)
             } else {
                 Log.d(
                     TAG,
                     "Bundled CarPlay HVAC focus patches already installed: " +
                         "service=$bundledServiceMd5 app=$bundledAppMd5"
                 )
-                true
+                BundledPatchInstallResult(true, false)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to verify bundled CarPlay HVAC focus patches", e)
-            false
+            BundledPatchInstallResult(false, false)
         }
     }
 
@@ -152,37 +162,42 @@ object CarPlayPatchManager {
     }
 
     fun applyMounts(): Boolean {
+        return applyMountsDetailed().success
+    }
+
+    private fun applyMountsDetailed(): MountResult {
         if (!PATCH_RUNTIME_ENABLED) {
             Log.w(TAG, "applyMounts skipped. $DISABLED_REASON")
-            return false
+            return MountResult(false, false)
         }
 
         if (!isPatchInstalled()) {
             Log.e(TAG, "Cannot apply mounts: CarPlay patches not installed")
-            return false
+            return MountResult(false, false)
         }
 
         try {
             Log.i(TAG, "Applying CarPlay HVAC focus bind mounts...")
 
-            // Do not force-stop CarPlay here. The patched dex is guaranteed only after reboot.
+            // Do not force-stop CarPlay while applying mounts. ensureMounted() performs a
+            // separate idle-only process reload after a successful boot mount.
             mountApk(SYSTEM_APP_PATH, "$PATCH_DIR/$APP_APK", "visual-app")
             mountApk(SYSTEM_SERVICE_PATH, "$PATCH_DIR/$SERVICE_APK", "vendor-service")
             mountOatIfPresent(SYSTEM_APP_OAT, "visual-app-oat")
             mountOatIfPresent(SYSTEM_SERVICE_OAT, "vendor-service-oat")
             sh("rm -f /data/dalvik-cache/arm/*TsCarPlay* /data/dalvik-cache/arm64/*TsCarPlay* 2>/dev/null || true")
-            Log.w(TAG, "CarPlay HVAC focus mounts applied. REBOOT REQUIRED for patch to take effect. Do not force-stop com.ts.carplay.")
+            Log.w(TAG, "CarPlay HVAC focus mounts applied. Patched dex requires process reload; active sessions are left untouched.")
 
             val success = isMounted()
             if (success) {
-                Log.w(TAG, "CarPlay HVAC focus patches mounted successfully (reboot required)")
+                Log.w(TAG, "CarPlay HVAC focus patches mounted successfully")
             } else {
                 Log.e(TAG, "CarPlay HVAC focus mount verification failed. Check if Shizuku has root permissions.")
             }
-            return success
+            return MountResult(success, success)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to apply CarPlay mounts", e)
-            return false
+            return MountResult(false, false)
         }
     }
 
@@ -241,22 +256,57 @@ object CarPlayPatchManager {
         }
 
         try {
-            if (!ensureBundledPatchesInstalled(App.getContext())) {
+            var mountChanged = false
+            val bundledPatchInstall = ensureBundledPatchesInstalled(App.getContext())
+            if (!bundledPatchInstall.success) {
                 Log.e(TAG, "Skipping CarPlay HVAC focus auto-mount because bundled patch install failed")
                 return
             }
-            if (isPatchInstalled() && !isMounted()) {
+            if (bundledPatchInstall.refreshed) {
+                Log.i(TAG, "Bundled CarPlay HVAC focus patches refreshed; re-applying mounts...")
+                val result = applyMountsDetailed()
+                mountChanged = result.changed
+                Log.i(TAG, "Auto-remount refreshed CarPlay result: ${result.success}")
+            } else if (isPatchInstalled() && !isMounted()) {
                 Log.i(TAG, "CarPlay HVAC focus patches installed but not mounted — auto-mounting...")
-                val success = applyMounts()
-                Log.i(TAG, "Auto-mount CarPlay result: $success")
+                val result = applyMountsDetailed()
+                mountChanged = result.changed
+                Log.i(TAG, "Auto-mount CarPlay result: ${result.success}")
             } else if (isMounted()) {
                 Log.d(TAG, "CarPlay HVAC focus patches already mounted, nothing to do")
             } else {
                 Log.d(TAG, "No CarPlay HVAC focus patch installed, skipping auto-mount")
             }
+
+            if (mountChanged) {
+                reloadCarPlayProcessesIfIdle("AUTO_MOUNT_AFTER_BOOT")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "CarPlay auto-mount failed", e)
         }
+    }
+
+    private fun reloadCarPlayProcessesIfIdle(reason: String) {
+        val visualTaskActive =
+            DisplayAppLauncher.isCarPlayOnDisplay(0) || DisplayAppLauncher.isCarPlayOnDisplay(3)
+
+        if (visualTaskActive) {
+            Log.w(
+                TAG,
+                "[$reason] CarPlay visual task is active; not reloading processes to avoid dropping the session"
+            )
+            return
+        }
+
+        Log.w(
+            TAG,
+            "[$reason] Reloading idle CarPlay processes so mounted HVAC focus patches are loaded in memory"
+        )
+        sh("am force-stop com.ts.carplay.app 2>/dev/null || true")
+        sh("am force-stop com.ts.carplay 2>/dev/null || true")
+        sh("sleep 0.2")
+        sh("am startservice -n com.ts.carplay/.CarPlayService 2>/dev/null || true")
+        sh("am startservice -n com.ts.carplay.app/.service.CarPlayRemoteService 2>/dev/null || true")
     }
 
     fun getDiagnostics(): String {

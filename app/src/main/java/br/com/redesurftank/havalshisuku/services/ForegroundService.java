@@ -387,7 +387,7 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
                 }
 
                 String carPlayPatchVersionKey = "carPlayPatchAutoMountPatchVersion";
-                String carPlayHvacFocusPatchVersion = "app_service_hvac_focus_v2";
+                String carPlayHvacFocusPatchVersion = "app_service_hvac_focus_v3";
                 if (!carPlayHvacFocusPatchVersion.equals(prefs.getString(carPlayPatchVersionKey, ""))) {
                     Log.i(TAG, "Enabling CarPlay HVAC focus patch auto-mount for version " + carPlayHvacFocusPatchVersion);
                     prefs.edit()

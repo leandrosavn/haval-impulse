@@ -14,19 +14,27 @@ The old v2.4 patch archived here is unsafe for automatic mounting. In the
 on display 0 with either no frames or a white/dirty buffer after the native
 CarPlay shortcut and controlled restarts.
 
-The current validated state is the narrower 2026-05-28 HVAC/D3 focus patch:
+The current target state is the narrower 2026-05-28 HVAC/D3 focus patch v3:
 
-- `TsCarPlayApp.apk` MD5 `477529a8c454acbc25ab5adb848e18b4`;
+- `TsCarPlayApp.apk` MD5 `6fa2ec71f8a10e11a8de94ab03987344`;
 - `TsCarPlayService.apk` MD5 `4a76e74c5f9fc119287c5cc0f823856a`;
-- auto-mount version `app_service_hvac_focus_v2`;
+- auto-mount version `app_service_hvac_focus_v3`;
 - service patch is HVAC-only by default; camera `0x7` remains stock;
-- visual app patch preserves D3 video on secondary-display `onPause`.
+- visual app patch keeps `ts.car.carplay.view_state=foreground` on `onPause`,
+  because the earlier secondary-display check was not reliable after a
+  head-unit reboot and allowed HVAC close to pull CarPlay from D3 back to D0.
 
 Before changing or deploying CarPlay patches, run:
 
 ```bash
 python3 scripts/carplay-patches/verify_regression_lock.py
 ```
+
+The runtime side of the protected state also depends on `DisplayAppLauncher`:
+when `desiredCarPlayDisplayId=3` and the native head unit removes the visual
+CarPlay task or recreates it on display 0 after HVAC/camera/app focus, Impulse
+may recreate `CarPlayDisplayActivity` on display 3 without `force-stop`, then
+remove the display-0 duplicate only after the D3 task exists.
 
 The target app on the Haval head unit is:
 

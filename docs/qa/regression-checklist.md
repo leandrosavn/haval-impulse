@@ -25,6 +25,10 @@
 - Com CarPlay no cluster 3, abrir AC/HVAC no display 0 e tocar na tela do CarPlay: D3 continua
   mostrando CarPlay sem tela preta.
 - Com CarPlay no cluster 3, abrir câmera/AVM física no display 0: D3 continua mostrando CarPlay.
+- Com CarPlay no cluster 3, navegar pelos cards fisicos do volante:
+  - `cardId=1` mostra o main menu sobre o CarPlay sem fundo preto;
+  - `cardId=3` mostra o card de AC sobre o CarPlay sem fundo preto;
+  - card original/neutro volta ao Mapa/CarPlay limpo.
 - Antes de deploy/merge que toque CarPlay, rodar:
 
 ```bash

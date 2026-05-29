@@ -6,8 +6,10 @@ Target: build_carplay/ts-app-hvac-focus/ (com.ts.carplay.app)
 This is intentionally smaller than the archived app patch. It changes:
 - VideoModel.lambda$priorityChanged$3 so the visual app does not forward HVAC
   uiNotification focus to the vendor CarPlay service.
-- CarPlayDisplayActivity.onPause so a visible CarPlay Activity on a secondary
-  display does not broadcast "background" and drop the decoder route.
+- CarPlayDisplayActivity.onPause so native AC/HVAC focus changes cannot
+  broadcast "background" and drop the decoder route. The previous
+  secondary-display guard was not reliable after a head-unit reboot because
+  getDisplay() could still drive the stock background path during HVAC close.
 
 It does not change Activity launchMode, layout, SurfaceView sizing, or finish
 paths.
@@ -21,7 +23,8 @@ BUILD_DIR = "build_carplay/ts-app-hvac-focus"
 VIDEO_MODEL = f"{BUILD_DIR}/smali/com/ts/carplay/app/service/model/video/VideoModel.smali"
 DISPLAY_ACTIVITY = f"{BUILD_DIR}/smali/com/ts/carplay/app/ui/display/view/CarPlayDisplayActivity.smali"
 VIDEO_SENTINEL = "# CP_KEEP_VIDEO_FOCUS_FOR_HVAC_ONLY"
-LIFECYCLE_SENTINEL = "# CP_KEEP_CLUSTER_VIDEO_ON_SECONDARY_PAUSE"
+LEGACY_LIFECYCLE_SENTINEL = "# CP_KEEP_CLUSTER_VIDEO_ON_SECONDARY_PAUSE"
+LIFECYCLE_SENTINEL = "# CP_KEEP_CLUSTER_VIDEO_FOREGROUND_ON_ANY_PAUSE"
 
 PATCHED_METHOD = r""".method public static synthetic lambda$priorityChanged$3(Lcom/ts/carplay/app/service/model/video/VideoModel;Lcom/ts/carplay/app/service/model/video/VideoModel$FocusModeInfo;I)V
     .locals 4
@@ -146,28 +149,14 @@ PATCHED_ON_PAUSE = r""".method protected onPause()V
     invoke-static {v0, v1}, Lcom/ts/carplay/common/util/LogUtil;->debug(Ljava/lang/String;Ljava/lang/String;)V
 
     # CP_KEEP_CLUSTER_VIDEO_ON_SECONDARY_PAUSE
-    invoke-virtual {p0}, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayActivity;->getDisplay()Landroid/view/Display;
-
-    move-result-object v0
-
-    if-eqz v0, :cond_send_background
-
-    invoke-virtual {v0}, Landroid/view/Display;->getDisplayId()I
-
-    move-result v1
-
-    if-eqz v1, :cond_send_background
-
+    # CP_KEEP_CLUSTER_VIDEO_FOREGROUND_ON_ANY_PAUSE
     sget-object v0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayActivity;->TAG:Ljava/lang/String;
 
-    const-string v1, "onPause patched: keep CarPlay video foreground on secondary display"
+    const-string v1, "onPause patched: keep CarPlay video foreground and suppress background"
 
     invoke-static {v0, v1}, Lcom/ts/carplay/common/util/LogUtil;->debug(Ljava/lang/String;Ljava/lang/String;)V
 
-    return-void
-
     .line 143
-    :cond_send_background
     new-instance v0, Landroid/content/Intent;
 
     invoke-direct {v0}, Landroid/content/Intent;-><init>()V
@@ -181,7 +170,7 @@ PATCHED_ON_PAUSE = r""".method protected onPause()V
     .line 145
     const-string v1, "state"
 
-    const-string v2, "background"
+    const-string v2, "foreground"
 
     invoke-virtual {v0, v1, v2}, Landroid/content/Intent;->putExtra(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;
 
@@ -224,7 +213,7 @@ def main():
         activity_content = f.read()
 
     if LIFECYCLE_SENTINEL in activity_content:
-        print("[SKIP] secondary-display onPause patch already applied")
+        print("[SKIP] foreground-on-pause patch already applied")
         return
 
     pattern = r"\.method protected onPause\(\)V.*?\.end method"
@@ -236,7 +225,7 @@ def main():
     with open(DISPLAY_ACTIVITY, "w", encoding="utf-8") as f:
         f.write(activity_content)
 
-    print("[OK] CarPlayDisplayActivity.onPause now preserves video state on secondary displays")
+    print("[OK] CarPlayDisplayActivity.onPause now keeps video state foreground during pause")
 
 
 if __name__ == "__main__":

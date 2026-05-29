@@ -30,6 +30,7 @@ public class ProjectorManager {
     private DisplayManager displayManager;
     private InstrumentProjector instrumentProjector;
     private InstrumentProjector2 instrumentProjector2;
+    private boolean initialized = false;
 
     private final Map<Integer, BiConsumer<android.content.Context, Display>> projectorCreators = new HashMap<>();
 
@@ -62,6 +63,11 @@ public class ProjectorManager {
     public void initialize() {
         Log.w(TAG, "Initializing ProjectorManager");
         try {
+            if (initialized && (instrumentProjector != null || instrumentProjector2 != null)) {
+                Log.w(TAG, "ProjectorManager already initialized; skipping duplicate presentations");
+                return;
+            }
+
             displayManager = App.getContext().getSystemService(DisplayManager.class);
 
             for (Display display : displayManager.getDisplays()) {
@@ -81,6 +87,8 @@ public class ProjectorManager {
             if (!pending.isEmpty()) {
                 registerDisplayListener(pending);
             }
+
+            initialized = true;
 
             ServiceManager.getInstance().addDataChangedListener((key, value) -> {
                 if (key.equals(CarConstants.CAR_BASIC_ENGINE_STATE.getValue())) {
@@ -141,6 +149,7 @@ public class ProjectorManager {
             instrumentProjector2 = null;
         }
         projectorCreators.clear();
+        initialized = false;
     }
 
     public void refresh() {

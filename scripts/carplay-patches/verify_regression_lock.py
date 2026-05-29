@@ -3,7 +3,8 @@
 Verify the current CarPlay D3 blackout regression lock.
 
 This is intentionally a static check. It guards the validated state from
-2026-05-28 where HVAC on display 0 no longer blacks out CarPlay on display 3.
+2026-05-28 where HVAC on display 0 must not black out or pull CarPlay from
+display 3 back to display 0.
 It does not replace the physical camera/AVM test.
 """
 
@@ -15,7 +16,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 
 EXPECTED_ASSET_MD5 = {
-    "app/src/main/assets/carplay_patches/TsCarPlayApp.apk": "477529a8c454acbc25ab5adb848e18b4",
+    "app/src/main/assets/carplay_patches/TsCarPlayApp.apk": "6fa2ec71f8a10e11a8de94ab03987344",
     "app/src/main/assets/carplay_patches/TsCarPlayService.apk": "4a76e74c5f9fc119287c5cc0f823856a",
 }
 
@@ -23,8 +24,9 @@ REQUIRED_TOKENS = {
     "scripts/carplay-patches/patch_logic_app_focus.py": [
         "CP_KEEP_VIDEO_FOCUS_FOR_HVAC_ONLY",
         "CP_KEEP_CLUSTER_VIDEO_ON_SECONDARY_PAUSE",
+        "CP_KEEP_CLUSTER_VIDEO_FOREGROUND_ON_ANY_PAUSE",
         "priorityChanged patched: keep CarPlay video focus for HVAC uiNotification",
-        "onPause patched: keep CarPlay video foreground on secondary display",
+        "onPause patched: keep CarPlay video foreground and suppress background",
     ],
     "scripts/carplay-patches/patch_logic_service.py": [
         "CARPLAY_HVAC_KEEP_FOREGROUND_PATCH",
@@ -35,18 +37,26 @@ REQUIRED_TOKENS = {
         "private const val PATCH_RUNTIME_ENABLED = true",
         "private const val SERVICE_APK = \"TsCarPlayService.apk\"",
         "const val SYSTEM_SERVICE_PATH = \"/vendor/app/TsCarPlayService/TsCarPlayService.apk\"",
-        "Do not force-stop CarPlay here.",
+        "reloadCarPlayProcessesIfIdle(\"AUTO_MOUNT_AFTER_BOOT\")",
+        "CarPlay visual task is active; not reloading processes to avoid dropping the session",
+        "Bundled CarPlay HVAC focus patches refreshed; re-applying mounts",
     ],
     "app/src/main/java/br/com/redesurftank/havalshisuku/services/ForegroundService.java": [
-        "app_service_hvac_focus_v2",
+        "app_service_hvac_focus_v3",
     ],
     "app/src/main/java/br/com/redesurftank/havalshisuku/managers/DisplayAppLauncher.kt": [
-        "auto-restore is disabled to avoid recreating Surface during native HVAC/camera/app transitions",
-        "auto-restore disabled, waiting for explicit user handoff",
+        "restoreCarPlayFromMainDisplayToCluster",
+        "recreateMissingCarPlayVisualTaskOnCluster",
+        "CARPLAY_CLUSTER_WATCHDOG_NO_TASK",
+        "Restoring CarPlay from display 0 stack",
+        "ActivityManager reused display-0 CarPlay; defocusing once more and retrying cluster start",
+        "CLEAN_DISPLAY0_DUPLICATE",
     ],
     "docs/carplay-cluster-regression-contract.md": [
-        "Regra 29 - CarPlay D3 nao deve enviar background em onPause secundario",
-        "se `getDisplay().getDisplayId() != 0`, `onPause()` retorna sem broadcast `background`",
+        "Regra 29 - CarPlay nao deve enviar background em onPause",
+        "`onPause()` envia `ts.car.carplay.view_state=foreground`, nunca `background`",
+        "watchdog pode restaurar o visual no D3",
+        "sem `force-stop`, defocando antes o D0",
     ],
 }
 

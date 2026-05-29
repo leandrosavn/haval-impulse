@@ -12,15 +12,15 @@ Este documento nao declara a tela preta do CarPlay resolvida. Ele registra a est
 
 Android Auto esta usando um caminho patchado e mais agressivo de recuperacao porque esse fluxo foi implementado, validado como montavel e documentado como melhor para dimensoes/foco no cluster.
 
-CarPlay saiu do estado stock somente para uma excecao controlada validada em 2026-05-28:
-`TsCarPlayApp.apk` preserva video no D3 durante `onPause` em display secundario e
+CarPlay saiu do estado stock somente para uma excecao controlada de HVAC/D3 em 2026-05-28:
+`TsCarPlayApp.apk` mantem `view_state=foreground` durante `onPause` e
 `TsCarPlayService.apk` ignora apenas a prioridade HVAC `0x6`. As variantes antigas continuam
 proibidas porque causaram crash, frame sujo ou retorno dos sintomas.
 
 Portanto, a estrategia atual e:
 
 - manter Android Auto no fluxo patchado e isolado;
-- manter CarPlay no patch minimo HVAC/D3 v2, sustentado por MD5 e sentinels;
+- manter CarPlay no patch minimo HVAC/D3 v3, sustentado por MD5 e sentinels;
 - nao misturar comandos de recuperacao Android Auto com CarPlay;
 - investigar CarPlay no caminho nativo de foco/video, principalmente `CarPlayManager.requestVideoFocusChange` e `ScreenResourceManager.screenResourceRequest`.
 
@@ -32,13 +32,13 @@ Portanto, a estrategia atual e:
 | Pacote/host nativo | `com.ts.androidauto.projectionservice` / `com.ts.androidauto` | `com.ts.carplay` |
 | Activity visual | `com.ts.androidauto.app.display.AapActivity` | `com.ts.carplay.app.ui.display.view.CarPlayDisplayActivity` |
 | Estrategia atual | APK patchado via bind mount em `/vendor/app/...` | Patch minimo em `/system/app/TsCarPlayApp` + `/vendor/app/TsCarPlayService` |
-| Patch runtime | Ativo quando instalado/montado | Ativo para HVAC/D3 v2 |
+| Patch runtime | Ativo quando instalado/montado | Ativo para HVAC/D3 v3 |
 | Recuperacao permitida | Mais agressiva no app visual e foco | Conservadora, baseada em estado real e logs |
 | Evidencia recente | Usuario reportou que nao reproduz a tela preta | HVAC + toque no D3 corrigido; camera/AVM ainda depende de teste fisico |
 
 MD5s do estado protegido:
 
-- `TsCarPlayApp.apk`: `477529a8c454acbc25ab5adb848e18b4`;
+- `TsCarPlayApp.apk`: `6fa2ec71f8a10e11a8de94ab03987344`;
 - `TsCarPlayService.apk`: `4a76e74c5f9fc119287c5cc0f823856a`.
 
 Verificacao estatica obrigatoria:
@@ -76,7 +76,7 @@ Confirmado por codigo:
 
 - `CarPlayPatchManager` tem `PATCH_RUNTIME_ENABLED = true`.
 - `ensureMounted()` instala e monta `TsCarPlayApp.apk` e `TsCarPlayService.apk`.
-- `ForegroundService` usa a chave `app_service_hvac_focus_v2` para ativar o auto-mount.
+- `ForegroundService` usa a chave `app_service_hvac_focus_v3` para ativar o auto-mount.
 
 Confirmado por historico/logs salvos:
 
@@ -97,7 +97,10 @@ Consequencia:
 
 - O CarPlay fica em patch minimo e versionado, nao em patches visuais antigos.
 - Camera `0x7` permanece stock; expansao para camera exige experimento separado.
-- A correcao atual nao deve reabilitar restores agressivos nem misturar Android Auto.
+- A correcao atual nao deve reabilitar restores agressivos nem misturar Android Auto. A excecao
+  permitida e objetiva: se o alvo desejado do usuario continua sendo D3 e a central nativa remove a
+  Activity visual do CarPlay ou recria o visual no D0, o watchdog pode recriar a Activity no D3 sem
+  `force-stop` e limpar duplicata somente depois que o D3 existir.
 
 ## Diferenca de Recuperacao Entre Android Auto e CarPlay
 
@@ -114,7 +117,9 @@ CarPlay:
 - nao deve receber `VIDEO_FOCUS_CHANGE` em eventos de camera/AC quando ja esta vivo no display 3;
 - nao deve ser redimensionado exceto quando houver violacao objetiva do contrato fullscreen;
 - deve preservar stack/surface sempre que possivel;
-- deve usar apenas verificacao, cooldown e reparo objetivo de bounds quando houver evidencia.
+- deve usar verificacao/cooldown quando a task esta viva no D3;
+- pode recriar a Activity visual no D3 quando o alvo desejado e D3, USB segue configurado e nao ha
+  task visual ativa ou a task ficou sustentada no D0.
 
 Essa diferenca e intencional. Copiar o comportamento agressivo do Android Auto para o CarPlay ja mostrou risco de tela preta, bounce entre displays ou perda da task visual.
 
@@ -143,7 +148,7 @@ Leitura atual:
 
 Antes do teste:
 
-- Patch CarPlay HVAC/D3 v2 deve continuar confirmado por MD5.
+- Patch CarPlay HVAC/D3 v3 deve continuar confirmado por MD5.
 - `persist.haval.carplay.video.height` deve ser `720`.
 - `/data/local/tmp/app.html` deve permanecer ausente para validar HTML embarcado.
 - `projectionNativePanelFallbackActive` deve permanecer desabilitado.

@@ -30,6 +30,15 @@ function isProjectionMapDisplayActive() {
     return get('projectionMirrorInDash') === true || get('carPlayInDash') === true;
 }
 
+function isProjectionCardOverlayActive() {
+    if (!isProjectionMapDisplayActive()) {
+        return false;
+    }
+    const screen = get('screen');
+    const cardId = get('cardId');
+    return (screen === 'main_menu' && cardId == 1) || (screen === 'aircon' && cardId == 3);
+}
+
 function getEffectiveDisplayMode() {
     // Projection on display 3 temporarily uses the Mapa layout without
     // persisting over the user's saved display choice.
@@ -125,7 +134,7 @@ function render() {
     // Update app class based on display mode
     if (appContainer) {
         logger.log('Rendering screen:', screen);
-        let classes = appContainer.className.split(' ').filter(c => !c.startsWith('display-') && !c.startsWith('theme-') && !c.startsWith('screen-') && c !== 'cluster-disabled' && c !== 'warn-is-active' && c !== 'carplay-in-dash' && c !== 'projection-mirror-in-dash' && c !== 'projection-map-display-active');
+        let classes = appContainer.className.split(' ').filter(c => !c.startsWith('display-') && !c.startsWith('theme-') && !c.startsWith('screen-') && c !== 'cluster-disabled' && c !== 'warn-is-active' && c !== 'carplay-in-dash' && c !== 'projection-mirror-in-dash' && c !== 'projection-map-display-active' && c !== 'projection-card-overlay-active');
         classes.push('display-' + displayMode.toLowerCase());
         classes.push('screen-' + String(screen).replace(/_/g, '-'));
 
@@ -137,6 +146,9 @@ function render() {
             classes.push('theme-mirror-cluster');
             classes.push('projection-mirror-in-dash');
             classes.push('projection-map-display-active');
+            if (isProjectionCardOverlayActive()) {
+                classes.push('projection-card-overlay-active');
+            }
         }
 
         if (get('carPlayInDash') === true) {
@@ -178,7 +190,8 @@ function render() {
 
     if (menuWrapper) {
         const rightMenuVisible = !(get('cardId') == 0 && get('warningDismissed') !== true);
-        menuWrapper.style.display = projectionMapDisplayActive || !rightMenuVisible ? 'none' : 'block';
+        const projectionCardOverlayActive = isProjectionCardOverlayActive();
+        menuWrapper.style.display = (!rightMenuVisible || (projectionMapDisplayActive && !projectionCardOverlayActive)) ? 'none' : 'block';
     }
 
     if (screenCache[screen]) {
@@ -258,7 +271,9 @@ subscribe('cardId', (cardId) => {
 
     // 0 = hide the right menu display
     if (menuWrapper) {
-        menuWrapper.style.display = isProjectionMapDisplayActive() || (cardId == 0 && get('warningDismissed') !== true) ? 'none' : 'block';
+        const projectionMapDisplayActive = isProjectionMapDisplayActive();
+        const projectionCardOverlayActive = isProjectionCardOverlayActive();
+        menuWrapper.style.display = (projectionMapDisplayActive && !projectionCardOverlayActive) || (cardId == 0 && get('warningDismissed') !== true) ? 'none' : 'block';
     }
 
     if (cardId == 1) {

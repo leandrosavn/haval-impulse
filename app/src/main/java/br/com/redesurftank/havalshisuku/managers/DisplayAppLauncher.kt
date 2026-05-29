@@ -501,7 +501,23 @@ object DisplayAppLauncher {
         if (!isCarPlayDesiredOnCluster()) return
 
         val tasks = findAllTasksForPackage(CARPLAY_PACKAGE)
-        if (tasks.isEmpty()) return
+        if (tasks.isEmpty()) {
+            val now = System.currentTimeMillis()
+            if (now - lastCarPlayWatchdogRestoreAt < CARPLAY_WATCHDOG_RESTORE_COOLDOWN_MS) {
+                Log.w(
+                    TAG,
+                    "[CARPLAY_CLUSTER_WATCHDOG] Skipping missing-task restore because cooldown is active"
+                )
+                return
+            }
+            lastCarPlayWatchdogRestoreAt = now
+            Log.w(
+                TAG,
+                "[CARPLAY_CLUSTER_WATCHDOG_NO_TASK] Desired CarPlay target is cluster 3 but no visual task is active; recreating cluster visual task"
+            )
+            recreateMissingCarPlayVisualTaskOnCluster("CARPLAY_CLUSTER_WATCHDOG_NO_TASK")
+            return
+        }
 
         val clusterTask = tasks.firstOrNull { it.displayId == 3 }
         val mainTask = tasks.firstOrNull { it.displayId == 0 }
@@ -524,8 +540,9 @@ object DisplayAppLauncher {
             Log.w(
                 TAG,
                 "[CARPLAY_CLUSTER_WATCHDOG_DIRECT] CarPlay is on display 0 while desired target is cluster 3; " +
-                        "auto-restore is disabled to avoid recreating Surface during native HVAC/camera/app transitions"
+                        "restoring visual task to cluster"
             )
+            restoreCarPlayFromMainDisplayToCluster(mainTask, "CARPLAY_CLUSTER_WATCHDOG_DIRECT")
         }
     }
 
@@ -861,6 +878,112 @@ object DisplayAppLauncher {
         sendCarPlayFocus(displayId, reason)
     }
 
+    private suspend fun restoreCarPlayFromMainDisplayToCluster(
+        mainTask: TaskInfo,
+        reason: String
+    ): TaskInfo? {
+        val escapedActivity = CARPLAY_ACTIVITY.replace("$", "\\$")
+        val bounds = getCarPlayDisplayBounds(3)
+
+        Log.w(
+            TAG,
+            "[$reason] Restoring CarPlay from display 0 stack ${mainTask.stackId} to cluster 3 without force-stop"
+        )
+        configureCarPlayProjection("${reason}_PREPARE")
+
+        // Defocus the display-0 CarPlay Activity first. If CarPlay remains the
+        // top-most Activity on D0, ActivityManager often reuses that instance and
+        // returns "currently running top-most instance" instead of creating D3.
+        bringNonProjectionTaskOnDisplayToFront(0, "${reason}_DEFOCUS_DISPLAY0")
+        delay(300)
+
+        var startResult = startCarPlayActivity(
+            displayId = 3,
+            windowingMode = 5,
+            escapedActivity = escapedActivity,
+            reason = "${reason}_START_CLUSTER"
+        )
+        delay(900)
+
+        var clusterTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 3)
+        if (clusterTask == null && wasTopMostInstanceReused(startResult)) {
+            Log.w(
+                TAG,
+                "[$reason] ActivityManager reused display-0 CarPlay; defocusing once more and retrying cluster start"
+            )
+            bringNonProjectionTaskOnDisplayToFront(0, "${reason}_RETRY_DEFOCUS_DISPLAY0")
+            delay(350)
+            configureCarPlayProjection("${reason}_RETRY_PREPARE")
+            startResult = startCarPlayActivity(
+                displayId = 3,
+                windowingMode = 5,
+                escapedActivity = escapedActivity,
+                reason = "${reason}_RETRY_START_CLUSTER"
+            )
+            delay(900)
+            clusterTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 3)
+        }
+
+        if (clusterTask == null) {
+            Log.e(
+                TAG,
+                "[$reason] Failed to restore CarPlay to cluster 3; startResult=[$startResult]"
+            )
+            return null
+        }
+
+        resizeAndFocusCarPlay(
+            clusterTask,
+            3,
+            bounds,
+            "${reason}_POST_START"
+        )
+        closeCarPlayVisualStacks(
+            "${reason}_CLEAN_DISPLAY0_DUPLICATE",
+            exceptStackId = clusterTask.stackId
+        )
+        notifyCarPlayDisplayHandoff(3, 0)
+        return findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 3) ?: clusterTask
+    }
+
+    private fun isProjectionUsbConfigured(): Boolean {
+        val state = sh("cat /sys/class/android_usb/android0/state 2>/dev/null || true").trim()
+        return state.contains("CONFIGURED") || state.contains("CONNECTED")
+    }
+
+    private suspend fun recreateMissingCarPlayVisualTaskOnCluster(reason: String): TaskInfo? {
+        if (!isProjectionUsbConfigured()) {
+            Log.w(TAG, "[$reason] Skipping CarPlay visual recreate because USB is not configured")
+            return null
+        }
+
+        val escapedActivity = CARPLAY_ACTIVITY.replace("$", "\\$")
+        val bounds = getCarPlayDisplayBounds(3)
+
+        Log.w(TAG, "[$reason] Recreating missing CarPlay visual task on cluster 3 without force-stop")
+        configureCarPlayProjection("${reason}_PREPARE")
+        bringNonProjectionTaskOnDisplayToFront(0, "${reason}_DEFOCUS_DISPLAY0")
+        delay(300)
+
+        startCarPlayActivity(
+            displayId = 3,
+            windowingMode = 5,
+            escapedActivity = escapedActivity,
+            reason = "${reason}_START_CLUSTER"
+        )
+        delay(900)
+
+        val clusterTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 3)
+        if (clusterTask == null) {
+            Log.e(TAG, "[$reason] Failed to recreate missing CarPlay visual task on cluster 3")
+            return null
+        }
+
+        resizeAndFocusCarPlay(clusterTask, 3, bounds, "${reason}_POST_START")
+        notifyCarPlayDisplayHandoff(3, null)
+        return findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 3) ?: clusterTask
+    }
+
     private suspend fun restoreOrRefreshCarPlayClusterContract(
         reason: String,
         existingClusterAction: ExistingClusterCarPlayAction
@@ -899,12 +1022,20 @@ object DisplayAppLauncher {
             return
         }
 
-        val mainTask = waitForSustainedCarPlayOnMainDisplay(reason) ?: return
+        val mainTask = waitForSustainedCarPlayOnMainDisplay(reason)
+        if (mainTask == null) {
+            if (findAllTasksForPackage(CARPLAY_PACKAGE).isEmpty()) {
+                recreateMissingCarPlayVisualTaskOnCluster("${reason}_RESTORE_MISSING_VISUAL")
+            }
+            return
+        }
+
         Log.w(
             TAG,
             "[$reason] Desired CarPlay target is cluster 3 but visual task sustained on display 0 " +
-                    "(stack ${mainTask.stackId}); auto-restore disabled, waiting for explicit user handoff"
+                    "(stack ${mainTask.stackId}); restoring to cluster"
         )
+        restoreCarPlayFromMainDisplayToCluster(mainTask, "${reason}_RESTORE_CLUSTER")
     }
 
     private suspend fun waitForSustainedCarPlayOnMainDisplay(reason: String): TaskInfo? {

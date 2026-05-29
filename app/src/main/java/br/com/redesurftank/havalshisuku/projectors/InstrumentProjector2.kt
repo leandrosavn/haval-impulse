@@ -6,6 +6,7 @@ import android.content.SharedPreferences
 import android.content.pm.ApplicationInfo
 import android.graphics.Color
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
 import android.view.Display
 import android.view.View
@@ -42,6 +43,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private val DEBUG_EXTERNAL_APP_HTML = "/data/local/tmp/app.html"
     private val FORCE_MAP_DISPLAY_AS_DEFAULT_FOR_TESTS = false
     private val MAP_DISPLAY_TEST_VALUE = "Mapa"
+    private val PROJECTION_NATIVE_PANEL_RESTORE_HOLD_MS = 1200L
+    private val PROJECTION_PROJECTOR_WARMUP_BYPASS_MS = 1600L
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val clockRunnable =
             object : Runnable {
@@ -77,6 +80,12 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private val dismissedWarnings = java.util.concurrent.ConcurrentHashMap<String, String>()
     private var isWarningDismissed = false
     private var lastWarningActiveTime = 0L
+    private var projectionOverlayBypassActive: Boolean? = null
+    private var hvacNativePanelActive = false
+    private var avmNativePreviewActive = false
+    private var nativePanelBypassHoldUntilMs = 0L
+    private var projectorWarmupBypassUntilMs = 0L
+    private var projectionBypassRestoreScheduledUntilMs = 0L
 
     private fun isWarningValueActive(value: String?): Boolean {
         if (value == null) return false
@@ -254,6 +263,132 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private fun isProjectionMirrorInDash(): Boolean {
         return br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
                 .isProjectionMirrorOnDisplay(3)
+    }
+
+    private fun isNativeProjectionPanelKey(key: String): Boolean {
+        return key == CarConstants.CAR_HVAC_PANEL_DISPLAY_NOTIFY.value ||
+                key == CarConstants.SYS_AVM_PREVIEW_STATUS.value
+    }
+
+    private fun isNativePanelValueActive(value: String?): Boolean {
+        val normalized = value?.trim()?.lowercase(Locale.ROOT) ?: return false
+        return normalized.isNotEmpty() &&
+                normalized != "0" &&
+                normalized != "false" &&
+                normalized != "off" &&
+                normalized != "null" &&
+                normalized != "{0,0,0,0}" &&
+                normalized != "{0,0,0,0,0}"
+    }
+
+    private fun isNativeProjectionPanelActive(): Boolean {
+        return hvacNativePanelActive || avmNativePreviewActive
+    }
+
+    private fun updateNativeProjectionPanelStateFromSignal(key: String, value: String): Boolean {
+        val active = isNativePanelValueActive(value)
+        val changed =
+                when (key) {
+                    CarConstants.CAR_HVAC_PANEL_DISPLAY_NOTIFY.value -> {
+                        if (hvacNativePanelActive == active) {
+                            false
+                        } else {
+                            hvacNativePanelActive = active
+                            true
+                        }
+                    }
+                    CarConstants.SYS_AVM_PREVIEW_STATUS.value -> {
+                        if (avmNativePreviewActive == active) {
+                            false
+                        } else {
+                            avmNativePreviewActive = active
+                            true
+                        }
+                    }
+                    else -> false
+                }
+
+        if (changed) {
+            if (!active) {
+                nativePanelBypassHoldUntilMs =
+                        SystemClock.uptimeMillis() + PROJECTION_NATIVE_PANEL_RESTORE_HOLD_MS
+            }
+            Log.w(
+                    TAG,
+                    "Native projection panel state changed: key=$key value=$value active=$active hvac=$hvacNativePanelActive avm=$avmNativePreviewActive"
+            )
+        }
+        return changed
+    }
+
+    private fun refreshNativeProjectionPanelStateFromCache(): Boolean {
+        val sm = ServiceManager.getInstance()
+        val hvacActive =
+                isNativePanelValueActive(sm.getData(CarConstants.CAR_HVAC_PANEL_DISPLAY_NOTIFY.value))
+        val avmActive =
+                isNativePanelValueActive(sm.getData(CarConstants.SYS_AVM_PREVIEW_STATUS.value))
+        val changed = hvacNativePanelActive != hvacActive || avmNativePreviewActive != avmActive
+        if (changed) {
+            hvacNativePanelActive = hvacActive
+            avmNativePreviewActive = avmActive
+            Log.w(
+                    TAG,
+                    "Native projection panel state refreshed from cache: hvac=$hvacNativePanelActive avm=$avmNativePreviewActive"
+            )
+        }
+        return changed
+    }
+
+    private fun scheduleProjectionBypassRestore(untilMs: Long) {
+        val now = SystemClock.uptimeMillis()
+        if (untilMs <= now || projectionBypassRestoreScheduledUntilMs >= untilMs) return
+
+        projectionBypassRestoreScheduledUntilMs = untilMs
+        handler.postDelayed(
+                {
+                    projectionBypassRestoreScheduledUntilMs = 0L
+                    updateVirtualClusterVisibility()
+                },
+                untilMs - now + 80L
+        )
+    }
+
+    private fun isProjectionOverlayBypassActive(carPlayInDash: Boolean): Boolean {
+        if (!carPlayInDash) return false
+
+        val now = SystemClock.uptimeMillis()
+        val holdUntil = maxOf(nativePanelBypassHoldUntilMs, projectorWarmupBypassUntilMs)
+        val active = isNativeProjectionPanelActive() || now < holdUntil
+        if (active && holdUntil > now) {
+            scheduleProjectionBypassRestore(holdUntil)
+        }
+        return active
+    }
+
+    private fun applyProjectionOverlayBypass(active: Boolean) {
+        if (projectionOverlayBypassActive == active) return
+
+        projectionOverlayBypassActive = active
+        val alpha = if (active) 0f else 1f
+        window?.let { win ->
+            val attrs = win.attributes
+            attrs.alpha = alpha
+            win.attributes = attrs
+        }
+        Log.w(
+                TAG,
+                "Projection overlay bypass active=$active windowAlpha=$alpha hvac=$hvacNativePanelActive avm=$avmNativePreviewActive"
+        )
+    }
+
+    private fun applyProjectorViewVisibility(visible: Boolean, bypassActive: Boolean) {
+        if (!::root.isInitialized) return
+
+        val alpha = if (bypassActive) 0f else 1f
+        root.alpha = alpha
+        root.isVisible = visible && !bypassActive
+        webView?.alpha = alpha
+        webView?.visibility = if (bypassActive) View.INVISIBLE else View.VISIBLE
     }
 
     private fun resetProjectionStateCache() {
@@ -437,6 +572,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT
         )
+        projectorWarmupBypassUntilMs =
+                SystemClock.uptimeMillis() + PROJECTION_PROJECTOR_WARMUP_BYPASS_MS
 
         root = FrameLayout(outerContext).apply { setBackgroundColor(Color.TRANSPARENT) }
         setContentView(root)
@@ -447,12 +584,9 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.isAnyAppOnDisplay(1)
         updateValuesWebView() // Queue initial values for state sync
         syncInitialWarnings() // Fresh JS state on init — warnings need to be primed
+        refreshNativeProjectionPanelStateFromCache()
         updateVirtualClusterVisibility()
         setupDataListeners()
-
-        root.isVisible =
-                shouldShowProjector() &&
-                        ServiceManager.getInstance().isMainScreenOn
     }
 
     override fun onStop() {
@@ -483,6 +617,14 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private fun setupDataListeners() {
         ServiceManager.getInstance().addDataChangedListener { key, value ->
             if (value == null) return@addDataChangedListener
+
+            if (isNativeProjectionPanelKey(key)) {
+                ensureUi {
+                    if (updateNativeProjectionPanelStateFromSignal(key, value.toString())) {
+                        updateVirtualClusterVisibility()
+                    }
+                }
+            }
 
             // Same-value dedup. Cars commonly re-emit identical values
             // back-to-back (e.g. unchanged HVAC settings, sticky CAN
@@ -913,17 +1055,18 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     ) {
         val clusterEnabled =
                 preferences.getBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, true)
+        val projectorVisible =
+                shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn
+        val overlayBypassActive = isProjectionOverlayBypassActive(carPlayInDash)
         var isLeftCovered = false
         var isRightCovered = false
+
+        applyProjectionOverlayBypass(overlayBypassActive)
+        applyProjectorViewVisibility(projectorVisible, overlayBypassActive)
 
         if (projectionMirrorInDash) {
             isLeftCovered = true
             isRightCovered = true
-            if (::root.isInitialized) {
-                root.isVisible = shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn
-            }
-        } else if (::root.isInitialized) {
-            root.isVisible = shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn
         }
 
         val configs = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()

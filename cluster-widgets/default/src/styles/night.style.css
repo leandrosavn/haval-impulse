@@ -2205,7 +2205,7 @@ canvas.graph-chart {
 .theme-mirror-cluster .dashboard-warning-label,
 .theme-mirror-cluster .alert-indicators-container,
 .theme-mirror-cluster .trip-analysis-indicator,
-.theme-mirror-cluster .dashboard-menu-container {
+.theme-mirror-cluster:not(.projection-card-overlay-active) .dashboard-menu-container {
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none !important;
@@ -2244,7 +2244,7 @@ canvas.graph-chart {
   pointer-events: none !important;
 }
 
-.theme-mirror-cluster.screen-main-menu .dashboard-menu-container {
+.theme-mirror-cluster.screen-main-menu:not(.projection-card-overlay-active) .dashboard-menu-container {
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none !important;
@@ -2254,15 +2254,15 @@ canvas.graph-chart {
   background: transparent !important;
 }
 
-.projection-map-display-active .dashboard-menu-container,
-.projection-map-display-active .main-container {
+.projection-map-display-active:not(.projection-card-overlay-active) .dashboard-menu-container,
+.projection-map-display-active:not(.projection-card-overlay-active) .main-container {
   display: none !important;
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none !important;
 }
 
-.theme-mirror-cluster.screen-aircon .main-container {
+.theme-mirror-cluster.screen-aircon:not(.projection-card-overlay-active) .main-container {
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none !important;
@@ -2271,13 +2271,34 @@ canvas.graph-chart {
   box-shadow: none !important;
 }
 
-.theme-mirror-cluster.screen-aircon .ac-outer-ring,
-.theme-mirror-cluster.screen-aircon .ac-inner-ring,
-.theme-mirror-cluster.screen-aircon .ac-inner-ring-shadow {
+.theme-mirror-cluster.screen-aircon:not(.projection-card-overlay-active) .ac-outer-ring,
+.theme-mirror-cluster.screen-aircon:not(.projection-card-overlay-active) .ac-inner-ring,
+.theme-mirror-cluster.screen-aircon:not(.projection-card-overlay-active) .ac-inner-ring-shadow {
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none !important;
   background: transparent !important;
+  box-shadow: none !important;
+}
+
+.projection-card-overlay-active.screen-main-menu .dashboard-menu-container,
+.projection-card-overlay-active.screen-aircon .dashboard-menu-container {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: none !important;
+  z-index: 1200;
+}
+
+.projection-card-overlay-active.screen-main-menu .main-menu-container,
+.projection-card-overlay-active.screen-aircon .main-container {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
   box-shadow: none !important;
 }
 

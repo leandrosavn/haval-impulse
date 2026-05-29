@@ -43,7 +43,12 @@ class SplashActivity : ComponentActivity() {
             HavalShisukuTheme {
                 SplashScreen {
                     // Navigate to MainActivity
-                    startActivity(Intent(this@SplashActivity, MainActivity::class.java))
+                    startActivity(
+                        Intent(this@SplashActivity, MainActivity::class.java).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        }
+                    )
                     finish()
                 }
             }
