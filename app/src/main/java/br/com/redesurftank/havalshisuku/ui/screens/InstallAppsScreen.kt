@@ -469,7 +469,7 @@ fun InstallAppsTab() {
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                                "Apple CarPlay (Patch Cluster) - Redimensiona o espelhamento, preserva foco e remove barra no cluster",
+                                "Apple CarPlay (Patch HVAC D3) - Mantem o foco de video durante o painel de ar",
                                 color = Color.White,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold

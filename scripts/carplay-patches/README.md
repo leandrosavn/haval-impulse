@@ -9,12 +9,24 @@ behavior, read the regression contract:
 
 ## Safety Status
 
-The v2.4 patch currently archived here is unsafe for automatic mounting. In the
+The old v2.4 patch archived here is unsafe for automatic mounting. In the
 2026-05-24 vehicle test it produced a live `CarPlayDisplayActivity`/`SurfaceView`
 on display 0 with either no frames or a white/dirty buffer after the native
-CarPlay shortcut and controlled restarts. Until a replacement patch is validated,
-the main app keeps the stock `TsCarPlayApp.apk` asset and blocks CarPlay patch
-install/mount at runtime.
+CarPlay shortcut and controlled restarts.
+
+The current validated state is the narrower 2026-05-28 HVAC/D3 focus patch:
+
+- `TsCarPlayApp.apk` MD5 `477529a8c454acbc25ab5adb848e18b4`;
+- `TsCarPlayService.apk` MD5 `4a76e74c5f9fc119287c5cc0f823856a`;
+- auto-mount version `app_service_hvac_focus_v2`;
+- service patch is HVAC-only by default; camera `0x7` remains stock;
+- visual app patch preserves D3 video on secondary-display `onPause`.
+
+Before changing or deploying CarPlay patches, run:
+
+```bash
+python3 scripts/carplay-patches/verify_regression_lock.py
+```
 
 The target app on the Haval head unit is:
 

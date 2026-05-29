@@ -521,9 +521,10 @@ object DisplayAppLauncher {
                 return
             }
             lastCarPlayWatchdogRestoreAt = now
-            restoreOrRefreshCarPlayClusterContract(
-                "CARPLAY_CLUSTER_WATCHDOG_DIRECT",
-                ExistingClusterCarPlayAction.VERIFY_ONLY
+            Log.w(
+                TAG,
+                "[CARPLAY_CLUSTER_WATCHDOG_DIRECT] CarPlay is on display 0 while desired target is cluster 3; " +
+                        "auto-restore is disabled to avoid recreating Surface during native HVAC/camera/app transitions"
             )
         }
     }
@@ -902,12 +903,7 @@ object DisplayAppLauncher {
         Log.w(
             TAG,
             "[$reason] Desired CarPlay target is cluster 3 but visual task sustained on display 0 " +
-                    "(stack ${mainTask.stackId}); restoring cluster"
-        )
-        startCarPlayOnDisplay(
-            getCarPlayConfigForDisplay(3),
-            "${reason}_RESTORE_CLUSTER",
-            rememberTarget = false
+                    "(stack ${mainTask.stackId}); auto-restore disabled, waiting for explicit user handoff"
         )
     }
 

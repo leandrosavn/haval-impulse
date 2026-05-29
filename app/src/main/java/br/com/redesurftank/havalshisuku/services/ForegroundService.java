@@ -387,12 +387,12 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
                 }
 
                 String carPlayPatchVersionKey = "carPlayPatchAutoMountPatchVersion";
-                String carPlayFullHeightPatchVersion = "full_720_standard_v2";
-                if (!carPlayFullHeightPatchVersion.equals(prefs.getString(carPlayPatchVersionKey, ""))) {
-                    Log.i(TAG, "Enabling CarPlay full-height patch auto-mount for version " + carPlayFullHeightPatchVersion);
+                String carPlayHvacFocusPatchVersion = "app_service_hvac_focus_v2";
+                if (!carPlayHvacFocusPatchVersion.equals(prefs.getString(carPlayPatchVersionKey, ""))) {
+                    Log.i(TAG, "Enabling CarPlay HVAC focus patch auto-mount for version " + carPlayHvacFocusPatchVersion);
                     prefs.edit()
                             .putBoolean(SharedPreferencesKeys.CARPLAY_PATCH_AUTO_MOUNT.getKey(), true)
-                            .putString(carPlayPatchVersionKey, carPlayFullHeightPatchVersion)
+                            .putString(carPlayPatchVersionKey, carPlayHvacFocusPatchVersion)
                             .apply();
                 }
 
