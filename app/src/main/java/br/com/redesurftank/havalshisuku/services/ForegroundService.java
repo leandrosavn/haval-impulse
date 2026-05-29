@@ -44,6 +44,8 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
     private static final String TAG = "ForegroundService";
     private static final String CHANNEL_ID = "ForegroundServiceChannel";
     private static final int NOTIFICATION_ID = 1;
+    private static final String CARPLAY_PATCH_VERSION_KEY = "carPlayPatchAutoMountPatchVersion";
+    private static final String CARPLAY_HVAC_FOCUS_PATCH_VERSION = "app_visual_d0_focus_service_conditional_camera_native1904x704_v13";
 
     private HandlerThread handlerThread;
     private Handler backgroundHandler;
@@ -64,6 +66,36 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
         handlerThread = new HandlerThread("BackgroundThread");
         handlerThread.start();
         backgroundHandler = new Handler(handlerThread.getLooper());
+    }
+
+    private void scheduleCarPlayPatchAutoMount(String reason) {
+        if (backgroundHandler == null) {
+            Log.e(TAG, "Cannot schedule CarPlay patch auto-mount: backgroundHandler is null");
+            return;
+        }
+
+        backgroundHandler.post(() -> {
+            try {
+                var prefs = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE);
+                if (!CARPLAY_HVAC_FOCUS_PATCH_VERSION.equals(prefs.getString(CARPLAY_PATCH_VERSION_KEY, ""))) {
+                    Log.i(TAG, "Enabling CarPlay HVAC focus patch auto-mount for version " + CARPLAY_HVAC_FOCUS_PATCH_VERSION + " (" + reason + ")");
+                    prefs.edit()
+                            .putBoolean(SharedPreferencesKeys.CARPLAY_PATCH_AUTO_MOUNT.getKey(), true)
+                            .putString(CARPLAY_PATCH_VERSION_KEY, CARPLAY_HVAC_FOCUS_PATCH_VERSION)
+                            .apply();
+                }
+
+                boolean shouldAutoMountCarPlay = prefs.getBoolean(SharedPreferencesKeys.CARPLAY_PATCH_AUTO_MOUNT.getKey(), true);
+                if (shouldAutoMountCarPlay) {
+                    Log.i(TAG, "Checking CarPlay patch auto-mount (" + reason + ")...");
+                    CarPlayPatchManager.INSTANCE.ensureMounted();
+                } else {
+                    Log.d(TAG, "CarPlay patch auto-mount is disabled in settings (" + reason + ").");
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "CarPlay patch auto-mount check failed (" + reason + "): " + e.getMessage(), e);
+            }
+        });
     }
 
     @Override
@@ -252,6 +284,7 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
         }
 
         Log.w(TAG, "Shizuku initialized/bypassed, starting services...");
+        scheduleCarPlayPatchAutoMount("shizuku-ready");
 
         // Start SSH check and start in background with retry
         backgroundHandler.post(new Runnable() {
@@ -386,23 +419,6 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
                     Log.d(TAG, "AA patch auto-mount is disabled in settings.");
                 }
 
-                String carPlayPatchVersionKey = "carPlayPatchAutoMountPatchVersion";
-                String carPlayHvacFocusPatchVersion = "app_visual_d0_focus_service_conditional_camera_native1904x704_v12";
-                if (!carPlayHvacFocusPatchVersion.equals(prefs.getString(carPlayPatchVersionKey, ""))) {
-                    Log.i(TAG, "Enabling CarPlay HVAC focus patch auto-mount for version " + carPlayHvacFocusPatchVersion);
-                    prefs.edit()
-                            .putBoolean(SharedPreferencesKeys.CARPLAY_PATCH_AUTO_MOUNT.getKey(), true)
-                            .putString(carPlayPatchVersionKey, carPlayHvacFocusPatchVersion)
-                            .apply();
-                }
-
-                boolean shouldAutoMountCarPlay = prefs.getBoolean(SharedPreferencesKeys.CARPLAY_PATCH_AUTO_MOUNT.getKey(), true);
-                if (shouldAutoMountCarPlay) {
-                    Log.i(TAG, "Checking CarPlay patch auto-mount...");
-                    CarPlayPatchManager.INSTANCE.ensureMounted();
-                } else {
-                    Log.d(TAG, "CarPlay patch auto-mount is disabled in settings.");
-                }
             } catch (Exception e) {
                 Log.e(TAG, "Projection patch auto-mount check failed: " + e.getMessage(), e);
             }

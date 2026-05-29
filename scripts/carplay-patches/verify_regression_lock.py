@@ -18,7 +18,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 
 EXPECTED_ASSET_MD5 = {
-    "app/src/main/assets/carplay_patches/TsCarPlayApp.apk": "ec5053d91d8364d9451937981e08a04a",
+    "app/src/main/assets/carplay_patches/TsCarPlayApp.apk": "9d48c33f49dbeeb020c2fdc7e16bbc53",
     "app/src/main/assets/carplay_patches/TsCarPlayService.apk": "f0269fc640778825843762dcf55a8b83",
 }
 
@@ -30,6 +30,7 @@ REQUIRED_TOKENS = {
         "CP_IGNORE_FINISH_BROADCAST_ON_SECONDARY_DISPLAY",
         "CP_IGNORE_REQUEST_VIDEO_FOCUS_FINISH_ON_SECONDARY_DISPLAY",
         "CP_SURFACE_MATCH_PARENT_FULLSCREEN",
+        "CP_SURFACE_FIXED_SIZE_BEFORE_CALLBACK_ON_SECONDARY",
         "CP_SURFACE_SHOW_NATIVE_1904_704_ON_SECONDARY",
         "priorityChanged patched: keep CarPlay video focus for HVAC uiNotification",
         "priorityChanged patched: keep CarPlay video focus for D3 display0 normal app",
@@ -61,7 +62,7 @@ REQUIRED_TOKENS = {
         "Bundled CarPlay HVAC focus patches refreshed; re-applying mounts",
     ],
     "app/src/main/java/br/com/redesurftank/havalshisuku/services/ForegroundService.java": [
-        "app_visual_d0_focus_service_conditional_camera_native1904x704_v12",
+        "app_visual_d0_focus_service_conditional_camera_native1904x704_v13",
     ],
     "app/src/main/java/br/com/redesurftank/havalshisuku/managers/DisplayAppLauncher.kt": [
         "restoreCarPlayFromMainDisplayToCluster",
@@ -72,7 +73,9 @@ REQUIRED_TOKENS = {
         "Skipping missing CarPlay visual restore because no recent cluster visual was observed",
         "prevents post-reboot Impulse launch loop",
         "Clearing stale desired CarPlay cluster target because no recent cluster visual/session was observed",
-        "CARPLAY_CLUSTER_WATCHDOG_START_NO_CLUSTER_TASK",
+        "CARPLAY_CLUSTER_WATCHDOG_START_PENDING_CLUSTER_TARGET",
+        "rememberTarget = !preserveClusterTarget",
+        "D0 may be used only as a staging display",
         "packageName == App.getContext().packageName",
         "am start -f 0x14000000 -n $CARPLAY_PACKAGE/$escapedActivity",
         "Restoring CarPlay from display 0 stack",
@@ -101,6 +104,7 @@ REQUIRED_TOKENS = {
         "CP_IGNORE_REQUEST_VIDEO_FOCUS_FINISH_ON_SECONDARY_DISPLAY",
         "`SurfaceView` nativo deve usar `match_parent`",
         "CP_SURFACE_MATCH_PARENT_FULLSCREEN",
+        "CP_SURFACE_FIXED_SIZE_BEFORE_CALLBACK_ON_SECONDARY",
         "CP_SURFACE_SHOW_NATIVE_1904_704_ON_SECONDARY",
         "Regra 33 - Service embarcado usa camera condicional por desired_display",
         "Regra 34 - Mapa permanece visivel durante camera/AVM/HVAC",
@@ -110,6 +114,7 @@ REQUIRED_TOKENS = {
         "somente apos input real recente do",
         "watchdog pode restaurar o visual no D3",
         "sem `force-stop`, defocando antes o D0",
+        "Antes de qualquer adequacao funcional, capturar baseline/logs/screenshot",
     ],
 }
 

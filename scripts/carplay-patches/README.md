@@ -14,11 +14,11 @@ The old v2.4 patch archived here is unsafe for automatic mounting. In the
 on display 0 with either no frames or a white/dirty buffer after the native
 CarPlay shortcut and controlled restarts.
 
-The current target state is the 2026-05-29 CarPlay D3 focus/native-buffer patch v12:
+The current target state is the 2026-05-29 CarPlay D3 focus/native-buffer patch v13:
 
-- `TsCarPlayApp.apk` MD5 `ec5053d91d8364d9451937981e08a04a`;
+- `TsCarPlayApp.apk` MD5 `9d48c33f49dbeeb020c2fdc7e16bbc53`;
 - `TsCarPlayService.apk` MD5 `f0269fc640778825843762dcf55a8b83`;
-- auto-mount version `app_visual_d0_focus_service_conditional_camera_native1904x704_v12`;
+- auto-mount version `app_visual_d0_focus_service_conditional_camera_native1904x704_v13`;
 - service patch is HVAC-only by default and covers both the HVAC borrow edge
   (`priority=0x6`) and the symmetric HVAC release edge
   (`priority=0`, `action=1`, `borrowId=uiNotification`);
@@ -47,11 +47,13 @@ The current target state is the 2026-05-29 CarPlay D3 focus/native-buffer patch 
   the `SurfaceView` uses `match_parent` instead of the stock centered
   `1896x700` viewport, which SurfaceFlinger reports as an aligned
   `1904x704` buffer inside the 1920x720 cluster.
-- visual app patch also changes `CarPlayDisplayFragment$2.surfaceChanged` so
-  `DisplayContract.Presenter.show(surface,w,h)` and `SurfaceHolder.setFixedSize()`
-  receive `1904x704` on secondary displays while the Activity/window remain
-  `1920x720`. Physical validation on 2026-05-29 showed this removes the gray D3
-  CarPlay area and stays stable with AC and Settings opened on D0.
+- visual app patch applies `SurfaceHolder.setFixedSize(1904,704)` before
+  registering the `SurfaceHolder.Callback` on secondary displays. It also
+  changes `CarPlayDisplayFragment$2.surfaceChanged` so
+  `DisplayContract.Presenter.show(surface,w,h)` receives `1904x704` while the
+  Activity/window remain `1920x720`. This keeps the validated native buffer but
+  avoids a mid-`surfaceChanged` Surface recreation that was observed to leave a
+  stale `1x1` SurfaceView on the first cold D0 -> D3 handoff.
 
 Before changing or deploying CarPlay patches, run:
 
@@ -65,7 +67,9 @@ CarPlay task or recreates it on display 0 after HVAC/camera/app focus, Impulse
 may recreate `CarPlayDisplayActivity` on display 3 without `force-stop`, then
 remove the display-0 duplicate only after the D3 task exists. It also syncs
 `persist.haval.carplay.desired_display` so the native visual APK can preserve
-the D3 video route after a reboot.
+the D3 video route after a reboot. If boot/autostart needs to show CarPlay on
+D0 first while the saved target is D3, D0 is treated only as a staging display;
+the launcher must not rewrite `desiredCarPlayDisplayId` back to `0`.
 
 On boot or app update, `CarPlayPatchManager` must also make sure the mounted
 APKs are loaded into memory. If the visual CarPlay task is already active while
@@ -92,9 +96,10 @@ The target app on the Haval head unit is:
   3: `0,0,1920,720`. The native patch must also keep Display 3 at `720`;
   mixing `540` and `720` video/surface profiles leaves stale buffers on this
   head unit.
-- Forces `SurfaceHolder.setFixedSize()` from the current display target.
-  In the supported Haval layout, `CarPlayManager.setSurfaceSize()` receives
-  `1904x704` on cluster 3, while the Activity/window stay `1920x720`.
+- Forces `SurfaceHolder.setFixedSize(1904,704)` before callback registration on
+  secondary displays. In the supported Haval layout,
+  `CarPlayManager.setSurfaceSize()` receives `1904x704` on cluster 3, while the
+  Activity/window stay `1920x720`.
 - Changes the CarPlay video config to read
   `persist.haval.carplay.video.height`. The launcher keeps this property at
   `720` for display 0 and cluster 3.
@@ -137,20 +142,21 @@ mkdir -p build_carplay
 ./tools/headunit-dev/headunit.sh pull-file \
   /system/app/TsCarPlayApp/TsCarPlayApp.apk TsCarPlayApp.apk
 
-java -jar tools/apktool_3.0.2.jar d -f -o build_carplay/ts-app \
+java -jar tools/apktool_3.0.2.jar d -f -o build_carplay/ts-app-hvac-focus-v13 \
   tools/headunit-dev/output/pulled-files/TsCarPlayApp.apk
 
-python3 scripts/carplay-patches/patch_logic.py
+python3 scripts/carplay-patches/patch_logic_app_focus.py
 
 java -jar tools/apktool_3.0.2.jar b \
-  -o build_carplay/TsCarPlayApp_unsigned.apk build_carplay/ts-app
+  -o build_carplay/TsCarPlayApp_hvac_focus_pre_sized_v13_unsigned.apk \
+  build_carplay/ts-app-hvac-focus-v13
 
-zipalign -f 4 build_carplay/TsCarPlayApp_unsigned.apk \
-  build_carplay/TsCarPlayApp_aligned.apk
+zipalign -f 4 build_carplay/TsCarPlayApp_hvac_focus_pre_sized_v13_unsigned.apk \
+  build_carplay/TsCarPlayApp_hvac_focus_pre_sized_v13_aligned.apk
 
 apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android \
-  --out build_carplay/TsCarPlayApp_signed.apk \
-  build_carplay/TsCarPlayApp_aligned.apk
+  --out build_carplay/TsCarPlayApp_hvac_focus_pre_sized_v13_signed.apk \
+  build_carplay/TsCarPlayApp_hvac_focus_pre_sized_v13_aligned.apk
 ```
 
 For the in-app mount flow, copy the signed APK to:

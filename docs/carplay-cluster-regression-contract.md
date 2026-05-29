@@ -255,9 +255,11 @@ Sinais de regressao:
 
 ## Disciplina de Mudanca
 
-1. Toda correcao nova deve citar qual regra deste contrato protege.
-2. Nenhuma correcao de camera/HVAC pode mover, reiniciar ou redimensionar CarPlay.
-3. Nenhum ajuste de cluster pode redimensionar CarPlay.
+1. Antes de qualquer adequacao funcional, capturar baseline/logs/screenshot do estado atual quando
+   a central estiver acessivel.
+2. Toda correcao nova deve citar qual regra deste contrato protege.
+3. Nenhuma correcao de camera/HVAC pode mover, reiniciar ou redimensionar CarPlay.
+4. Nenhum ajuste de cluster pode redimensionar CarPlay.
 4. Build e deploy nao bastam; sempre validar APK instalado, patch nativo, prop 720 e stack list.
 
 ## Regra 25 - Contrato Fullscreen Objetivo no Cluster 3
@@ -390,11 +392,15 @@ Contrato atual do patch `TsCarPlayApp.apk`:
 - `SurfaceView` nativo deve usar `match_parent` para preencher o parent fullscreen da Activity no
   cluster 3. O layout stock `1896x700` centralizado gera margem cinza e buffer alinhado proximo de
   `1904x704`;
+- `CarPlayDisplayFragment.initView` deve usar o sentinel
+  `CP_SURFACE_FIXED_SIZE_BEFORE_CALLBACK_ON_SECONDARY` para aplicar
+  `SurfaceHolder.setFixedSize(1904,704)` antes de registrar o callback da Surface em displays
+  secundarios;
 - `CarPlayDisplayFragment$2.surfaceChanged` deve usar o sentinel
   `CP_SURFACE_SHOW_NATIVE_1904_704_ON_SECONDARY` para passar `1904x704` ao renderer nativo em
-  displays secundarios, mantendo Activity/window em `1920x720`. Em 2026-05-29, teste fisico
-  confirmou que este buffer alinhado elimina a area cinza no D3 enquanto AC e apps no D0 continuam
-  estaveis;
+  displays secundarios, mantendo Activity/window em `1920x720` e sem chamar `setFixedSize()` no
+  meio do callback. Em 2026-05-29, teste fisico confirmou que este buffer alinhado elimina a area
+  cinza no D3 enquanto AC e apps no D0 continuam estaveis;
 - nao alterar launch mode, loops dinamicos de resize, crop/overscan ou fluxo Android Auto.
 
 Evidencia de validacao 2026-05-28:
@@ -414,10 +420,10 @@ de novos deploys envolvendo CarPlay. Ele inclui a correcao do salto observado no
 do app normal no D0 que podia trocar a rota de video, e a camera condicional: camera/AVM fica stock
 no D0, mas nao toma a rota de video quando o alvo desejado do CarPlay e D3.
 
-- `TsCarPlayApp.apk` embarcado deve manter MD5 `ec5053d91d8364d9451937981e08a04a`;
+- `TsCarPlayApp.apk` embarcado deve manter MD5 `9d48c33f49dbeeb020c2fdc7e16bbc53`;
 - `TsCarPlayService.apk` embarcado deve manter MD5 `f0269fc640778825843762dcf55a8b83`;
 - `ForegroundService` deve manter a versao de auto-mount
-  `app_visual_d0_focus_service_conditional_camera_native1904x704_v12`;
+  `app_visual_d0_focus_service_conditional_camera_native1904x704_v13`;
 - `CarPlayPatchManager` deve montar app + service e, quando o mount muda com CarPlay visual ativo,
   pode recarregar `com.ts.carplay.app` e `com.ts.carplay` para carregar o dex patchado, reabrindo a
   Activity no display onde ela estava; esse caminho e exclusivo de patch load, nao de handoff
@@ -443,6 +449,7 @@ no D0, mas nao toma a rota de video quando o alvo desejado do CarPlay e D3.
   `CP_IGNORE_FINISH_BROADCAST_ON_SECONDARY_DISPLAY`,
   `CP_IGNORE_REQUEST_VIDEO_FOCUS_FINISH_ON_SECONDARY_DISPLAY` e
   `CP_SURFACE_MATCH_PARENT_FULLSCREEN`,
+  `CP_SURFACE_FIXED_SIZE_BEFORE_CALLBACK_ON_SECONDARY`,
   `CP_SURFACE_SHOW_NATIVE_1904_704_ON_SECONDARY`;
 - `patch_logic_service.py` deve continuar default HVAC-only, mas a variante embarcada deve ser
   gerada com `--conditional-camera`, mantendo os sentinels `CARPLAY_HVAC_KEEP_FOREGROUND_PATCH`,
@@ -551,6 +558,9 @@ nao existir nenhuma task visual `com.ts.carplay.app`.
 Contrato:
 
 - o watchdog so pode recriar uma task visual ausente se o CarPlay foi visto recentemente no D3;
+- durante o boot, se o alvo salvo ainda for D3, o app pode manter esse alvo em grace curto para que
+  o autostart USB use D0 apenas como display de staging e depois restaure o D3 automaticamente;
+- esse staging de boot nao pode gravar `desiredCarPlayDisplayId=0` quando o alvo anterior era D3;
 - sem task visual recente, o watchdog deve registrar skip e ficar quieto;
 - se o alvo salvo ainda for D3 mas nao houver task real recente no D3, o app deve limpar esse alvo
   stale para `0` e sincronizar `persist.haval.carplay.desired_display=0`, permitindo que a proxima

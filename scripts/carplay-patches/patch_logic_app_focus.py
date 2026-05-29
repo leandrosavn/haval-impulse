@@ -1,7 +1,7 @@
 """
 CarPlay app focus patch for HVAC validation.
 
-Target: build_carplay/ts-app-hvac-focus/ (com.ts.carplay.app)
+Target: build_carplay/ts-app-hvac-focus-v13/ (com.ts.carplay.app)
 
 This is intentionally smaller than the archived app patch. It changes:
 - VideoModel.lambda$priorityChanged$3 so the visual app does not forward HVAC
@@ -27,9 +27,11 @@ This is intentionally smaller than the archived app patch. It changes:
 - CarPlayDisplayFragment$2.surfaceChanged so the native renderer receives
   1904x704 on secondary displays. That matches the aligned native CarPlay
   buffer observed by SurfaceFlinger while the Activity/window stay 1920x720.
-- The same surfaceChanged path calls SurfaceHolder.setFixedSize(1904,704) on
-  secondary displays so SurfaceFlinger scales the valid native buffer instead
-  of exposing the stock gray background.
+- CarPlayDisplayFragment.initView calls SurfaceHolder.setFixedSize(1904,704)
+  before registering the Surface callback on secondary displays. Applying the
+  fixed size before surfaceChanged avoids a mid-callback Surface recreation
+  that was observed to leave a stale 1x1 SurfaceView beside the real 1904x704
+  Surface on the first cold D0 -> D3 handoff.
 
 It does not change Activity launchMode, dynamic resize loops, overscan crop, or
 Android Auto.
@@ -39,10 +41,11 @@ import os
 import re
 import sys
 
-BUILD_DIR = "build_carplay/ts-app-hvac-focus"
+BUILD_DIR = "build_carplay/ts-app-hvac-focus-v13"
 VIDEO_MODEL = f"{BUILD_DIR}/smali/com/ts/carplay/app/service/model/video/VideoModel.smali"
 DISPLAY_ACTIVITY = f"{BUILD_DIR}/smali/com/ts/carplay/app/ui/display/view/CarPlayDisplayActivity.smali"
 FINISH_RECEIVER = f"{BUILD_DIR}/smali/com/ts/carplay/app/ui/display/view/CarPlayDisplayActivity$FinishActivityReceiver.smali"
+DISPLAY_FRAGMENT = f"{BUILD_DIR}/smali/com/ts/carplay/app/ui/display/view/CarPlayDisplayFragment.smali"
 FRAGMENT_CALLBACK = f"{BUILD_DIR}/smali/com/ts/carplay/app/ui/display/view/CarPlayDisplayFragment$2.smali"
 SURFACE_LAYOUT = f"{BUILD_DIR}/res/layout/fragment_display_surface.xml"
 VIDEO_SENTINEL = "# CP_KEEP_VIDEO_FOCUS_FOR_HVAC_D0_APPS_AND_NORMAL_RETURN"
@@ -51,6 +54,7 @@ LIFECYCLE_SENTINEL = "# CP_KEEP_CLUSTER_VIDEO_FOREGROUND_ON_ANY_PAUSE"
 FINISH_RECEIVER_SENTINEL = "# CP_IGNORE_FINISH_BROADCAST_ON_SECONDARY_DISPLAY"
 REQUEST_VIDEO_FOCUS_SENTINEL = "# CP_IGNORE_REQUEST_VIDEO_FOCUS_FINISH_ON_SECONDARY_DISPLAY"
 SURFACE_LAYOUT_SENTINEL = "CP_SURFACE_MATCH_PARENT_FULLSCREEN"
+SURFACE_PRE_SIZE_SENTINEL = "# CP_SURFACE_FIXED_SIZE_BEFORE_CALLBACK_ON_SECONDARY"
 SURFACE_SHOW_SENTINEL = "# CP_SURFACE_SHOW_NATIVE_1904_704_ON_SECONDARY"
 
 PATCHED_METHOD = r""".method public static synthetic lambda$priorityChanged$3(Lcom/ts/carplay/app/service/model/video/VideoModel;Lcom/ts/carplay/app/service/model/video/VideoModel$FocusModeInfo;I)V
@@ -471,6 +475,75 @@ def patch_surface_layout() -> None:
     print("[OK] SurfaceView layout now fills the CarPlay activity parent")
 
 
+def patch_surface_fixed_size_before_callback() -> None:
+    if not os.path.exists(DISPLAY_FRAGMENT):
+        print(f"ERROR: smali file not found: {DISPLAY_FRAGMENT}")
+        sys.exit(1)
+
+    with open(DISPLAY_FRAGMENT, "r", encoding="utf-8") as f:
+        fragment_content = f.read()
+
+    if SURFACE_PRE_SIZE_SENTINEL in fragment_content:
+        print("[SKIP] SurfaceHolder fixed size is already applied before callback registration")
+        return
+
+    target = """    .line 59
+    iget-object v0, p0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment;->mSurfaceView:Landroid/view/SurfaceView;
+
+    invoke-virtual {v0}, Landroid/view/SurfaceView;->getHolder()Landroid/view/SurfaceHolder;
+
+    move-result-object v0
+
+    iget-object v1, p0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment;->mSurfaceHolderCallback:Landroid/view/SurfaceHolder$Callback;
+
+    invoke-interface {v0, v1}, Landroid/view/SurfaceHolder;->addCallback(Landroid/view/SurfaceHolder$Callback;)V"""
+
+    if target not in fragment_content:
+        print("ERROR: SurfaceHolder.addCallback block not found")
+        sys.exit(1)
+
+    replacement = f"""{SURFACE_PRE_SIZE_SENTINEL}
+    invoke-virtual {{p0}}, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment;->getActivity()Landroid/app/Activity;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_cp_pre_size_done
+
+    invoke-virtual {{v0}}, Landroid/app/Activity;->getDisplay()Landroid/view/Display;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_cp_pre_size_done
+
+    invoke-virtual {{v0}}, Landroid/view/Display;->getDisplayId()I
+
+    move-result v0
+
+    if-eqz v0, :cond_cp_pre_size_done
+
+    iget-object v0, p0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment;->mSurfaceView:Landroid/view/SurfaceView;
+
+    invoke-virtual {{v0}}, Landroid/view/SurfaceView;->getHolder()Landroid/view/SurfaceHolder;
+
+    move-result-object v0
+
+    const/16 v1, 0x770
+
+    const/16 p1, 0x2c0
+
+    invoke-interface {{v0, v1, p1}}, Landroid/view/SurfaceHolder;->setFixedSize(II)V
+
+    :cond_cp_pre_size_done
+{target}"""
+
+    fragment_content = fragment_content.replace(target, replacement, 1)
+
+    with open(DISPLAY_FRAGMENT, "w", encoding="utf-8") as f:
+        f.write(fragment_content)
+
+    print("[OK] SurfaceHolder fixed size now runs before callback registration on secondary displays")
+
+
 def patch_surface_callback() -> None:
     if not os.path.exists(FRAGMENT_CALLBACK):
         print(f"ERROR: smali file not found: {FRAGMENT_CALLBACK}")
@@ -527,8 +600,6 @@ def patch_surface_callback() -> None:
 
     const/16 p4, 0x2c0
 
-    invoke-interface {{p1, p3, p4}}, Landroid/view/SurfaceHolder;->setFixedSize(II)V
-
     :cond_cp_surface_keep_callback_size
 {target}"""
 
@@ -541,7 +612,7 @@ def patch_surface_callback() -> None:
 
 
 def main():
-    for path in (VIDEO_MODEL, DISPLAY_ACTIVITY, FINISH_RECEIVER, FRAGMENT_CALLBACK, SURFACE_LAYOUT):
+    for path in (VIDEO_MODEL, DISPLAY_ACTIVITY, FINISH_RECEIVER, DISPLAY_FRAGMENT, FRAGMENT_CALLBACK, SURFACE_LAYOUT):
         if not os.path.exists(path):
             print(f"ERROR: smali file not found: {path}")
             sys.exit(1)
@@ -634,6 +705,7 @@ def main():
 
         print("[OK] FinishActivityReceiver now ignores FINISH_ACTIVITY on secondary displays")
     patch_surface_layout()
+    patch_surface_fixed_size_before_callback()
     patch_surface_callback()
 
 

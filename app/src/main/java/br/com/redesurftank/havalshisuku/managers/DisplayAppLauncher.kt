@@ -121,6 +121,7 @@ object DisplayAppLauncher {
     private const val CARPLAY_CLUSTER_WATCHDOG_INTERVAL_MS = 1_000L
     private const val CARPLAY_BOOT_AUTOSTART_ATTEMPTS = 30
     private const val CARPLAY_BOOT_AUTOSTART_INTERVAL_MS = 2_000L
+    private const val CARPLAY_CLUSTER_TARGET_BOOT_GRACE_MS = 65_000L
     private const val CARPLAY_MAIN_DUPLICATE_CLEANUP_COOLDOWN_MS = 3_500L
     private const val CARPLAY_WATCHDOG_RESTORE_COOLDOWN_MS = 3_500L
     private const val CARPLAY_MISSING_VISUAL_RESTORE_WINDOW_MS = 60_000L
@@ -133,6 +134,7 @@ object DisplayAppLauncher {
     @Volatile private var lastCarPlayMainDuplicateCleanupAt = 0L
     @Volatile private var lastCarPlayWatchdogRestoreAt = 0L
     @Volatile private var lastCarPlayClusterVisualSeenAt = 0L
+    @Volatile private var carPlayClusterTargetBootGraceUntil = 0L
 
     // Memory cache for app bounds per display: packageName -> Map<displayId, bounds>
     private val lastKnownDisplayBounds = mutableMapOf<String, MutableMap<Int, IntArray>>()
@@ -504,7 +506,17 @@ object DisplayAppLauncher {
         scope.launch {
             val desiredDisplay = getPrefs().getInt(PREF_DESIRED_CARPLAY_DISPLAY_ID, -1)
             if (desiredDisplay == 3 && findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 3) == null) {
-                clearStaleCarPlayClusterTarget("CARPLAY_CLUSTER_WATCHDOG_START_NO_CLUSTER_TASK")
+                carPlayClusterTargetBootGraceUntil =
+                    System.currentTimeMillis() + CARPLAY_CLUSTER_TARGET_BOOT_GRACE_MS
+                syncCarPlayDesiredDisplayProperty(
+                    3,
+                    "CARPLAY_CLUSTER_WATCHDOG_START_PENDING_CLUSTER_TARGET"
+                )
+                Log.w(
+                    TAG,
+                    "[CARPLAY_CLUSTER_WATCHDOG_START_PENDING_CLUSTER_TARGET] Preserving desired D3 target " +
+                            "during boot USB/autostart grace; D0 may be used only as a staging display"
+                )
             } else {
                 syncCarPlayDesiredDisplayProperty(
                     desiredDisplay,
@@ -534,9 +546,23 @@ object DisplayAppLauncher {
             }
 
             repeat(CARPLAY_BOOT_AUTOSTART_ATTEMPTS) { attempt ->
+                val preserveClusterTarget =
+                    prefs.getInt(PREF_DESIRED_CARPLAY_DISPLAY_ID, -1) == 3
                 val mainTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 0)
                 if (mainTask != null) {
-                    rememberCarPlayDisplayTarget(0, "BOOT_USB_CARPLAY_D0_ALREADY_VISIBLE")
+                    if (preserveClusterTarget) {
+                        syncCarPlayDesiredDisplayProperty(
+                            3,
+                            "BOOT_USB_CARPLAY_D0_ALREADY_VISIBLE_KEEP_CLUSTER_TARGET"
+                        )
+                        Log.w(
+                            TAG,
+                            "[BOOT_USB_CARPLAY_D0_ALREADY_VISIBLE_KEEP_CLUSTER_TARGET] CarPlay is visible " +
+                                    "on D0 as boot staging; preserving desired D3 target"
+                        )
+                    } else {
+                        rememberCarPlayDisplayTarget(0, "BOOT_USB_CARPLAY_D0_ALREADY_VISIBLE")
+                    }
                     prefs.edit()
                         .putString(PREF_CARPLAY_BOOT_AUTOSTART_BOOT_TOKEN, bootToken)
                         .apply()
@@ -571,7 +597,8 @@ object DisplayAppLauncher {
 
                 startCarPlayOnDisplay(
                     getCarPlayConfigForDisplay(0),
-                    "BOOT_USB_CARPLAY_D0_AUTOSTART"
+                    "BOOT_USB_CARPLAY_D0_AUTOSTART",
+                    rememberTarget = !preserveClusterTarget
                 )
 
                 val startedMainTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 0)
@@ -603,7 +630,20 @@ object DisplayAppLauncher {
 
         val tasks = findAllTasksForPackage(CARPLAY_PACKAGE)
         if (tasks.isEmpty()) {
-            if (!isMissingCarPlayVisualRestoreEligible("CARPLAY_CLUSTER_WATCHDOG_NO_TASK")) {
+            val bootGraceActive = System.currentTimeMillis() <= carPlayClusterTargetBootGraceUntil
+            if (!isProjectionUsbConfigured() && bootGraceActive) {
+                Log.w(
+                    TAG,
+                    "[CARPLAY_CLUSTER_WATCHDOG_NO_TASK_BOOT_GRACE] Desired D3 target is pending " +
+                            "during boot, but USB is not configured yet; keeping target without recreating visual task"
+                )
+                return
+            }
+
+            if (
+                !bootGraceActive &&
+                        !isMissingCarPlayVisualRestoreEligible("CARPLAY_CLUSTER_WATCHDOG_NO_TASK")
+            ) {
                 clearStaleCarPlayClusterTarget("CARPLAY_CLUSTER_WATCHDOG_NO_TASK_STALE_TARGET")
                 return
             }
