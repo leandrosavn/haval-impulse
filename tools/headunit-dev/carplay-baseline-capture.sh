@@ -11,7 +11,7 @@ HEADUNIT_PORT="${HEADUNIT_PORT:-23}"
 resolve_headunit_defaults
 
 HEADUNIT_TMP="${HEADUNIT_TMP:-/data/local/tmp}"
-SCREENSHOT_DISPLAYS="${SCREENSHOT_DISPLAYS:-0 3 4}"
+SCREENSHOT_DISPLAYS="${SCREENSHOT_DISPLAYS:-0 4 3}"
 SCREENSHOT_TIMEOUT_SEC="${SCREENSHOT_TIMEOUT_SEC:-12}"
 SCREENSHOT_PULL_TIMEOUT_SEC="${SCREENSHOT_PULL_TIMEOUT_SEC:-12}"
 LOGCAT_LINES="${LOGCAT_LINES:-4000}"
@@ -213,6 +213,7 @@ run_remote_file "dumpsys-activity-activities" "dumpsys activity activities"
 run_remote_file "dumpsys-window-windows" "dumpsys window windows"
 run_remote_file "dumpsys-display" "dumpsys display"
 run_remote_file "surfaceflinger-list" "dumpsys SurfaceFlinger --list"
+run_remote_file "surfaceflinger-carplay" "dumpsys SurfaceFlinger | grep -A20 -F 'SurfaceView - com.ts.carplay.app' || true"
 run_remote_file "usb" "dumpsys usb"
 run_remote_file "haval-prefs" "cat /data/user_de/0/br.com.redesurftank.havalshisuku/shared_prefs/haval_prefs.xml 2>/dev/null || true"
 run_remote_file "logcat-last" "logcat -d -v time -t ${LOGCAT_LINES}"
@@ -221,6 +222,7 @@ filter_file "$REMOTE_DIR/am-stack-list.txt" "am-stack-filtered" -Ei 'CarPlayDisp
 filter_file "$REMOTE_DIR/dumpsys-activity-activities.txt" "activity-filtered" -Ei -A 10 -B 5 'CarPlayDisplayActivity|AapActivity|com\.ts\.carplay|displayId=3|displayId=0|Stack #|taskId|bounds'
 filter_file "$REMOTE_DIR/dumpsys-window-windows.txt" "window-filtered" -Ei -A 14 -B 7 'CarPlayDisplayActivity|AapActivity|com\.ts\.carplay|mDisplayId=3|mDisplayId=0|mFrame=|Requested|Surface|mAppBounds|mAttrs|mHasSurface'
 filter_file "$REMOTE_DIR/surfaceflinger-list.txt" "surfaceflinger-filtered" -Ei 'carplay|SurfaceView|redesurftank'
+filter_file "$REMOTE_DIR/surfaceflinger-carplay.txt" "surfaceflinger-carplay-filtered" -Ei 'SurfaceView|CarPlayDisplayActivity|activeBuffer|sourceCrop|frame|size|visible|VisibleRegion|transform'
 filter_file "$REMOTE_DIR/logcat-last.txt" "logcat-filtered" -Ei 'DisplayAppLauncher|InstrumentProjector2|CarPlay|carplay|requestVideoFocus|requestVideoFocusChange|ScreenResource|VideoModel|cpScreen|NdkMediaCodec|MediaCodec|jsurface|surface hide|BufferQueue|camera|AVM|HVAC|uiNotification|FINISH_ACTIVITY|panel_display_notify|preview_status'
 
 for display_id in $SCREENSHOT_DISPLAYS; do
@@ -268,9 +270,14 @@ done
   printf -- '- `manifest.txt`\n'
   printf -- '- `local/verify-regression-lock.txt`\n'
   printf -- '- `filtered/am-stack-filtered.txt`\n'
+  printf -- '- `filtered/surfaceflinger-carplay-filtered.txt`\n'
   printf -- '- `filtered/window-filtered.txt`\n'
   printf -- '- `filtered/logcat-filtered.txt`\n'
-  printf -- '- `screenshots/`\n'
+  printf -- '- `screenshots/` (must include complete D0 and D3 captures; display `4` is the primary physical capture for logical D3 on this headunit)\n'
+  printf '\n## CarPlay Surface Classification Hints\n\n'
+  printf -- '- Dirty/grey physical D3 with stack/window fullscreen must be checked against `filtered/surfaceflinger-carplay-filtered.txt`.\n'
+  printf -- '- Treat duplicate `SurfaceView - com.ts.carplay.app` layers, visible stale `1x1` buffers, missing `activeBuffer`, or PAUSED D3 Activity as real evidence, not as screenshot noise.\n'
+  printf -- '- If physical D3 is clean but only `screencap -d 4` is washed/grey and stack/window/Surface are valid, classify as screenshot/readback limitation.\n'
   printf '\n## Remote Files\n\n'
   find "$REMOTE_DIR" -maxdepth 1 -type f | sed "s#^$OUTPUT_DIR/##" | sort | sed 's#^#- `#; s#$#`#'
   printf '\n## Filtered Files\n\n'

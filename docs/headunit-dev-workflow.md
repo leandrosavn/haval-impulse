@@ -1,4 +1,4 @@
-x# Headunit Dev Workflow
+# Headunit Dev Workflow
 
 ## Objetivo
 
@@ -113,6 +113,32 @@ tools/headunit-dev/output/diagnostics-yyyyMMdd-HHmmss/
 
 3. Anexar os arquivos produzidos ao Codex para análise.
 
+## Fluxo 4.1: Preflight CarPlay D0 -> D3
+
+Antes de enviar CarPlay para o D3, preparar o D0. O envio direto por `am start --display 3` via
+Telnet e util para diagnostico, mas nao valida o fluxo real do app.
+
+Roteiro minimo:
+
+1. Capturar estado inicial:
+
+```bash
+HEADUNIT_HOST=192.168.15.100 ./tools/headunit-dev/headunit.sh carplay-proof cp-preflight-before-d3
+```
+
+2. Abrir o CarPlay no D0 pelo icone nativo e aguardar o feed estabilizar.
+3. Confirmar visualmente que o CarPlay esta limpo no D0.
+4. Enviar para o D3 pelo fluxo do Impulse/app, para usar `CarPlayDisplayOrchestrator` e
+   `projectionPreparingD3`.
+5. Capturar a prova D0/D3:
+
+```bash
+HEADUNIT_HOST=192.168.15.100 ./tools/headunit-dev/headunit.sh carplay-proof cp-02-d3-clean
+```
+
+Se o D3 ficar sujo sem esse preflight completo, registrar como evidencia incompleta e repetir antes
+de escolher nova correcao.
+
 ## Fluxo 5: Análise offline
 
 1. Gerar um pacote local com código, diffs e coletas já existentes:
@@ -148,7 +174,19 @@ tools/headunit-dev/output/offline-analysis-yyyyMMdd-HHmmss/index.md
 ./tools/headunit-dev/headunit.sh dumpsys
 ./tools/headunit-dev/headunit.sh pull-debug
 ./tools/headunit-dev/headunit.sh offline-bundle
+./tools/headunit-dev/restore-oem-voice-navigation.sh
 ```
+
+## Fluxo 6: Restaurar voz e navegacao OEM
+
+Durante diagnostico de travamento pode ser necessario desativar navegacao/voz OEM. Para desfazer
+essa intervencao:
+
+```bash
+HEADUNIT_HOST=192.168.15.100 ./tools/headunit-dev/restore-oem-voice-navigation.sh
+```
+
+Procedimento completo: `docs/operations/restore-oem-voice-navigation-services.md`.
 
 ## Limitações atuais
 

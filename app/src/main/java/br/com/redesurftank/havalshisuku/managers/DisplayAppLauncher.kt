@@ -19,6 +19,7 @@ import android.content.Intent
 import br.com.redesurftank.havalshisuku.managers.ThemeManager
 import br.com.redesurftank.havalshisuku.models.BottomBarState
 import br.com.redesurftank.havalshisuku.R
+import java.util.Locale
 import java.util.regex.Pattern
 
 data class ResolvedAppInfo(
@@ -90,6 +91,17 @@ object DisplayAppLauncher {
             width = 1920,
             height = 720,
             customName = "Apple CarPlay"
+        ),
+        DisplayAppConfig(
+            packageName = "com.android.settings",
+            activityName = "com.android.settings.Settings",
+            displayId = 0,
+            x = 0,
+            y = 0,
+            width = 1920,
+            height = 720,
+            substituteIcon = "settings",
+            customName = "Configurações"
         )
     )
 
@@ -123,6 +135,8 @@ object DisplayAppLauncher {
     private const val CARPLAY_BOOT_AUTOSTART_INTERVAL_MS = 2_000L
     private const val CARPLAY_CLUSTER_TARGET_BOOT_GRACE_MS = 65_000L
     private const val CARPLAY_MAIN_DUPLICATE_CLEANUP_COOLDOWN_MS = 3_500L
+    private const val CARPLAY_SURFACE_PROBE_COOLDOWN_MS = 1_200L
+    private const val CARPLAY_SURFACE_REASSERT_COOLDOWN_MS = 3_500L
     private const val CARPLAY_WATCHDOG_RESTORE_COOLDOWN_MS = 3_500L
     private const val CARPLAY_MISSING_VISUAL_RESTORE_WINDOW_MS = 60_000L
 
@@ -132,6 +146,8 @@ object DisplayAppLauncher {
     @Volatile private var lastCarPlayWindowFocusGuardAt = 0L
     @Volatile private var carPlayClusterWatchdogStarted = false
     @Volatile private var lastCarPlayMainDuplicateCleanupAt = 0L
+    @Volatile private var lastCarPlaySurfaceProbeAt = 0L
+    @Volatile private var lastCarPlaySurfaceReassertAt = 0L
     @Volatile private var lastCarPlayWatchdogRestoreAt = 0L
     @Volatile private var lastCarPlayClusterVisualSeenAt = 0L
     @Volatile private var carPlayClusterTargetBootGraceUntil = 0L
@@ -150,12 +166,39 @@ object DisplayAppLauncher {
     private enum class ExistingClusterCarPlayAction {
         FULL_REFRESH,
         VIDEO_FOCUS_ONLY,
-        VERIFY_ONLY
+        VERIFY_ONLY,
+        SURFACE_REASSERT_IF_STALE
     }
 
     private fun getPrefs() =
         App.getDeviceProtectedContext()
             .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
+
+    @JvmStatic
+    fun ensureDefaultDesktopShortcuts() {
+        val prefs = getPrefs()
+        val alreadySeeded =
+            prefs.getBoolean(SharedPreferencesKeys.ANDROID_SETTINGS_SHORTCUT_SEEDED.key, false)
+        val configs = getAllConfigs()
+        val hasAndroidSettings = configs.any { it.packageName == "com.android.settings" }
+
+        if (alreadySeeded) return
+
+        if (!hasAndroidSettings) {
+            val androidSettingsConfig =
+                PREDEFINED_APPS.first { it.packageName == "com.android.settings" }
+            val updatedConfigs = configs.toMutableList().apply { add(androidSettingsConfig) }
+            prefs.edit()
+                .putString(SharedPreferencesKeys.DISPLAY_APP_CONFIGS.key, gson.toJson(updatedConfigs))
+                .putBoolean(SharedPreferencesKeys.ANDROID_SETTINGS_SHORTCUT_SEEDED.key, true)
+                .apply()
+            Log.i(TAG, "Seeded Android Settings shortcut on the default desktop")
+        } else {
+            prefs.edit()
+                .putBoolean(SharedPreferencesKeys.ANDROID_SETTINGS_SHORTCUT_SEEDED.key, true)
+                .apply()
+        }
+    }
 
     private fun isCarPlayPackage(packageName: String): Boolean = packageName == CARPLAY_PACKAGE
 
@@ -188,6 +231,10 @@ object DisplayAppLauncher {
             .apply()
         syncCarPlayDesiredDisplayProperty(displayId, reason)
         Log.w(TAG, "[$reason] Desired CarPlay display set to $displayId")
+    }
+
+    internal fun rememberCarPlayDisplayTargetForOrchestrator(displayId: Int, reason: String) {
+        rememberCarPlayDisplayTarget(displayId, reason)
     }
 
     private fun syncCarPlayDesiredDisplayProperty(displayId: Int, reason: String) {
@@ -456,7 +503,7 @@ object DisplayAppLauncher {
         return intArrayOf(0, 0, res.first, res.second)
     }
 
-    private fun getCarPlayConfigForDisplay(
+    internal fun getCarPlayConfigForDisplay(
         displayId: Int,
         source: DisplayAppConfig? = null
     ): DisplayAppConfig {
@@ -595,7 +642,7 @@ object DisplayAppLauncher {
                     )
                 }
 
-                startCarPlayOnDisplay(
+                CarPlayDisplayOrchestrator.openOnMain(
                     getCarPlayConfigForDisplay(0),
                     "BOOT_USB_CARPLAY_D0_AUTOSTART",
                     rememberTarget = !preserveClusterTarget
@@ -669,6 +716,12 @@ object DisplayAppLauncher {
 
         if (clusterTask != null) {
             markCarPlayClusterVisualSeen("CARPLAY_CLUSTER_WATCHDOG")
+            if (getTopPackageOnDisplay(0) == App.getContext().packageName) {
+                reassertCarPlayClusterSurfaceIfStale(
+                    clusterTask,
+                    "CARPLAY_CLUSTER_WATCHDOG_SELF_D0"
+                )
+            }
         }
 
         if (clusterTask != null && mainTask != null && clusterTask.stackId != mainTask.stackId) {
@@ -902,6 +955,81 @@ object DisplayAppLauncher {
             currentEpochSeconds() - CARPLAY_HEALTH_RECENT_WINDOW_SEC
         )
         return inspectCarPlayHealthSince(recentSince, reason)
+    }
+
+    internal fun parseCarPlaySurfaceActiveBufferForTest(output: String): Pair<Int, Int>? {
+        val match = Regex("""activeBuffer=\[\s*(\d+)\s*x\s*(\d+)""").find(output) ?: return null
+        val width = match.groupValues[1].toIntOrNull() ?: return null
+        val height = match.groupValues[2].toIntOrNull() ?: return null
+        return width to height
+    }
+
+    internal fun isCarPlaySurfaceBufferStaleForTest(buffer: Pair<Int, Int>?): Boolean {
+        if (buffer == null) return false
+        return buffer.first <= 1 || buffer.second <= 1
+    }
+
+    private fun inspectCarPlayClusterSurfaceBuffer(reason: String): Pair<Int, Int>? {
+        val surfacePrefix = "SurfaceView - $CARPLAY_PACKAGE/$CARPLAY_ACTIVITY"
+        val output = sh(
+            "dumpsys SurfaceFlinger | grep -A24 -F '$surfacePrefix' || true"
+        )
+        val activeBufferLine = output
+            .lineSequence()
+            .firstOrNull { it.contains("activeBuffer=") }
+            ?.trim()
+            ?: "none"
+        val buffer = parseCarPlaySurfaceActiveBufferForTest(output)
+        Log.w(
+            TAG,
+            "[$reason] CarPlay D3 Surface activeBuffer=${buffer?.first}x${buffer?.second}; evidence=[$activeBufferLine]"
+        )
+        return buffer
+    }
+
+    private suspend fun reassertCarPlayClusterSurfaceIfStale(
+        clusterTask: TaskInfo,
+        reason: String
+    ): Boolean {
+        val now = System.currentTimeMillis()
+        if (now - lastCarPlaySurfaceProbeAt < CARPLAY_SURFACE_PROBE_COOLDOWN_MS) {
+            Log.w(TAG, "[$reason] Skipping CarPlay D3 Surface probe because cooldown is active")
+            return false
+        }
+        lastCarPlaySurfaceProbeAt = now
+
+        val before = inspectCarPlayClusterSurfaceBuffer("${reason}_SURFACE_CHECK")
+        if (!isCarPlaySurfaceBufferStaleForTest(before)) {
+            Log.w(
+                TAG,
+                "[$reason] CarPlay live on D3 stack ${clusterTask.stackId}; Surface buffer is not stale, no reassert"
+            )
+            return false
+        }
+
+        if (now - lastCarPlaySurfaceReassertAt < CARPLAY_SURFACE_REASSERT_COOLDOWN_MS) {
+            Log.w(TAG, "[$reason] Skipping CarPlay D3 Surface reassert because cooldown is active")
+            return false
+        }
+        lastCarPlaySurfaceReassertAt = now
+
+        Log.w(
+            TAG,
+            "[$reason] CarPlay D3 Surface is stale (${before?.first}x${before?.second}); " +
+                    "reasserting existing D3 Activity without video-focus, resize or force-stop"
+        )
+        sh("setprop persist.haval.carplay.video.height 720")
+        sendCarPlayRenderRefresh(3, "${reason}_RENDER_REFRESH")
+        delay(250)
+        startCarPlayActivity(
+            displayId = 3,
+            windowingMode = 5,
+            escapedActivity = CARPLAY_ACTIVITY.replace("$", "\\$"),
+            reason = "${reason}_START_EXISTING_D3"
+        )
+        delay(850)
+        inspectCarPlayClusterSurfaceBuffer("${reason}_SURFACE_AFTER_REASSERT")
+        return true
     }
 
     private fun recreateCarPlayVisualTask(
@@ -1158,9 +1286,16 @@ object DisplayAppLauncher {
         return findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 3) ?: clusterTask
     }
 
+    internal fun isProjectionUsbStateReady(rawState: String): Boolean {
+        return rawState
+            .lineSequence()
+            .map { it.trim().uppercase(Locale.US) }
+            .any { state -> state == "CONFIGURED" || state == "CONNECTED" }
+    }
+
     private fun isProjectionUsbConfigured(): Boolean {
         val state = sh("cat /sys/class/android_usb/android0/state 2>/dev/null || true").trim()
-        return state.contains("CONFIGURED") || state.contains("CONNECTED")
+        return isProjectionUsbStateReady(state)
     }
 
     private suspend fun recreateMissingCarPlayVisualTaskOnCluster(reason: String): TaskInfo? {
@@ -1217,6 +1352,9 @@ object DisplayAppLauncher {
                         getCarPlayDisplayBounds(3),
                         "${reason}_REFRESH_CLUSTER"
                     )
+                }
+                ExistingClusterCarPlayAction.SURFACE_REASSERT_IF_STALE -> {
+                    reassertCarPlayClusterSurfaceIfStale(clusterTask, reason)
                 }
                 ExistingClusterCarPlayAction.VIDEO_FOCUS_ONLY,
                 ExistingClusterCarPlayAction.VERIFY_ONLY -> {
@@ -1338,7 +1476,7 @@ object DisplayAppLauncher {
 
     private fun preserveCarPlayClusterContractAfterWindowChange(packageName: String) {
         if (!isCarPlayDesiredOnCluster()) return
-        if (packageName == App.getContext().packageName || isProjectionMirrorPackage(packageName)) return
+        if (isProjectionMirrorPackage(packageName)) return
 
         val now = System.currentTimeMillis()
         if (now - lastCarPlayWindowFocusGuardAt < CARPLAY_WINDOW_FOCUS_GUARD_COOLDOWN_MS) {
@@ -1347,30 +1485,34 @@ object DisplayAppLauncher {
         }
         lastCarPlayWindowFocusGuardAt = now
 
+        val isSelfPackage = packageName == App.getContext().packageName
+        val action = if (isSelfPackage) {
+            ExistingClusterCarPlayAction.SURFACE_REASSERT_IF_STALE
+        } else {
+            ExistingClusterCarPlayAction.VERIFY_ONLY
+        }
         val safePackage = packageName.replace(Regex("[^A-Za-z0-9_.-]"), "_").take(80)
         scope.launch {
-            // Native AC/camera/AVM/HVAC window-focus events on display 0 must not
-            // touch the CarPlay video route while the task is live on display 3.
-            // Even a "lite" VIDEO_FOCUS_CHANGE broadcast was enough to bump the
-            // decoder and produce a visible black-out on the cluster. Both passes
-            // are verify-only — the 0->3 restore path inside
-            // restoreOrRefreshCarPlayClusterContract still triggers if the task
-            // actually moved to display 0.
-            delay(1100)
+            // Native AC/camera/AVM/HVAC window-focus events stay verify-only. The
+            // Haval app itself is different: live tests showed it can leave the
+            // CarPlay D3 task/window intact while the SurfaceView activeBuffer drops
+            // to 1x1. In that self-focus case only, reassert the existing D3 Activity
+            // if SurfaceFlinger confirms a stale buffer.
+            delay(if (isSelfPackage) 650 else 1100)
             restoreOrRefreshCarPlayClusterContract(
                 "WINDOW_CHANGE_${safePackage}_CONTRACT_PRIMARY",
-                ExistingClusterCarPlayAction.VERIFY_ONLY
+                action
             )
 
-            delay(2200)
+            delay(if (isSelfPackage) 1500 else 2200)
             restoreOrRefreshCarPlayClusterContract(
                 "WINDOW_CHANGE_${safePackage}_CONTRACT_VERIFY",
-                ExistingClusterCarPlayAction.VERIFY_ONLY
+                action
             )
         }
     }
 
-    private suspend fun startCarPlayOnDisplay(
+    internal suspend fun startCarPlayOnDisplay(
         sourceConfig: DisplayAppConfig,
         reason: String,
         rememberTarget: Boolean = true
@@ -1795,7 +1937,7 @@ object DisplayAppLauncher {
     suspend fun launchApp(config: DisplayAppConfig) {
         withContext(Dispatchers.IO) {
             if (isCarPlayPackage(config.packageName)) {
-                startCarPlayOnDisplay(config, "LAUNCH_APP")
+                CarPlayDisplayOrchestrator.start(config, "LAUNCH_APP")
                 return@withContext
             }
             if (isAndroidAutoPackage(config.packageName)) {
@@ -2005,7 +2147,10 @@ object DisplayAppLauncher {
     suspend fun launchAnyApp(context: Context, packageName: String, activityName: String? = null) = withContext(Dispatchers.IO) {
         try {
             if (isCarPlayPackage(packageName)) {
-                startCarPlayOnDisplay(getCarPlayConfigForDisplay(0), "LAUNCH_MAIN_ICON")
+                CarPlayDisplayOrchestrator.openOnMain(
+                    getCarPlayConfigForDisplay(0),
+                    "LAUNCH_MAIN_ICON"
+                )
                 return@withContext
             }
             if (isAndroidAutoPackage(packageName)) {
@@ -2178,7 +2323,10 @@ object DisplayAppLauncher {
 
             if (pkg != null && isCarPlayPackage(pkg)) {
                 movedPackages.add(pkg)
-                startCarPlayOnDisplay(getCarPlayConfigForDisplay(0), "BRING_ALL_TO_MAIN_CARPLAY")
+                CarPlayDisplayOrchestrator.openOnMain(
+                    getCarPlayConfigForDisplay(0),
+                    "BRING_ALL_TO_MAIN_CARPLAY"
+                )
                 continue
             }
             if (pkg != null && isAndroidAutoPackage(pkg)) {
@@ -2248,7 +2396,7 @@ object DisplayAppLauncher {
     suspend fun sendToDisplay(config: DisplayAppConfig) = withContext(Dispatchers.IO) {
         try {
             if (isCarPlayPackage(config.packageName)) {
-                startCarPlayOnDisplay(config, "SEND_TO_DISPLAY")
+                CarPlayDisplayOrchestrator.start(config, "SEND_TO_DISPLAY")
                 return@withContext
             }
             if (isAndroidAutoPackage(config.packageName)) {

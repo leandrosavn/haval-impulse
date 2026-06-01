@@ -1,6 +1,6 @@
 # Projector Flow
 
-Atualizado em: 2026-05-24
+Atualizado em: 2026-05-31
 
 ## O Que Foi Identificado
 
@@ -10,6 +10,10 @@ Atualizado em: 2026-05-24
 - `InstrumentProjector2`: camada principal no display 3 com WebView e bridge.
 
 `ProjectorManager.initialize()` cria presentations para displays configurados e registra listener para displays ausentes.
+
+Em 2026-05-31, a inicializacao do `ProjectorManager` passou a ser postada na main thread a partir
+do `ServiceManager`. `Presentation` e `WebView` precisam nascer no Looper principal; inicializar a
+partir de thread de bootstrap pode travar/crashar a UI.
 
 ## Eventos Relevantes
 
@@ -28,6 +32,7 @@ Atualizado em: 2026-05-24
 ## Riscos
 
 - Presentation criada com contexto errado pode vazar ou não renderizar.
+- Presentation/WebView criada fora da main thread pode falhar em runtime.
 - Remover listeners incorretamente pode deixar callbacks vivos.
 - Alterações em visibilidade podem cobrir ou esconder projeções.
 

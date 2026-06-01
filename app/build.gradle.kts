@@ -16,8 +16,8 @@ android {
         minSdk = 28
         //noinspection ExpiredTargetSdkVersion
         targetSdk = 28
-        versionCode = 1
-        versionName = "0.0.1"
+        versionCode = 73
+        versionName = "1.0.0.72-shizuku-autostart-uid"
     }
 
     signingConfigs {

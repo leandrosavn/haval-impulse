@@ -48,6 +48,20 @@
             android:theme="@style/Theme.HavalShisuku">
         </activity>
 
+        <activity
+            android:name=".AndroidSettingsShortcutActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="@string/android_settings_shortcut_label"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".services.ForegroundService"
             android:directBootAware="true"

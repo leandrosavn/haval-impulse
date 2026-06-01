@@ -40,6 +40,10 @@ As saídas ficam em `tools/headunit-dev/output/`.
 
 ## Fluxo 4 - Baseline CarPlay D3
 
+Antes de enviar CarPlay para D3, preparar o terreno no D0: abrir CarPlay pelo icone nativo, aguardar
+o feed ficar limpo e acionar o envio pelo fluxo do Impulse/app. `am start --display 3` direto via
+Telnet e diagnostico, nao substitui o fluxo preparado.
+
 Captura read-only do estado atual por cenário:
 
 ```bash

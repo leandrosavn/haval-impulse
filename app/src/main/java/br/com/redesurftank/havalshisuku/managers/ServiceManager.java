@@ -50,7 +50,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import br.com.redesurftank.App;
@@ -356,25 +355,41 @@ public class ServiceManager {
         }
 
         try {
-            IBinder controlBinder = new ShizukuBinderWrapper(getSystemService("com.beantechs.intelligentvehiclecontrol"));
+            IBinder rawControlBinder = getSystemService("com.beantechs.intelligentvehiclecontrol");
+            if (rawControlBinder == null) {
+                Log.e(TAG, "IntelligentVehicleControlService binder not available");
+                return false;
+            }
+            IBinder controlBinder = new ShizukuBinderWrapper(rawControlBinder);
             if (!controlBinder.pingBinder()) {
                 Log.e(TAG, "IntelligentVehicleControlService binder not alive");
                 return false;
             }
             controlService = IIntelligentVehicleControlService.Stub.asInterface(controlBinder);
 
-            IBinder poolBinder = new ShizukuBinderWrapper(getSystemService("com.beantechs.voice.adapter.VoiceAdapterService"));
-            if (!poolBinder.pingBinder()) {
-                Log.e(TAG, "IBinderPool binder not alive");
-                return false;
+            IBinder rawPoolBinder = getSystemService("com.beantechs.voice.adapter.VoiceAdapterService");
+            if (rawPoolBinder == null) {
+                Log.w(TAG, "VoiceAdapterService binder unavailable; continuing without vehicle/dvr/model binder pool");
+            } else {
+                IBinder poolBinder = new ShizukuBinderWrapper(rawPoolBinder);
+                if (!poolBinder.pingBinder()) {
+                    Log.w(TAG, "IBinderPool binder not alive; continuing without vehicle/dvr/model binder pool");
+                } else {
+                    IBinderPool pool = IBinderPool.Stub.asInterface(poolBinder);
+                    IBinder vehicleBinder = pool.queryBinder(6);
+                    if (vehicleBinder != null) {
+                        vehicle = IVehicle.Stub.asInterface(new ShizukuBinderWrapper(vehicleBinder));
+                    }
+                    IBinder dvrBinder = pool.queryBinder(8);
+                    if (dvrBinder != null) {
+                        dvr = IDvr.Stub.asInterface(new ShizukuBinderWrapper(dvrBinder));
+                    }
+                    IBinder vehicleModelBinder = pool.queryBinder(13);
+                    if (vehicleModelBinder != null) {
+                        vehicleModel = IVehicleModel.Stub.asInterface(new ShizukuBinderWrapper(vehicleModelBinder));
+                    }
+                }
             }
-            IBinderPool pool = IBinderPool.Stub.asInterface(poolBinder);
-            IBinder vehicleBinder = pool.queryBinder(6);
-            vehicle = IVehicle.Stub.asInterface(new ShizukuBinderWrapper(vehicleBinder));
-            IBinder dvrBinder = pool.queryBinder(8);
-            dvr = IDvr.Stub.asInterface(new ShizukuBinderWrapper(dvrBinder));
-            IBinder vehicleModelBinder = pool.queryBinder(13);
-            vehicleModel = IVehicleModel.Stub.asInterface(new ShizukuBinderWrapper(vehicleModelBinder));
 
             Intent clusterIntent = new Intent();
             clusterIntent.setComponent(new ComponentName("com.autolink.clusterservice", "com.autolink.clusterservice.ClusterService"));
@@ -520,8 +535,13 @@ public class ServiceManager {
             controlService.registerDataChangedListener(context.getPackageName(), listener);
             controlService.addListenerKey(App.getContext().getPackageName(), getCombinedKeys());
 
-            IBinder connectivityBinder = new ShizukuBinderWrapper(getSystemService(Context.CONNECTIVITY_SERVICE));
-            connectivityManager = IConnectivityManager.Stub.asInterface(connectivityBinder);
+            IBinder rawConnectivityBinder = getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (rawConnectivityBinder != null) {
+                IBinder connectivityBinder = new ShizukuBinderWrapper(rawConnectivityBinder);
+                connectivityManager = IConnectivityManager.Stub.asInterface(connectivityBinder);
+            } else {
+                Log.w(TAG, "Connectivity service binder unavailable; tethering controls will be skipped");
+            }
 
             IntentFilter bluetoothFilter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
             bluetoothFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
@@ -587,7 +607,7 @@ public class ServiceManager {
                 ShizukuUtils.runCommandAndGetOutput(new String[]{"sh", "-c", "settings put global force_resizable_activities 1"});
             } catch (Exception e) {}
         });
-        ProjectorManager.getInstance().initialize();
+        new Handler(Looper.getMainLooper()).post(() -> ProjectorManager.getInstance().initialize());
         return true;
     }
 
@@ -1959,7 +1979,12 @@ public class ServiceManager {
 
     private static IBinder getSystemService(String serviceName) {
         try {
-            return (IBinder) Objects.requireNonNull(getService.invoke(null, serviceName));
+            Object service = getService.invoke(null, serviceName);
+            if (service == null) {
+                Log.e(TAG, "System service not found: " + serviceName);
+                return null;
+            }
+            return (IBinder) service;
         } catch (IllegalAccessException | InvocationTargetException e) {
             Log.e(TAG, "Error getting system service: " + serviceName, e);
             throw new RuntimeException(e);

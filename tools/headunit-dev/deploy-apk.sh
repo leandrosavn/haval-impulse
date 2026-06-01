@@ -13,6 +13,8 @@ APP_PACKAGE="${APP_PACKAGE:-br.com.redesurftank.havalshisuku}"
 APP_ACTIVITY="${APP_ACTIVITY:-br.com.redesurftank.havalshisuku/.SplashActivity}"
 HTTP_PORT="${HTTP_PORT:-8765}"
 HTTP_PORT_SEARCH_LIMIT="${HTTP_PORT_SEARCH_LIMIT:-20}"
+HTTP_DOWNLOAD_WAIT_ATTEMPTS="${HTTP_DOWNLOAD_WAIT_ATTEMPTS:-120}"
+APK_INSTALLER_PACKAGE="${APK_INSTALLER_PACKAGE:-}"
 
 require_file() {
   local file="$1"
@@ -145,7 +147,7 @@ download_apk_via_http() {
   remote_cmd="rm -f '${remote_path}.tmp' '${remote_path}' '${remote_path}.download.log'; nohup sh -c \"curl -fsSL '$url' -o '${remote_path}.tmp' && mv '${remote_path}.tmp' '${remote_path}' && chmod 644 '${remote_path}'\" > '${remote_path}.download.log' 2>&1 &"
   "$TELNET_EXEC" "$remote_cmd" >/dev/null || true
 
-  for _ in $(seq 1 120); do
+  for _ in $(seq 1 "$HTTP_DOWNLOAD_WAIT_ATTEMPTS"); do
     remote_stat="$(
       "$TELNET_EXEC" "if [ -f '$remote_path' ]; then printf 'final '; wc -c < '$remote_path'; elif [ -f '${remote_path}.tmp' ]; then printf 'tmp '; wc -c < '${remote_path}.tmp'; else echo 'none 0'; fi" |
         awk '/^(final|tmp|none)[[:space:]]+[0-9]+$/ { state=$1; size=$2 } END { if (state != "") print state, size }'
@@ -177,11 +179,16 @@ download_apk_via_http() {
 install_remote_apk() {
   local remote_apk="$1"
   local output
+  local install_args="-r"
+
+  if [[ -n "$APK_INSTALLER_PACKAGE" ]]; then
+    install_args="$install_args -i '$APK_INSTALLER_PACKAGE'"
+  fi
 
   echo "[HavalDev] Installing $remote_apk"
   output="$(
     HEADUNIT_TELNET_WAIT="${HEADUNIT_INSTALL_WAIT:-120}" \
-      "$TELNET_EXEC" "pm install -r '$remote_apk' || cmd package install -r '$remote_apk'"
+      "$TELNET_EXEC" "pm install $install_args '$remote_apk' || cmd package install $install_args '$remote_apk'"
   )"
   printf '%s\n' "$output"
   if printf '%s\n' "$output" | grep -Eiq 'Failure|Exception|Error'; then

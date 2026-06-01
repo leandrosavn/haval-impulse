@@ -27,7 +27,9 @@ let dashboardCleanup = null;
 const screenCache = {};
 
 function isProjectionMapDisplayActive() {
-    return get('projectionMirrorInDash') === true || get('carPlayInDash') === true;
+    return get('projectionMirrorInDash') === true ||
+        get('carPlayInDash') === true ||
+        get('projectionPreparingD3') === true;
 }
 
 function isProjectionCardOverlayActive() {
@@ -38,8 +40,7 @@ function isProjectionCardOverlayActive() {
         return false;
     }
     const screen = get('screen');
-    const cardId = get('cardId');
-    return (screen === 'main_menu' && cardId == 1) || (screen === 'aircon' && cardId == 3);
+    return screen === 'main_menu' || screen === 'aircon';
 }
 
 function getEffectiveDisplayMode() {
@@ -137,7 +138,7 @@ function render() {
     // Update app class based on display mode
     if (appContainer) {
         logger.log('Rendering screen:', screen);
-        let classes = appContainer.className.split(' ').filter(c => !c.startsWith('display-') && !c.startsWith('theme-') && !c.startsWith('screen-') && c !== 'cluster-disabled' && c !== 'warn-is-active' && c !== 'carplay-in-dash' && c !== 'projection-mirror-in-dash' && c !== 'projection-map-display-active' && c !== 'projection-card-overlay-active');
+        let classes = appContainer.className.split(' ').filter(c => !c.startsWith('display-') && !c.startsWith('theme-') && !c.startsWith('screen-') && c !== 'cluster-disabled' && c !== 'warn-is-active' && c !== 'carplay-in-dash' && c !== 'projection-mirror-in-dash' && c !== 'projection-preparing-d3' && c !== 'projection-map-display-active' && c !== 'projection-card-overlay-active');
         classes.push('display-' + displayMode.toLowerCase());
         classes.push('screen-' + String(screen).replace(/_/g, '-'));
 
@@ -149,6 +150,9 @@ function render() {
             classes.push('theme-mirror-cluster');
             classes.push('projection-mirror-in-dash');
             classes.push('projection-map-display-active');
+            if (get('projectionPreparingD3') === true) {
+                classes.push('projection-preparing-d3');
+            }
             if (isProjectionCardOverlayActive()) {
                 classes.push('projection-card-overlay-active');
             }
@@ -192,8 +196,8 @@ function render() {
     }
 
     if (menuWrapper) {
-        const rightMenuVisible = !(get('cardId') == 0 && get('warningDismissed') !== true);
         const projectionCardOverlayActive = isProjectionCardOverlayActive();
+        const rightMenuVisible = projectionCardOverlayActive || !(get('cardId') == 0 && get('warningDismissed') !== true);
         menuWrapper.style.display = (!rightMenuVisible || (projectionMapDisplayActive && !projectionCardOverlayActive)) ? 'none' : 'block';
     }
 
@@ -254,6 +258,7 @@ subscribe('display', render);
 subscribe('clusterEnabled', render);
 subscribe('carPlayInDash', render);
 subscribe('projectionMirrorInDash', render);
+subscribe('projectionPreparingD3', render);
 subscribe('projectionCardOverlayAllowed', render);
 // subscribe('cardId', render); // REMOVED: Triggers double-render as cardId listener already sets screen
 render();
@@ -277,7 +282,8 @@ subscribe('cardId', (cardId) => {
     if (menuWrapper) {
         const projectionMapDisplayActive = isProjectionMapDisplayActive();
         const projectionCardOverlayActive = isProjectionCardOverlayActive();
-        menuWrapper.style.display = (projectionMapDisplayActive && !projectionCardOverlayActive) || (cardId == 0 && get('warningDismissed') !== true) ? 'none' : 'block';
+        const rightMenuVisible = projectionCardOverlayActive || !(cardId == 0 && get('warningDismissed') !== true);
+        menuWrapper.style.display = (!rightMenuVisible || (projectionMapDisplayActive && !projectionCardOverlayActive)) ? 'none' : 'block';
     }
 
     if (cardId == 1) {
@@ -343,6 +349,7 @@ window.__havalProjectionDebug = function () {
     return {
         carPlayInDash: get('carPlayInDash'),
         projectionMirrorInDash: get('projectionMirrorInDash'),
+        projectionPreparingD3: get('projectionPreparingD3'),
         cardId: get('cardId'),
         screen: get('screen'),
         display: get('display'),

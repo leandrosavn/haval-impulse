@@ -12,6 +12,9 @@ It does not replace the physical camera/AVM test.
 
 from pathlib import Path
 import hashlib
+import os
+import re
+import subprocess
 import sys
 
 
@@ -82,20 +85,35 @@ REQUIRED_TOKENS = {
         "ActivityManager reused display-0 CarPlay; defocusing once more and retrying cluster start",
         "CLEAN_DISPLAY0_DUPLICATE",
         "persist.haval.carplay.desired_display",
+        "isProjectionUsbStateReady",
+        "state == \"CONFIGURED\" || state == \"CONNECTED\"",
+        "Skipping CarPlay visual recreate because USB is not configured",
     ],
     "app/src/main/java/br/com/redesurftank/havalshisuku/projectors/InstrumentProjector2.kt": [
         "Camera/AVM/HVAC no longer hide the cluster Presentation",
         "removes the protected Mapa overlay",
         "projectionCardOverlayAllowed",
+        "ProjectionCardOverlayPolicy.shouldAllowAfterCardChange",
+        "physical_input_or_overlay_session",
         "CLUSTER_INPUT_KEY",
         "no_recent_input",
         "return false",
     ],
+    "app/src/main/java/br/com/redesurftank/havalshisuku/projectors/ProjectionCardOverlayPolicy.kt": [
+        "ProjectionCardOverlayPolicy",
+        "shouldArmFromClusterInput",
+        "shouldAllowAfterCardChange",
+        "overlayAlreadyAllowed",
+    ],
     "cluster-widgets/default/src/core/main.js": [
         "projectionCardOverlayAllowed",
+        "screen === 'main_menu' || screen === 'aircon'",
+        "projectionCardOverlayActive || !(get('cardId') == 0",
         "projectionCardOverlayActive: isProjectionCardOverlayActive()",
     ],
     "docs/carplay-cluster-regression-contract.md": [
+        "Contrato Unificado de Estado D3",
+        "projection_type",
         "Regra 29 - CarPlay nao deve enviar background em onPause",
         "`onPause()` envia `ts.car.carplay.view_state=foreground`, nunca `background`",
         "Regra 31 - D3 ignora FINISH_ACTIVITY de AppList/display 0",
@@ -118,6 +136,37 @@ REQUIRED_TOKENS = {
     ],
 }
 
+ANDROID_AUTO_DIFF_PATHS = [
+    "app/src/main/java/br/com/redesurftank/havalshisuku/managers/AndroidAutoPatchManager.kt",
+    "app/src/main/assets/aa_patches/",
+]
+
+ANDROID_AUTO_JUSTIFICATION_TOKEN = "ANDROID_AUTO_CHANGE_JUSTIFICATION:"
+
+RISKY_DIFF_PATH_PREFIXES = (
+    "app/src/main/java/",
+    "cluster-widgets/default/src/",
+)
+
+RISKY_ADDED_LINE_PATTERNS = [
+    (
+        "windowAlpha=0 / transparent Presentation bypass",
+        re.compile(r"\b(?:windowAlpha|attrs\.alpha|alpha)\s*=\s*0(?:\.0)?f?\b"),
+    ),
+    (
+        "CarPlay VIDEO_FOCUS_CHANGE in new functional code",
+        re.compile(r"VIDEO_FOCUS_CHANGE"),
+    ),
+    (
+        "CarPlay REFRESH_RENDER in new functional code",
+        re.compile(r"REFRESH_RENDER"),
+    ),
+    (
+        "force-stop com.ts.carplay.app in new functional code",
+        re.compile(r"force-stop\s+com\.ts\.carplay\.app"),
+    ),
+]
+
 
 def file_md5(path: Path) -> str:
     digest = hashlib.md5()
@@ -129,6 +178,69 @@ def file_md5(path: Path) -> str:
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def git_output(args: list[str]) -> str:
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=ROOT,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except OSError:
+        return ""
+    if result.returncode != 0:
+        return ""
+    return result.stdout
+
+
+def changed_files() -> set[str]:
+    files: set[str] = set()
+    for args in (["diff", "--name-only", "--"], ["diff", "--cached", "--name-only", "--"]):
+        for line in git_output(args).splitlines():
+            path = line.strip()
+            if path:
+                files.add(path)
+    return files
+
+
+def justification_text() -> str:
+    files = [
+        ROOT / ".ai-context/DECISIONS.md",
+        ROOT / ".ai-context/HANDOFF.md",
+        ROOT / "docs/carplay-cluster-regression-contract.md",
+    ]
+    return "\n".join(read_text(path) for path in files if path.exists())
+
+
+def risky_added_lines() -> list[str]:
+    findings: list[str] = []
+    diff_text = "\n".join(
+        [
+            git_output(["diff", "--unified=0", "--"]),
+            git_output(["diff", "--cached", "--unified=0", "--"]),
+        ]
+    )
+    current_file = ""
+
+    for line in diff_text.splitlines():
+        if line.startswith("+++ b/"):
+            current_file = line.removeprefix("+++ b/")
+            continue
+        if not line.startswith("+") or line.startswith("+++"):
+            continue
+        if not current_file.startswith(RISKY_DIFF_PATH_PREFIXES):
+            continue
+        content = line[1:]
+        if not content.strip() or content.lstrip().startswith("//"):
+            continue
+        for label, pattern in RISKY_ADDED_LINE_PATTERNS:
+            if pattern.search(content):
+                findings.append(f"{current_file}: added risky pattern ({label}): {content.strip()}")
+    return findings
 
 
 def main() -> int:
@@ -158,6 +270,38 @@ def main() -> int:
                 failures.append(f"{relative_path} missing token: {token}")
         if all(token in content for token in tokens):
             print(f"[OK] {relative_path} sentinels present")
+
+    changed = changed_files()
+    android_auto_changed = [
+        path
+        for path in changed
+        if any(path == marker or path.startswith(marker) for marker in ANDROID_AUTO_DIFF_PATHS)
+    ]
+    if android_auto_changed and os.environ.get("CARPLAY_ALLOW_ANDROID_AUTO_DIFF") != "1":
+        if ANDROID_AUTO_JUSTIFICATION_TOKEN not in justification_text():
+            failures.append(
+                "Android Auto files changed without explicit justification token "
+                f"{ANDROID_AUTO_JUSTIFICATION_TOKEN} ({', '.join(sorted(android_auto_changed))})"
+            )
+    elif android_auto_changed:
+        print("[OK] Android Auto diff override set by CARPLAY_ALLOW_ANDROID_AUTO_DIFF=1")
+    else:
+        print("[OK] Android Auto patch files unchanged in current diff")
+
+    risky_lines = risky_added_lines()
+    for finding in risky_lines:
+        failures.append(finding)
+    if not risky_lines:
+        print("[OK] No newly added forbidden CarPlay focus/restore/bypass patterns in functional diff")
+
+    display_launcher_path = ROOT / "app/src/main/java/br/com/redesurftank/havalshisuku/managers/DisplayAppLauncher.kt"
+    if display_launcher_path.exists():
+        display_launcher = read_text(display_launcher_path)
+        if 'state.contains("CONNECTED")' in display_launcher:
+            failures.append(
+                "DisplayAppLauncher must not use substring matching for USB CONNECTED; "
+                "DISCONNECTED contains CONNECTED and triggers aggressive CarPlay restore"
+            )
 
     if failures:
         print("\nRegression lock FAILED:")

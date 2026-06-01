@@ -1,6 +1,6 @@
 # Estrategia de Patch Nativo: Android Auto x CarPlay
 
-Atualizado em: 2026-05-29 14:54 -03
+Atualizado em: 2026-05-31 21:55 -03
 
 ## Objetivo
 
@@ -26,9 +26,16 @@ As variantes antigas continuam proibidas porque causaram crash, frame sujo ou re
 Portanto, a estrategia atual e:
 
 - manter Android Auto no fluxo patchado e isolado;
-- manter CarPlay no patch D3 v12 `native1904x704`, sustentado por MD5 e sentinels;
+- manter CarPlay no patch D3 v13 `native1904x704`, sustentado por MD5 e sentinels;
 - nao misturar comandos de recuperacao Android Auto com CarPlay;
 - investigar CarPlay no caminho nativo de foco/video, principalmente `CarPlayManager.requestVideoFocusChange` e `ScreenResourceManager.screenResourceRequest`.
+- tratar o foco do proprio app Haval no D0 como excecao app-side: se o D3 fica preto mas
+  `am stack list`/WindowManager ainda mostram CarPlay fullscreen no cluster, confirmar
+  `SurfaceView activeBuffer=1x1` no SurfaceFlinger e reassertar somente a Activity existente no D3
+  com `REFRESH_RENDER` + `am start --display 3`, sem foco de video, sem resize e sem `force-stop`.
+- antes de tratar um D3 sujo/cinza como regressao do app, repetir o envio D0 -> D3 com preflight:
+  CarPlay aberto e limpo no D0, preparo `PREPARING_D3` pelo orquestrador e envio pelo fluxo do
+  Impulse/app. `am start --display 3` direto continua permitido apenas como diagnostico.
 
 ## Estado Atual dos APKs Nativos
 
@@ -38,13 +45,13 @@ Portanto, a estrategia atual e:
 | Pacote/host nativo | `com.ts.androidauto.projectionservice` / `com.ts.androidauto` | `com.ts.carplay` |
 | Activity visual | `com.ts.androidauto.app.display.AapActivity` | `com.ts.carplay.app.ui.display.view.CarPlayDisplayActivity` |
 | Estrategia atual | APK patchado via bind mount em `/vendor/app/...` | Patch minimo em `/system/app/TsCarPlayApp` + `/vendor/app/TsCarPlayService` |
-| Patch runtime | Ativo quando instalado/montado | Ativo para CarPlay D3 v12 |
+| Patch runtime | Ativo quando instalado/montado | Ativo para CarPlay D3 v13 |
 | Recuperacao permitida | Mais agressiva no app visual e foco | Conservadora, baseada em estado real e logs |
 | Evidencia recente | Usuario reportou que nao reproduz a tela preta | HVAC corrigido; app normal no D0 validado por stack + screencap; camera/AVM ainda depende de teste fisico |
 
 MD5s do estado protegido:
 
-- `TsCarPlayApp.apk`: `ec5053d91d8364d9451937981e08a04a`;
+- `TsCarPlayApp.apk`: `9d48c33f49dbeeb020c2fdc7e16bbc53`;
 - `TsCarPlayService.apk`: `f0269fc640778825843762dcf55a8b83`.
 
 Verificacao estatica obrigatoria:
@@ -82,7 +89,7 @@ Confirmado por codigo:
 
 - `CarPlayPatchManager` tem `PATCH_RUNTIME_ENABLED = true`.
 - `ensureMounted()` instala e monta `TsCarPlayApp.apk` e `TsCarPlayService.apk`.
-- `ForegroundService` usa a chave `app_visual_d0_focus_service_conditional_camera_native1904x704_v12` para ativar o auto-mount.
+- `ForegroundService` usa a chave `app_visual_d0_focus_service_conditional_camera_native1904x704_v13` para ativar o auto-mount.
 - Se o mount muda enquanto a task visual do CarPlay ja esta ativa, o manager recarrega
   `com.ts.carplay.app` e `com.ts.carplay` para carregar o dex novo e reabre a Activity visual no
   display onde ela estava. Isso e restrito ao carregamento de patch, nao ao handoff normal.
@@ -162,11 +169,27 @@ Confirmado por logs salvos do CarPlay:
 - Ja houve logs `cpScreen` / `NdkMediaCodec` com erro `-38`.
 - Ja houve estado ruim de fullscreen: bounds `[0,62][1920,658]`, Window requested `1920x596`, Surface `1920x596`.
 - Tambem ja houve estado com fullscreen correto `1920x720`, mas feed visual preto.
+- Em 2026-05-31, o usuario confirmou fisicamente que qualquer funcao no display 0 deixava o D3
+  preto, enquanto Camera/AVM nao deixava. No mesmo estado, `am stack list` e WindowManager ainda
+  mostravam `com.ts.carplay.app/.ui.display.view.CarPlayDisplayActivity` no display 3 com
+  `[0,0][1920,720]`, mas o SurfaceFlinger mostrava o `SurfaceView` do CarPlay com
+  `activeBuffer=[1x1]`. Ao acionar Camera/AVM, os logs mantiveram o CarPlay na lista de foco junto
+  do `backcamera priority: 7`; ao focar o app Haval, o CarPlay saiu da lista de foco e a Surface
+  ficou stale.
+- Ainda em 2026-05-31, apos build v72, o usuario abriu CarPlay no D0 e um envio direto por Telnet
+  colocou a Activity fullscreen no D3 com Surface `1904x704`, mas o D3 ficou fisicamente
+  sujo/cinza e continuou sujo apos reconexao USB. O usuario confirmou que AC e camera nao deixaram
+  preto. Essa evidencia deve ser repetida pelo fluxo preparado do app antes de escolher nova camada
+  de correcao.
 
 Leitura atual:
 
 - A causa mais provavel esta no host nativo do CarPlay, nao na camada generica do cluster.
 - A diferenca Android Auto x CarPlay deve ser usada como comparativo para isolar foco/video/surface.
+- Para o caso especifico do foco do proprio app no D0, a correcao aceita fica na camada app-side e
+  nao no patch nativo: detectar `activeBuffer=1x1` e reassertar a Activity existente no D3 sem
+  renegociar foco de video. Camera/AVM permanece fora dessa excecao porque o teste fisico mostrou
+  que nao escureceu o D3.
 
 ## Estrategia Atual de Teste
 
@@ -179,8 +202,11 @@ Antes do teste:
 
 Durante teste fisico:
 
-- Testar Android Auto no cluster 3.
-- Acionar AC/HVAC, camera/AVM e app no display 0.
+- Para CarPlay, preparar o D0 antes do D3: abrir pelo icone nativo, aguardar feed limpo e enviar
+  pelo fluxo do Impulse/app.
+- Testar Android Auto no cluster 3 em roteiro separado.
+- Acionar AC/HVAC e app no display 0.
+- Acionar camera/AVM somente por ultimo e manualmente.
 - Coletar diagnostico read-only com `tools/headunit-dev/diagnose-projection-focus-compare.sh`.
 - Repetir exatamente o mesmo roteiro com CarPlay.
 
