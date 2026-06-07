@@ -114,6 +114,7 @@ object DisplayAppLauncher {
     private const val ANDROID_AUTO_START_FLAGS = "0x18000000"
     private const val CARPLAY_PACKAGE = "com.ts.carplay.app"
     private const val CARPLAY_ACTIVITY = "com.ts.carplay.app.ui.display.view.CarPlayDisplayActivity"
+    private const val CARPLAY_HOST_PROCESS = "com.ts.carplay"
     private const val CARPLAY_HOST_SERVICE = "com.ts.carplay/.CarPlayService"
     private const val CARPLAY_REMOTE_SERVICE = "com.ts.carplay.app/.service.CarPlayRemoteService"
     private const val CARPLAY_START_FLAGS = "0x18000000"
@@ -125,7 +126,7 @@ object DisplayAppLauncher {
     private const val CARPLAY_HEALTH_CODEC_NOISE_THRESHOLD = 6
     private const val CARPLAY_HEALTH_SURFACE_NOISE_THRESHOLD = 4
     private const val CARPLAY_CLUSTER_GUARD_COOLDOWN_MS = 3_500L
-    private const val CARPLAY_WINDOW_FOCUS_GUARD_COOLDOWN_MS = 4_000L
+    private const val CARPLAY_WINDOW_FOCUS_GUARD_COOLDOWN_MS = 8_000L
     private const val CARPLAY_RESTORE_PROBE_INTERVAL_MS = 300L
     private const val CARPLAY_RESTORE_REQUIRED_DISPLAY0_MS = 800L
     private const val CARPLAY_RESTORE_MAX_WAIT_MS = 3_000L
@@ -139,6 +140,9 @@ object DisplayAppLauncher {
     private const val CARPLAY_SURFACE_REASSERT_COOLDOWN_MS = 3_500L
     private const val CARPLAY_WATCHDOG_RESTORE_COOLDOWN_MS = 3_500L
     private const val CARPLAY_MISSING_VISUAL_RESTORE_WINDOW_MS = 60_000L
+    private const val CARPLAY_RECONNECT_D0_OBSERVATION_WINDOW_MS = 30_000L
+    private const val CARPLAY_VIDEO_FOCUS_PULSE_COOLDOWN_MS = 4_500L
+    private const val CARPLAY_VIDEO_FOCUS_AFTER_D3_HANDOFF_GRACE_MS = 2_500L
 
     private val gson = Gson()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -151,6 +155,12 @@ object DisplayAppLauncher {
     @Volatile private var lastCarPlayWatchdogRestoreAt = 0L
     @Volatile private var lastCarPlayClusterVisualSeenAt = 0L
     @Volatile private var carPlayClusterTargetBootGraceUntil = 0L
+    @Volatile private var lastProjectionUsbConfiguredAt = 0L
+    @Volatile private var lastProjectionUsbDisconnectedAt = 0L
+    @Volatile private var lastProjectionUsbConfiguredState: Boolean? = null
+    @Volatile private var carPlayMainDisplayReconnectSeenAt = 0L
+    @Volatile private var lastCarPlayVideoFocusPulseAt = 0L
+    @Volatile private var lastCarPlayClusterHandoffAt = 0L
 
     // Memory cache for app bounds per display: packageName -> Map<displayId, bounds>
     private val lastKnownDisplayBounds = mutableMapOf<String, MutableMap<Int, IntArray>>()
@@ -166,8 +176,14 @@ object DisplayAppLauncher {
     private enum class ExistingClusterCarPlayAction {
         FULL_REFRESH,
         VIDEO_FOCUS_ONLY,
+        EXISTING_CLUSTER_VIDEO_FOCUS_ONLY,
         VERIFY_ONLY,
         SURFACE_REASSERT_IF_STALE
+    }
+
+    private enum class CarPlayRestorePostStartMode {
+        FULL_RENDER_FOCUS,
+        FULLSCREEN_ONLY
     }
 
     private fun getPrefs() =
@@ -525,8 +541,41 @@ object DisplayAppLauncher {
     private fun configureCarPlayProjection(reason: String) {
         Log.w(TAG, "[$reason] Preparing CarPlay projection services")
         sh("setprop persist.haval.carplay.video.height 720")
-        sh("am startservice -n $CARPLAY_HOST_SERVICE")
-        sh("am startservice -n $CARPLAY_REMOTE_SERVICE")
+        startCarPlayProjectionServiceIfProcessMissing(
+            processName = CARPLAY_HOST_PROCESS,
+            serviceName = CARPLAY_HOST_SERVICE,
+            reason = "${reason}_HOST"
+        )
+        startCarPlayProjectionServiceIfProcessMissing(
+            processName = CARPLAY_PACKAGE,
+            serviceName = CARPLAY_REMOTE_SERVICE,
+            reason = "${reason}_REMOTE"
+        )
+    }
+
+    private fun startCarPlayProjectionServiceIfProcessMissing(
+        processName: String,
+        serviceName: String,
+        reason: String
+    ) {
+        val pidOutput = sh("pidof $processName 2>/dev/null || true").trim()
+        if (isProjectionProcessPidOutputAliveForTest(pidOutput)) {
+            Log.w(
+                TAG,
+                "[$reason] CarPlay process $processName already alive (pid=$pidOutput); skipping $serviceName start"
+            )
+            return
+        }
+
+        Log.w(TAG, "[$reason] CarPlay process $processName is not alive; starting $serviceName")
+        sh("am startservice -n $serviceName")
+    }
+
+    internal fun isProjectionProcessPidOutputAliveForTest(pidOutput: String): Boolean {
+        return pidOutput
+            .trim()
+            .split(Regex("\\s+"))
+            .any { pid -> (pid.toLongOrNull() ?: 0L) > 0L }
     }
 
     private fun sendCarPlayFocus(displayId: Int, reason: String) {
@@ -674,11 +723,15 @@ object DisplayAppLauncher {
     private suspend fun enforceCarPlayClusterContractFromWatchdog() {
         reconcileCarPlayClusterTargetFromRealTask()
         if (!isCarPlayDesiredOnCluster()) return
+        if (deferCarPlayClusterGuardDuringOrchestratedHandoff("CARPLAY_CLUSTER_WATCHDOG_PREPARING_D3")) return
 
+        val usbConfigured = observeProjectionUsbConfigured("CARPLAY_CLUSTER_WATCHDOG_USB")
         val tasks = findAllTasksForPackage(CARPLAY_PACKAGE)
         if (tasks.isEmpty()) {
-            val bootGraceActive = System.currentTimeMillis() <= carPlayClusterTargetBootGraceUntil
-            if (!isProjectionUsbConfigured() && bootGraceActive) {
+            carPlayMainDisplayReconnectSeenAt = 0L
+            val now = System.currentTimeMillis()
+            val bootGraceActive = now <= carPlayClusterTargetBootGraceUntil
+            if (!usbConfigured && bootGraceActive) {
                 Log.w(
                     TAG,
                     "[CARPLAY_CLUSTER_WATCHDOG_NO_TASK_BOOT_GRACE] Desired D3 target is pending " +
@@ -694,7 +747,6 @@ object DisplayAppLauncher {
                 clearStaleCarPlayClusterTarget("CARPLAY_CLUSTER_WATCHDOG_NO_TASK_STALE_TARGET")
                 return
             }
-            val now = System.currentTimeMillis()
             if (now - lastCarPlayWatchdogRestoreAt < CARPLAY_WATCHDOG_RESTORE_COOLDOWN_MS) {
                 Log.w(
                     TAG,
@@ -715,6 +767,7 @@ object DisplayAppLauncher {
         val mainTask = tasks.firstOrNull { it.displayId == 0 }
 
         if (clusterTask != null) {
+            carPlayMainDisplayReconnectSeenAt = 0L
             markCarPlayClusterVisualSeen("CARPLAY_CLUSTER_WATCHDOG")
             if (getTopPackageOnDisplay(0) == App.getContext().packageName) {
                 reassertCarPlayClusterSurfaceIfStale(
@@ -731,6 +784,30 @@ object DisplayAppLauncher {
 
         if (clusterTask == null && mainTask != null) {
             val now = System.currentTimeMillis()
+            val firstMainDisplayObservation = carPlayMainDisplayReconnectSeenAt == 0L
+            if (firstMainDisplayObservation) {
+                carPlayMainDisplayReconnectSeenAt = now
+                Log.w(
+                    TAG,
+                    "[CARPLAY_CLUSTER_WATCHDOG_DIRECT_D0_SEEN] CarPlay appeared on display 0 " +
+                            "while desired target is cluster 3"
+                )
+            }
+
+            val reconnectRestore =
+                isWithinCarPlayUsbReconnectGrace(now, CARPLAY_RECONNECT_D0_OBSERVATION_WINDOW_MS)
+            if (reconnectRestore) {
+                val sinceConfigured = now - lastProjectionUsbConfiguredAt
+                val sinceMainSeen = now - carPlayMainDisplayReconnectSeenAt
+                Log.w(
+                    TAG,
+                    "[CARPLAY_CLUSTER_WATCHDOG_DIRECT_RECONNECT_STAGING] CarPlay is on display 0 " +
+                            "after USB reconnect; deferring automatic D3 restore during reconnect grace " +
+                            "(sinceConfigured=${sinceConfigured}ms, sinceMainSeen=${sinceMainSeen}ms)"
+                )
+                return
+            }
+
             if (now - lastCarPlayWatchdogRestoreAt < CARPLAY_WATCHDOG_RESTORE_COOLDOWN_MS) {
                 Log.w(
                     TAG,
@@ -742,13 +819,91 @@ object DisplayAppLauncher {
             Log.w(
                 TAG,
                 "[CARPLAY_CLUSTER_WATCHDOG_DIRECT] CarPlay is on display 0 while desired target is cluster 3; " +
-                        "restoring visual task to cluster"
+                        "restoring visual task to cluster without video broadcasts"
             )
-            restoreCarPlayFromMainDisplayToCluster(mainTask, "CARPLAY_CLUSTER_WATCHDOG_DIRECT")
+            restoreCarPlayFromMainDisplayToCluster(
+                mainTask,
+                "CARPLAY_CLUSTER_WATCHDOG_DIRECT",
+                postStartMode = CarPlayRestorePostStartMode.FULLSCREEN_ONLY
+            )
         }
     }
 
+    private fun observeProjectionUsbConfigured(reason: String): Boolean {
+        val configured = isProjectionUsbConfigured()
+        val previous = lastProjectionUsbConfiguredState
+        val now = System.currentTimeMillis()
+
+        if (previous != configured) {
+            Log.w(
+                TAG,
+                "[$reason] Projection USB configured changed from ${previous ?: "UNKNOWN"} to $configured"
+            )
+            if (configured) {
+                lastProjectionUsbConfiguredAt = now
+            } else {
+                lastProjectionUsbDisconnectedAt = now
+                carPlayMainDisplayReconnectSeenAt = 0L
+            }
+            lastProjectionUsbConfiguredState = configured
+        }
+
+        return configured
+    }
+
+    private fun isWithinCarPlayUsbReconnectGrace(now: Long, graceMs: Long): Boolean {
+        return shouldDeferCarPlayReconnectRestoreForTest(
+            now = now,
+            lastDisconnectedAt = lastProjectionUsbDisconnectedAt,
+            lastConfiguredAt = lastProjectionUsbConfiguredAt,
+            graceMs = graceMs
+        )
+    }
+
+    internal fun isWithinCarPlayUsbReconnectGraceForTest(
+        now: Long,
+        lastDisconnectedAt: Long,
+        lastConfiguredAt: Long,
+        graceMs: Long
+    ): Boolean {
+        return lastDisconnectedAt > 0L &&
+                lastConfiguredAt > lastDisconnectedAt &&
+                now - lastConfiguredAt in 0..graceMs
+    }
+
+    internal fun shouldDeferCarPlayReconnectRestoreForTest(
+        now: Long,
+        lastDisconnectedAt: Long,
+        lastConfiguredAt: Long,
+        graceMs: Long
+    ): Boolean {
+        return isWithinCarPlayUsbReconnectGraceForTest(
+            now = now,
+            lastDisconnectedAt = lastDisconnectedAt,
+            lastConfiguredAt = lastConfiguredAt,
+            graceMs = graceMs
+        )
+    }
+
+    internal fun shouldMoveMainCarPlayStackToClusterForTest(
+        mainTaskDisplayId: Int,
+        tasksInStack: Int,
+        hasClusterTask: Boolean
+    ): Boolean {
+        return mainTaskDisplayId == 0 &&
+                tasksInStack == 1 &&
+                !hasClusterTask
+    }
+
     private fun reconcileCarPlayClusterTargetFromRealTask() {
+        if (CarPlayDisplayOrchestrator.isMainHandoffInProgress()) {
+            Log.w(
+                TAG,
+                "[CARPLAY_CLUSTER_WATCHDOG_RECONCILE_TARGET] Skipping target sync while orchestrator is returning CarPlay to D0"
+            )
+            return
+        }
+
         val clusterTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 3) ?: return
         val mainTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 0)
         if (mainTask != null) return
@@ -964,6 +1119,32 @@ object DisplayAppLauncher {
         return width to height
     }
 
+    internal fun parseCarPlaySurfaceViewActiveBufferForTest(
+        output: String,
+        surfaceLayerName: String = "SurfaceView - $CARPLAY_PACKAGE/$CARPLAY_ACTIVITY"
+    ): Pair<Int, Int>? {
+        return parseCarPlaySurfaceActiveBufferForTest(
+            extractCarPlaySurfaceLayerBlockForTest(output, surfaceLayerName) ?: return null
+        )
+    }
+
+    internal fun extractCarPlaySurfaceLayerBlockForTest(
+        output: String,
+        surfaceLayerName: String = "SurfaceView - $CARPLAY_PACKAGE/$CARPLAY_ACTIVITY"
+    ): String? {
+        val lines = output.lineSequence().toList()
+        val start = lines.indexOfFirst { it.contains("+ BufferLayer ($surfaceLayerName") }
+        if (start < 0) return null
+
+        val block = mutableListOf<String>()
+        for (i in start until lines.size) {
+            val line = lines[i]
+            if (i != start && line.startsWith("+ ")) break
+            block.add(line)
+        }
+        return block.joinToString("\n")
+    }
+
     internal fun isCarPlaySurfaceBufferStaleForTest(buffer: Pair<Int, Int>?): Boolean {
         if (buffer == null) return false
         return buffer.first <= 1 || buffer.second <= 1
@@ -974,12 +1155,13 @@ object DisplayAppLauncher {
         val output = sh(
             "dumpsys SurfaceFlinger | grep -A24 -F '$surfacePrefix' || true"
         )
-        val activeBufferLine = output
+        val surfaceBlock = extractCarPlaySurfaceLayerBlockForTest(output, surfacePrefix).orEmpty()
+        val activeBufferLine = surfaceBlock
             .lineSequence()
             .firstOrNull { it.contains("activeBuffer=") }
             ?.trim()
             ?: "none"
-        val buffer = parseCarPlaySurfaceActiveBufferForTest(output)
+        val buffer = parseCarPlaySurfaceViewActiveBufferForTest(output, surfacePrefix)
         Log.w(
             TAG,
             "[$reason] CarPlay D3 Surface activeBuffer=${buffer?.first}x${buffer?.second}; evidence=[$activeBufferLine]"
@@ -1029,6 +1211,48 @@ object DisplayAppLauncher {
         )
         delay(850)
         inspectCarPlayClusterSurfaceBuffer("${reason}_SURFACE_AFTER_REASSERT")
+        return true
+    }
+
+    private suspend fun pulseCarPlayClusterVideoFocusIfSafe(
+        clusterTask: TaskInfo,
+        reason: String,
+        probeSurfaceBeforeFocus: Boolean = true
+    ): Boolean {
+        val now = System.currentTimeMillis()
+        val sinceHandoff = now - lastCarPlayClusterHandoffAt
+        if (
+            lastCarPlayClusterHandoffAt > 0L &&
+                    sinceHandoff < CARPLAY_VIDEO_FOCUS_AFTER_D3_HANDOFF_GRACE_MS
+        ) {
+            Log.w(
+                TAG,
+                "[$reason] Skipping CarPlay video-focus pulse; D3 handoff grace active (${sinceHandoff}ms)"
+            )
+            return false
+        }
+
+        if (now - lastCarPlayVideoFocusPulseAt < CARPLAY_VIDEO_FOCUS_PULSE_COOLDOWN_MS) {
+            Log.w(TAG, "[$reason] Skipping CarPlay video-focus pulse because cooldown is active")
+            return false
+        }
+
+        if (probeSurfaceBeforeFocus) {
+            val buffer = inspectCarPlayClusterSurfaceBuffer("${reason}_SURFACE_BEFORE_FOCUS")
+            if (isCarPlaySurfaceBufferStaleForTest(buffer)) {
+                Log.w(TAG, "[$reason] Surface is stale before focus pulse; using stale-surface reassert instead")
+                return reassertCarPlayClusterSurfaceIfStale(clusterTask, "${reason}_STALE_SURFACE")
+            }
+        } else {
+            Log.w(TAG, "[$reason] Skipping SurfaceFlinger probe for D0 window-focus lite pulse")
+        }
+
+        lastCarPlayVideoFocusPulseAt = now
+        Log.w(
+            TAG,
+            "[$reason] CarPlay live on D3 stack ${clusterTask.stackId}; sending delayed video-focus pulse only"
+        )
+        sendCarPlayVideoFocusOnly(3, reason)
         return true
     }
 
@@ -1102,14 +1326,14 @@ object DisplayAppLauncher {
         // Recreating the stack at this moment was producing the very black-out + 3->0->3
         // bounce users reported (logs: AVM_PREVIEW_STATUS_1_..._RESTORE_CLUSTER_VISUAL_RECOVERY
         // tearing down stack 22, then `am start` returning "delivered to currently running
-        // top-most instance", then `am stack remove` of the live stack). Only emit a light
-        // refresh broadcast and bail out.
+        // top-most instance", then `am stack remove` of the live stack). If the target Activity
+        // is alive, keep the native video route untouched and bail out.
         val liveTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, displayId)
         if (liveTask != null) {
-            sendCarPlayRenderRefresh(displayId, "${reason}_RENDER_REFRESH_LITE")
             Log.w(
                 TAG,
-                "[$reason] CarPlay Activity alive on display $displayId (stack ${liveTask.stackId}); skipping visual recovery to avoid tearing down a healthy decoder"
+                "[$reason] CarPlay Activity alive on display $displayId (stack ${liveTask.stackId}); " +
+                        "verify-only, no render refresh or video-focus broadcast"
             )
             return liveTask
         }
@@ -1193,6 +1417,9 @@ object DisplayAppLauncher {
     }
 
     private fun notifyCarPlayDisplayHandoff(displayId: Int, previousDisplay: Int?) {
+        if (displayId == 3) {
+            lastCarPlayClusterHandoffAt = System.currentTimeMillis()
+        }
         notifyDisplayStateChanged(displayId)
         if (previousDisplay != null && previousDisplay != displayId) {
             notifyDisplayStateChanged(previousDisplay)
@@ -1201,6 +1428,11 @@ object DisplayAppLauncher {
             notifyDisplayStateChanged(3)
             notifyBottomBarUpdate()
         }
+    }
+
+    private fun markCarPlayClusterHandoffStarted(reason: String) {
+        lastCarPlayClusterHandoffAt = System.currentTimeMillis()
+        Log.w(TAG, "[$reason] D3 handoff guard started; delaying CarPlay video-focus pulses")
     }
 
     private fun resizeAndFocusCarPlay(
@@ -1218,9 +1450,43 @@ object DisplayAppLauncher {
         sendCarPlayFocus(displayId, reason)
     }
 
+    private fun ensureCarPlayFullscreenWithoutVideoBroadcasts(
+        taskInfo: TaskInfo,
+        displayId: Int,
+        bounds: IntArray,
+        reason: String
+    ) {
+        if (!taskInfo.bounds.contentEqualsOrNull(bounds)) {
+            sh("am stack resize ${taskInfo.stackId} ${bounds[0]} ${bounds[1]} ${bounds[2]} ${bounds[3]}")
+        } else {
+            Log.w(
+                TAG,
+                "[$reason] CarPlay stack ${taskInfo.stackId} already fullscreen; skipping resize"
+            )
+        }
+        Log.w(
+            TAG,
+            "[$reason] Keeping native video route untouched for display $displayId"
+        )
+    }
+
+    private fun IntArray?.contentEqualsOrNull(other: IntArray): Boolean {
+        return this != null && this.contentEquals(other)
+    }
+
+    private fun deferCarPlayClusterGuardDuringOrchestratedHandoff(reason: String): Boolean {
+        if (!CarPlayDisplayOrchestrator.isClusterHandoffInProgress()) return false
+        Log.w(
+            TAG,
+            "[$reason] Deferring CarPlay cluster guard because orchestrator is already preparing D3"
+        )
+        return true
+    }
+
     private suspend fun restoreCarPlayFromMainDisplayToCluster(
         mainTask: TaskInfo,
-        reason: String
+        reason: String,
+        postStartMode: CarPlayRestorePostStartMode = CarPlayRestorePostStartMode.FULLSCREEN_ONLY
     ): TaskInfo? {
         val escapedActivity = CARPLAY_ACTIVITY.replace("$", "\\$")
         val bounds = getCarPlayDisplayBounds(3)
@@ -1229,6 +1495,7 @@ object DisplayAppLauncher {
             TAG,
             "[$reason] Restoring CarPlay from display 0 stack ${mainTask.stackId} to cluster 3 without force-stop"
         )
+        markCarPlayClusterHandoffStarted(reason)
         configureCarPlayProjection("${reason}_PREPARE")
 
         // Defocus the display-0 CarPlay Activity first. If CarPlay remains the
@@ -1272,12 +1539,29 @@ object DisplayAppLauncher {
             return null
         }
 
-        resizeAndFocusCarPlay(
-            clusterTask,
-            3,
-            bounds,
-            "${reason}_POST_START"
-        )
+        when (postStartMode) {
+            CarPlayRestorePostStartMode.FULL_RENDER_FOCUS -> {
+                resizeAndFocusCarPlay(
+                    clusterTask,
+                    3,
+                    bounds,
+                    "${reason}_POST_START"
+                )
+            }
+            CarPlayRestorePostStartMode.FULLSCREEN_ONLY -> {
+                ensureCarPlayFullscreenWithoutVideoBroadcasts(
+                    clusterTask,
+                    3,
+                    bounds,
+                    "${reason}_POST_START_NO_VIDEO_BROADCAST"
+                )
+                delay(650)
+                reassertCarPlayClusterSurfaceIfStale(
+                    clusterTask,
+                    "${reason}_POST_START_STALE_SURFACE_GUARD"
+                )
+            }
+        }
         closeCarPlayVisualStacks(
             "${reason}_CLEAN_DISPLAY0_DUPLICATE",
             exceptStackId = clusterTask.stackId
@@ -1331,11 +1615,71 @@ object DisplayAppLauncher {
         return findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 3) ?: clusterTask
     }
 
+    private suspend fun moveMainCarPlayStackToClusterIfSafe(
+        mainTask: TaskInfo,
+        bounds: IntArray,
+        reason: String
+    ): TaskInfo? {
+        val tasksInStack = countTasksInStack(mainTask.stackId)
+        val existingClusterTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 3)
+        if (
+            !shouldMoveMainCarPlayStackToClusterForTest(
+                mainTaskDisplayId = mainTask.displayId,
+                tasksInStack = tasksInStack,
+                hasClusterTask = existingClusterTask != null
+            )
+        ) {
+            Log.w(
+                TAG,
+                "[$reason] D0->D3 live stack move is not eligible " +
+                        "(display=${mainTask.displayId}, tasksInStack=$tasksInStack, hasClusterTask=${existingClusterTask != null}); using Activity start path"
+            )
+            return null
+        }
+
+        Log.w(
+            TAG,
+            "[$reason] Moving clean live CarPlay stack ${mainTask.stackId} from D0 to D3 to preserve native Surface"
+        )
+        evictOtherAppsFromDisplay(3, CARPLAY_PACKAGE)
+        BottomBarState.restoredApps.remove(CARPLAY_PACKAGE)
+        configureCarPlayProjection("${reason}_MOVE_STACK_PREPARE")
+        val moveResult = sh("am display move-stack ${mainTask.stackId} 3")
+        if (moveResult.contains("Error", ignoreCase = true) || moveResult.contains("Exception", ignoreCase = true)) {
+            Log.e(TAG, "[$reason] D0->D3 move-stack reported failure: $moveResult")
+        }
+        delay(700)
+
+        var movedTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 3)
+        if (movedTask == null) {
+            Log.e(TAG, "[$reason] D0->D3 move-stack did not leave CarPlay on D3; falling back to Activity start path")
+            return null
+        }
+
+        ensureCarPlayFullscreenWithoutVideoBroadcasts(
+            movedTask,
+            3,
+            bounds,
+            "${reason}_MOVE_STACK_D3_NO_VIDEO_BROADCAST"
+        )
+        closeCarPlayVisualStacks("${reason}_MOVE_STACK_CLEAN_DUPLICATES", exceptStackId = movedTask.stackId)
+        movedTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 3) ?: movedTask
+        delay(650)
+        reassertCarPlayClusterSurfaceIfStale(
+            movedTask,
+            "${reason}_MOVE_STACK_STALE_SURFACE_GUARD"
+        )
+        notifyCarPlayDisplayHandoff(3, 0)
+        Log.w(TAG, "[$reason] CarPlay live stack moved to D3 as stack ${movedTask.stackId}")
+        return movedTask
+    }
+
     private suspend fun restoreOrRefreshCarPlayClusterContract(
         reason: String,
         existingClusterAction: ExistingClusterCarPlayAction
     ) {
         if (!isCarPlayDesiredOnCluster()) return
+        if (deferCarPlayClusterGuardDuringOrchestratedHandoff(reason)) return
 
         if (existingClusterAction == ExistingClusterCarPlayAction.FULL_REFRESH) {
             configureCarPlayProjection("${reason}_KEEPALIVE")
@@ -1356,20 +1700,37 @@ object DisplayAppLauncher {
                 ExistingClusterCarPlayAction.SURFACE_REASSERT_IF_STALE -> {
                     reassertCarPlayClusterSurfaceIfStale(clusterTask, reason)
                 }
-                ExistingClusterCarPlayAction.VIDEO_FOCUS_ONLY,
+                ExistingClusterCarPlayAction.VIDEO_FOCUS_ONLY -> {
+                    pulseCarPlayClusterVideoFocusIfSafe(clusterTask, reason)
+                }
+                ExistingClusterCarPlayAction.EXISTING_CLUSTER_VIDEO_FOCUS_ONLY -> {
+                    pulseCarPlayClusterVideoFocusIfSafe(
+                        clusterTask,
+                        reason,
+                        probeSurfaceBeforeFocus = false
+                    )
+                }
                 ExistingClusterCarPlayAction.VERIFY_ONLY -> {
                     // Contract rule 21: when the real CarPlay task is on cluster 3, the
-                    // guard must not steal the video route. Sending VIDEO_FOCUS_CHANGE
-                    // here on the live headunit was renegotiating the decoder route
-                    // (cpScreen/NdkMediaCodec) for camera/AC/window-focus events,
-                    // producing a 1-2 frame black-out on the cluster. Reduce the
-                    // primary-pass to a verify too.
+                    // guard must not steal the video route during the first D3 frame.
+                    // D0->D3 startup stays verify-only because early focus pulses were
+                    // producing the dirty/washed frame. Native D0 focus grabs can use
+                    // VIDEO_FOCUS_ONLY later, after grace/cooldown checks.
                     Log.w(
                         TAG,
                         "[$reason] CarPlay live on display 3 (stack ${clusterTask.stackId}); guard verify-only, no broadcast"
                     )
                 }
             }
+            return
+        }
+
+        if (existingClusterAction == ExistingClusterCarPlayAction.EXISTING_CLUSTER_VIDEO_FOCUS_ONLY) {
+            Log.w(
+                TAG,
+                "[$reason] D0 window-focus guard found no CarPlay task on display 3; " +
+                        "skipping restore/recreate for generic window event"
+            )
             return
         }
 
@@ -1391,7 +1752,11 @@ object DisplayAppLauncher {
             "[$reason] Desired CarPlay target is cluster 3 but visual task sustained on display 0 " +
                     "(stack ${mainTask.stackId}); restoring to cluster"
         )
-        restoreCarPlayFromMainDisplayToCluster(mainTask, "${reason}_RESTORE_CLUSTER")
+        restoreCarPlayFromMainDisplayToCluster(
+            mainTask,
+            "${reason}_RESTORE_CLUSTER",
+            postStartMode = CarPlayRestorePostStartMode.FULLSCREEN_ONLY
+        )
     }
 
     private suspend fun waitForSustainedCarPlayOnMainDisplay(reason: String): TaskInfo? {
@@ -1453,31 +1818,62 @@ object DisplayAppLauncher {
             return
         }
         lastCarPlayClusterGuardAt = now
+        val action = if (shouldPulseCarPlayVideoFocusForContract(reason)) {
+            ExistingClusterCarPlayAction.VIDEO_FOCUS_ONLY
+        } else {
+            ExistingClusterCarPlayAction.VERIFY_ONLY
+        }
 
         scope.launch {
-            // Two passes, both verify-only: when the CarPlay task is live on display 3
-            // we must not broadcast VIDEO_FOCUS_CHANGE (it renegotiates the decoder
-            // route and blinks the cluster black during camera/AC/app transitions).
-            // The 0->3 restore inside restoreOrRefreshCarPlayClusterContract still
-            // kicks in if the task actually settles on display 0.
+            // D0->D3 post-start stays verify-only. Native D0 focus grabs such as
+            // AC/app/AVM can leave D3 black with a healthy buffer; those get a
+            // delayed VIDEO_FOCUS_ONLY pulse after the D3 route has settled.
             delay(900)
             restoreOrRefreshCarPlayClusterContract(
                 "${reason}_CONTRACT_PRIMARY",
-                ExistingClusterCarPlayAction.VERIFY_ONLY
+                action
             )
 
             delay(1800)
             restoreOrRefreshCarPlayClusterContract(
                 "${reason}_CONTRACT_VERIFY",
-                ExistingClusterCarPlayAction.VERIFY_ONLY
+                action
             )
         }
     }
 
+    private fun shouldPulseCarPlayVideoFocusForContract(reason: String): Boolean {
+        return reason.startsWith("AVM_PREVIEW_STATUS_") ||
+                reason.startsWith("HVAC_PANEL_DISPLAY_") ||
+                reason.startsWith("SERVICE_OPEN_APP_") ||
+                reason.startsWith("OPEN_AVM_ONCE_") ||
+                reason.startsWith("LAUNCH_MAIN_AFTER_")
+    }
+
+    private fun resolveCarPlayWindowFocusGuardAction(
+        packageName: String,
+        selfPackageName: String
+    ): ExistingClusterCarPlayAction? {
+        if (isProjectionMirrorPackage(packageName)) return null
+        return if (packageName == selfPackageName) {
+            ExistingClusterCarPlayAction.SURFACE_REASSERT_IF_STALE
+        } else {
+            ExistingClusterCarPlayAction.EXISTING_CLUSTER_VIDEO_FOCUS_ONLY
+        }
+    }
+
+    internal fun resolveCarPlayWindowFocusGuardActionForTest(
+        packageName: String,
+        selfPackageName: String
+    ): String? {
+        return resolveCarPlayWindowFocusGuardAction(packageName, selfPackageName)?.name
+    }
+
     private fun preserveCarPlayClusterContractAfterWindowChange(packageName: String) {
         if (!isCarPlayDesiredOnCluster()) return
-        if (isProjectionMirrorPackage(packageName)) return
 
+        val selfPackageName = App.getContext().packageName
+        val action = resolveCarPlayWindowFocusGuardAction(packageName, selfPackageName) ?: return
         val now = System.currentTimeMillis()
         if (now - lastCarPlayWindowFocusGuardAt < CARPLAY_WINDOW_FOCUS_GUARD_COOLDOWN_MS) {
             Log.w(TAG, "[WINDOW_CHANGE_$packageName] Skipping CarPlay window guard because cooldown is active")
@@ -1485,19 +1881,12 @@ object DisplayAppLauncher {
         }
         lastCarPlayWindowFocusGuardAt = now
 
-        val isSelfPackage = packageName == App.getContext().packageName
-        val action = if (isSelfPackage) {
-            ExistingClusterCarPlayAction.SURFACE_REASSERT_IF_STALE
-        } else {
-            ExistingClusterCarPlayAction.VERIFY_ONLY
-        }
+        val isSelfPackage = packageName == selfPackageName
         val safePackage = packageName.replace(Regex("[^A-Za-z0-9_.-]"), "_").take(80)
         scope.launch {
-            // Native AC/camera/AVM/HVAC window-focus events stay verify-only. The
-            // Haval app itself is different: live tests showed it can leave the
-            // CarPlay D3 task/window intact while the SurfaceView activeBuffer drops
-            // to 1x1. In that self-focus case only, reassert the existing D3 Activity
-            // if SurfaceFlinger confirms a stale buffer.
+            // Native D0 window-focus events can leave the D3 video black even with a
+            // healthy activeBuffer. Use a delayed lite focus pulse there, while the
+            // Haval app self-focus path still only reasserts if the Surface is stale.
             delay(if (isSelfPackage) 650 else 1100)
             restoreOrRefreshCarPlayClusterContract(
                 "WINDOW_CHANGE_${safePackage}_CONTRACT_PRIMARY",
@@ -1527,6 +1916,16 @@ object DisplayAppLauncher {
 
         if (rememberTarget) {
             rememberCarPlayDisplayTarget(displayId, reason)
+        }
+
+        if (displayId == 3) {
+            markCarPlayClusterHandoffStarted(reason)
+            val mainTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 0)
+            if (mainTask != null) {
+                moveMainCarPlayStackToClusterIfSafe(mainTask, bounds, reason)?.let {
+                    return
+                }
+            }
         }
 
         val currentTask = findTaskForPackage(CARPLAY_PACKAGE)
@@ -1573,20 +1972,14 @@ object DisplayAppLauncher {
 
                 var movedTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 0)
                 if (movedTask != null) {
-                    resizeAndFocusCarPlay(movedTask, displayId, bounds, "${reason}_MOVE_TO_MAIN")
+                    ensureCarPlayFullscreenWithoutVideoBroadcasts(
+                        movedTask,
+                        displayId,
+                        bounds,
+                        "${reason}_MOVE_TO_MAIN_NO_VIDEO_BROADCAST"
+                    )
                     closeCarPlayVisualStacks("${reason}_MOVE_TO_MAIN_CLEAN_DUPLICATES", exceptStackId = movedTask.stackId)
                     movedTask = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, 0) ?: movedTask
-                    val recoveredTask = recoverCarPlayRenderIfNeeded(
-                        displayId = displayId,
-                        bounds = bounds,
-                        windowingMode = windowingMode,
-                        escapedActivity = escapedActivity,
-                        sinceEpoch = handoffStartedEpoch,
-                        reason = "${reason}_MOVE_TO_MAIN"
-                    )
-                    if (recoveredTask != null) {
-                        movedTask = recoveredTask
-                    }
                     Log.w(TAG, "[$reason] CarPlay live stack restored on display 0 as stack ${movedTask.stackId}")
                     notifyCarPlayDisplayHandoff(displayId, previousDisplay)
                     return
@@ -1697,9 +2090,25 @@ object DisplayAppLauncher {
         }
 
         if (taskInfo != null) {
-            resizeAndFocusCarPlay(taskInfo, displayId, bounds, "${reason}_POST_START")
+            if (displayId == 3) {
+                ensureCarPlayFullscreenWithoutVideoBroadcasts(
+                    taskInfo,
+                    displayId,
+                    bounds,
+                    "${reason}_POST_START_NO_VIDEO_BROADCAST"
+                )
+            } else {
+                resizeAndFocusCarPlay(taskInfo, displayId, bounds, "${reason}_POST_START")
+            }
             closeCarPlayVisualStacks("${reason}_POST_START_CLEAN_DUPLICATES", exceptStackId = taskInfo.stackId)
             taskInfo = findTaskForPackageOnDisplay(CARPLAY_PACKAGE, displayId) ?: taskInfo
+            if (displayId == 3) {
+                delay(650)
+                reassertCarPlayClusterSurfaceIfStale(
+                    taskInfo,
+                    "${reason}_POST_START_STALE_SURFACE_GUARD"
+                )
+            }
         } else {
             Log.e(TAG, "[$reason] CarPlay task was not found on display $displayId after start")
         }

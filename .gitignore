@@ -18,6 +18,7 @@ docs/
 .docs
 AGENTS.md
 AI-README.md
+docs/
 
 tools/headunit-dev/output/
 artifacts/

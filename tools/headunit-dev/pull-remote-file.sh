@@ -4,9 +4,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TELNET_EXEC="$SCRIPT_DIR/telnet-exec.sh"
+source "$SCRIPT_DIR/headunit-env.sh"
 
-HEADUNIT_HOST="${HEADUNIT_HOST:-172.20.10.2}"
-HEADUNIT_LOCAL_HOST="${HEADUNIT_LOCAL_HOST:-172.20.10.5}"
+HEADUNIT_PORT="${HEADUNIT_PORT:-23}"
+resolve_headunit_defaults
 HTTP_PORT="${HTTP_PORT:-8768}"
 HTTP_PORT_SEARCH_LIMIT="${HTTP_PORT_SEARCH_LIMIT:-20}"
 OUTPUT_DIR="${OUTPUT_DIR:-$SCRIPT_DIR/output/pulled-files}"

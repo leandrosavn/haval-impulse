@@ -46,6 +46,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private val PROJECTION_NATIVE_PANEL_RESTORE_HOLD_MS = 1200L
     private val PROJECTION_PROJECTOR_WARMUP_BYPASS_MS = 1600L
     private val PROJECTION_CARD_INPUT_ARM_WINDOW_MS = 1500L
+    private val PROJECTION_D3_FALSE_NEGATIVE_HOLD_MS = 12_000L
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val clockRunnable =
             object : Runnable {
@@ -106,6 +107,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private var projectionCardOverlayAllowed = false
     private var projectionActiveSinceMs = 0L
     private var lastClusterInputAtMs = 0L
+    private var lastHealthyCarPlayD3AtMs = 0L
+    private var lastCarPlayD3HoldLogAtMs = 0L
     private var lastProjectionVisibilityLog = ""
     private var lastProjectionDomDiagnosticAt = 0L
     private val watchdogRunnable =
@@ -265,16 +268,53 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     }
 
     private fun isCarPlayInDash(): Boolean {
-        return br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.isCarPlayOnDisplay(3)
+        val rawCarPlayOnD3 =
+                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.isCarPlayOnDisplay(3)
+        val now = SystemClock.elapsedRealtime()
+        if (rawCarPlayOnD3) {
+            lastHealthyCarPlayD3AtMs = now
+            return true
+        }
+
+        return shouldHoldCarPlayD3State(now)
     }
 
     private fun isProjectionMirrorInDash(): Boolean {
-        return br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
-                .isProjectionMirrorOnDisplay(3)
+        val rawProjectionOnD3 =
+                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                        .isProjectionMirrorOnDisplay(3)
+        if (rawProjectionOnD3) return true
+
+        return shouldHoldCarPlayD3State(SystemClock.elapsedRealtime())
     }
 
     private fun isProjectionPreparingD3(): Boolean {
         return br.com.redesurftank.havalshisuku.managers.CarPlayDisplayOrchestrator.isPreparingD3()
+    }
+
+    private fun shouldHoldCarPlayD3State(now: Long): Boolean {
+        val desiredCluster =
+                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                        .isCarPlayDesiredOnCluster()
+        val preparingD3 = isProjectionPreparingD3()
+        val shouldHold =
+                ProjectionD3StateHoldPolicy.shouldHoldCarPlayInDash(
+                        lastHealthyCarPlayD3AtMs,
+                        now,
+                        desiredCluster,
+                        preparingD3,
+                        PROJECTION_D3_FALSE_NEGATIVE_HOLD_MS
+                )
+        if (shouldHold && now - lastCarPlayD3HoldLogAtMs > 2_000L) {
+            Log.w(
+                    TAG,
+                    "[PROJECTION_D3_STATE_HOLD] Keeping Mapa active after transient D3 proof loss; " +
+                            "lastHealthyAgoMs=${now - lastHealthyCarPlayD3AtMs} " +
+                            "desiredCluster=$desiredCluster preparingD3=$preparingD3"
+            )
+            lastCarPlayD3HoldLogAtMs = now
+        }
+        return shouldHold
     }
 
     private fun isNativeProjectionPanelKey(key: String): Boolean {

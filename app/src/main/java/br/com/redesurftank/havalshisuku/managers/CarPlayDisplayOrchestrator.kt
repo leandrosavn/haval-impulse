@@ -46,6 +46,25 @@ object CarPlayDisplayOrchestrator {
 
     fun isPreparingD3(): Boolean = preparingD3
 
+    fun isClusterHandoffInProgress(): Boolean {
+        return isClusterHandoffInProgressForTest(currentState, preparingD3)
+    }
+
+    fun isMainHandoffInProgress(): Boolean {
+        return isMainHandoffInProgressForTest(currentState)
+    }
+
+    internal fun isClusterHandoffInProgressForTest(
+        state: CarPlayDisplayState,
+        preparingD3Flag: Boolean
+    ): Boolean {
+        return preparingD3Flag || state == CarPlayDisplayState.PREPARING_D3
+    }
+
+    internal fun isMainHandoffInProgressForTest(state: CarPlayDisplayState): Boolean {
+        return state == CarPlayDisplayState.RETURNING_TO_D0
+    }
+
     fun refreshObservedState(
         reason: String,
         reconcileTransition: Boolean = false

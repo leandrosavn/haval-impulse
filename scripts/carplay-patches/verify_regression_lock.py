@@ -107,8 +107,10 @@ REQUIRED_TOKENS = {
     ],
     "cluster-widgets/default/src/core/main.js": [
         "projectionCardOverlayAllowed",
-        "screen === 'main_menu' || screen === 'aircon'",
-        "projectionCardOverlayActive || !(get('cardId') == 0",
+        "function isMainMenuSessionScreen(screen)",
+        "return isMainMenuSessionScreen(screen) || screen === 'aircon';",
+        "function isRightMenuVisible(cardId, screen)",
+        "return projectionCardOverlayActive;",
         "projectionCardOverlayActive: isProjectionCardOverlayActive()",
     ],
     "docs/carplay-cluster-regression-contract.md": [

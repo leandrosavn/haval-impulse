@@ -100,7 +100,7 @@ public class ProjectorManager {
                             instrumentProjector2.carMainScreenOff();
                         }
                         
-                        // Kill all apps on display 1 and 3
+                        // Kill all secondary display apps when the main screen turns off.
                         java.util.List<br.com.redesurftank.havalshisuku.models.DisplayAppConfig> configs = DisplayAppLauncher.INSTANCE.getAllConfigs();
                         for (br.com.redesurftank.havalshisuku.models.DisplayAppConfig config : configs) {
                              DisplayAppLauncher.TaskInfo task = DisplayAppLauncher.INSTANCE.findTaskForPackage(config.getPackageName());

@@ -14,6 +14,8 @@ APK_DEST="${APK_DEST:-/data/local/tmp/haval-tool-dev.apk}"
 APP_PACKAGE="${APP_PACKAGE:-br.com.redesurftank.havalshisuku}"
 APP_ACTIVITY="${APP_ACTIVITY:-br.com.redesurftank.havalshisuku/.SplashActivity}"
 SKIP_BUILD="${SKIP_BUILD:-0}"
+DEV_APP_VERSION_CODE="${DEV_APP_VERSION_CODE:-84}"
+DEV_APP_VERSION_NAME="${DEV_APP_VERSION_NAME:-0.0.1}"
 
 require_file() {
   local file="$1"
@@ -152,8 +154,10 @@ restart_app() {
 cd "$ROOT_DIR"
 
 if [[ "$SKIP_BUILD" != "1" ]]; then
-  echo "[HavalDev][ADB] Building debug APK"
-  ./gradlew :app:assembleDebug
+  echo "[HavalDev][ADB] Building debug APK (versionCode=$DEV_APP_VERSION_CODE versionName=$DEV_APP_VERSION_NAME)"
+  ./gradlew :app:assembleDebug \
+    -PappVersionCode="$DEV_APP_VERSION_CODE" \
+    -PappVersionName="$DEV_APP_VERSION_NAME"
 fi
 
 APK_PATH="$(find "$ROOT_DIR/app/build/outputs/apk/debug" -maxdepth 1 -type f -name '*.apk' | sort | tail -n 1)"

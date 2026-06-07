@@ -1,6 +1,6 @@
 # Agent Operational Rules
 
-Atualizado em: 2026-05-24
+Atualizado em: 2026-06-03
 
 ## Regras Para Agentes
 
@@ -22,12 +22,21 @@ Atualizado em: 2026-05-24
 - `haval-performance`: revisão read-only de performance.
 - `haval-qa`: regressão.
 - `haval-docs-scribe`: documentação e handoff.
+- `haval-carplay-visual-capture`: coleta prints/dumps D0/D3 do CarPlay sem alterar o veículo.
 
 ## Riscos Operacionais
 
 - Multi-agent sem handoff pode gerar decisões divergentes.
 - Implementação antes de mapeamento pode quebrar display/projeção.
 - Docs genéricas reduzem valor da memória persistente.
+
+## Deploy APK na Central
+
+- Para ciclos de teste que nao precisam de Frida, preferir `leanDebug`.
+- Comprimir APK com `gzip` antes de enviar para a central.
+- Na central, fazer download e descompressao em background; processos foreground via Telnet podem
+  ser interrompidos e deixar `.tmp` parcial.
+- Validar tamanho remoto final antes de `cmd package install -r`.
 
 ## Encerramento Obrigatório
 

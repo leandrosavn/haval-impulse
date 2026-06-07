@@ -1,6 +1,8 @@
 package br.com.redesurftank.havalshisuku.managers
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CarPlayDisplayOrchestratorTest {
@@ -33,6 +35,54 @@ class CarPlayDisplayOrchestratorTest {
             CarPlayDisplayOrchestrator.resolveObservedState(
                 carPlayOnD0 = true,
                 carPlayOnD3 = true
+            )
+        )
+    }
+
+    @Test
+    fun clusterHandoffInProgressWhilePreparingD3StateIsActive() {
+        assertTrue(
+            CarPlayDisplayOrchestrator.isClusterHandoffInProgressForTest(
+                state = CarPlayDisplayState.PREPARING_D3,
+                preparingD3Flag = false
+            )
+        )
+    }
+
+    @Test
+    fun clusterHandoffInProgressWhilePreparingD3FlagIsActive() {
+        assertTrue(
+            CarPlayDisplayOrchestrator.isClusterHandoffInProgressForTest(
+                state = CarPlayDisplayState.CONNECTED_ON_D0,
+                preparingD3Flag = true
+            )
+        )
+    }
+
+    @Test
+    fun stableClusterStateDoesNotDeferGuards() {
+        assertFalse(
+            CarPlayDisplayOrchestrator.isClusterHandoffInProgressForTest(
+                state = CarPlayDisplayState.MIRRORED_ON_D3,
+                preparingD3Flag = false
+            )
+        )
+    }
+
+    @Test
+    fun mainHandoffInProgressWhileReturningToD0() {
+        assertTrue(
+            CarPlayDisplayOrchestrator.isMainHandoffInProgressForTest(
+                state = CarPlayDisplayState.RETURNING_TO_D0
+            )
+        )
+    }
+
+    @Test
+    fun stableD3StateIsNotMainHandoff() {
+        assertFalse(
+            CarPlayDisplayOrchestrator.isMainHandoffInProgressForTest(
+                state = CarPlayDisplayState.MIRRORED_ON_D3
             )
         )
     }

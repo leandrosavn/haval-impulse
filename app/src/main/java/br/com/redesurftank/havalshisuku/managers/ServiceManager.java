@@ -234,6 +234,9 @@ public class ServiceManager {
     private long lastClusterInputAtMs = 0L;
     private int lastClusterInputKeyCode = -1;
     private String lastClusterInputKeyName = "";
+    private static final long CLUSTER_INPUT_DEDUP_WINDOW_MS = 220L;
+    private int lastHandledClusterInputKeyCode = -1;
+    private long lastHandledClusterInputAtMs = 0L;
     private final Map<String, String> previousAcState = new HashMap<>();
     private boolean isMaxAcActive = false;
     private Runnable maxAcTimeoutRunnable;
@@ -508,10 +511,28 @@ public class ServiceManager {
                                     lastClusterInputKeyCode,
                                     keyEvent.getAction()
                             );
-                            MainUiManager.getInstance().handleGeneralKeyEvents(key);
-                        }
-                        if (key == Screen.Key.BACK) {
-                            dispatchServiceManagerEvent(ServiceManagerEventType.DISMISS_WARNING);
+                            long now = SystemClock.uptimeMillis();
+                            boolean duplicateClusterInput =
+                                    lastHandledClusterInputKeyCode == keyEvent.getKeyCode()
+                                            && now - lastHandledClusterInputAtMs <= CLUSTER_INPUT_DEDUP_WINDOW_MS;
+                            if (!duplicateClusterInput) {
+                                lastHandledClusterInputKeyCode = keyEvent.getKeyCode();
+                                lastHandledClusterInputAtMs = now;
+                                MainUiManager.getInstance().handleGeneralKeyEvents(key);
+                                if (key == Screen.Key.BACK) {
+                                    dispatchServiceManagerEvent(ServiceManagerEventType.DISMISS_WARNING);
+                                }
+                            } else {
+                                Log.w(
+                                        TAG,
+                                        "Cluster input duplicate ignored: "
+                                                + lastClusterInputKeyName
+                                                + "("
+                                                + lastClusterInputKeyCode
+                                                + ") action="
+                                                + keyEvent.getAction()
+                                );
+                            }
                         }
                     }
                 }

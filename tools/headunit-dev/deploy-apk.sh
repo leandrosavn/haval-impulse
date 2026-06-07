@@ -11,6 +11,8 @@ resolve_headunit_defaults
 APK_DEST="${APK_DEST:-/data/local/tmp/haval-tool-dev.apk}"
 APP_PACKAGE="${APP_PACKAGE:-br.com.redesurftank.havalshisuku}"
 APP_ACTIVITY="${APP_ACTIVITY:-br.com.redesurftank.havalshisuku/.SplashActivity}"
+DEV_APP_VERSION_CODE="${DEV_APP_VERSION_CODE:-84}"
+DEV_APP_VERSION_NAME="${DEV_APP_VERSION_NAME:-0.0.1}"
 HTTP_PORT="${HTTP_PORT:-8765}"
 HTTP_PORT_SEARCH_LIMIT="${HTTP_PORT_SEARCH_LIMIT:-20}"
 HTTP_DOWNLOAD_WAIT_ATTEMPTS="${HTTP_DOWNLOAD_WAIT_ATTEMPTS:-120}"
@@ -204,8 +206,10 @@ restart_app() {
 
 cd "$ROOT_DIR"
 
-echo "[HavalDev] Building debug APK"
-./gradlew :app:assembleDebug
+echo "[HavalDev] Building debug APK (versionCode=$DEV_APP_VERSION_CODE versionName=$DEV_APP_VERSION_NAME)"
+./gradlew :app:assembleDebug \
+  -PappVersionCode="$DEV_APP_VERSION_CODE" \
+  -PappVersionName="$DEV_APP_VERSION_NAME"
 
 APK_PATH="$(find "$ROOT_DIR/app/build/outputs/apk/debug" -maxdepth 1 -type f -name '*.apk' | sort | tail -n 1)"
 require_file "$APK_PATH"

@@ -40,7 +40,44 @@ function isProjectionCardOverlayActive() {
         return false;
     }
     const screen = get('screen');
-    return screen === 'main_menu' || screen === 'aircon';
+    return isMainMenuSessionScreen(screen) || screen === 'aircon';
+}
+
+function isMainMenuDetailScreen(screen) {
+    return screen === 'graph' || screen === 'graphs' || screen === 'regen' || screen === 'display_selection';
+}
+
+function isMainMenuSessionScreen(screen) {
+    return screen === 'main_menu' || isMainMenuDetailScreen(screen);
+}
+
+function isMainMenuSessionVisible(cardId, screen) {
+    if (isProjectionMapDisplayActive()) {
+        return false;
+    }
+    return get('mainMenuSessionActive') === true &&
+        isMainMenuSessionScreen(screen) &&
+        get('warningActive') !== true &&
+        cardId == 0;
+}
+
+function isWarningUiActive(cardId, screen) {
+    if (get('warningActive') === true) {
+        return true;
+    }
+    if (isMainMenuSessionVisible(cardId, screen)) {
+        return false;
+    }
+    return get('warningDismissed') !== true && cardId == 0;
+}
+
+function isRightMenuVisible(cardId, screen) {
+    const projectionMapDisplayActive = isProjectionMapDisplayActive();
+    const projectionCardOverlayActive = isProjectionCardOverlayActive();
+    if (projectionMapDisplayActive) {
+        return projectionCardOverlayActive;
+    }
+    return isMainMenuSessionVisible(cardId, screen) || !(cardId == 0 && get('warningDismissed') !== true);
 }
 
 function getEffectiveDisplayMode() {
@@ -162,7 +199,7 @@ function render() {
             classes.push('carplay-in-dash');
         }
 
-        if (get('warningDismissed') !== true && (get('cardId') == 0 || get('warningActive') === true)) {
+        if (isWarningUiActive(get('cardId'), screen)) {
             classes.push('warn-is-active');
         }
         if (nativeMockEnabled) {
@@ -197,7 +234,7 @@ function render() {
 
     if (menuWrapper) {
         const projectionCardOverlayActive = isProjectionCardOverlayActive();
-        const rightMenuVisible = projectionCardOverlayActive || !(get('cardId') == 0 && get('warningDismissed') !== true);
+        const rightMenuVisible = isRightMenuVisible(get('cardId'), screen);
         menuWrapper.style.display = (!rightMenuVisible || (projectionMapDisplayActive && !projectionCardOverlayActive)) ? 'none' : 'block';
     }
 
@@ -248,7 +285,6 @@ function render() {
 
 subscribe('warningActive', () => render());
 subscribe('warningDismissed', () => render());
-subscribe('cardId', () => render());
 initializeLayout();
 
 // Start rendering and subscribe to listen for screen changes thus triggering new render
@@ -260,7 +296,8 @@ subscribe('carPlayInDash', render);
 subscribe('projectionMirrorInDash', render);
 subscribe('projectionPreparingD3', render);
 subscribe('projectionCardOverlayAllowed', render);
-// subscribe('cardId', render); // REMOVED: Triggers double-render as cardId listener already sets screen
+// cardId renders are handled after card-specific state sync below to avoid
+// rendering once with stale screen/session state and again after setState().
 render();
 
 
@@ -268,9 +305,15 @@ render();
 // Handle Card ID transitions
 subscribe('cardId', (cardId) => {
     logger.log('cardId change:', cardId);
+    let screenUpdatedByCard = false;
 
     if (cardId == 1 || cardId == 3) {
         setState('warningDismissed', false);
+    }
+    if (cardId == 1) {
+        setState('mainMenuSessionActive', true);
+    } else if (cardId == 3) {
+        setState('mainMenuSessionActive', false);
     }
 
     // Sync with Android bridge for correct app resizing
@@ -282,16 +325,26 @@ subscribe('cardId', (cardId) => {
     if (menuWrapper) {
         const projectionMapDisplayActive = isProjectionMapDisplayActive();
         const projectionCardOverlayActive = isProjectionCardOverlayActive();
-        const rightMenuVisible = projectionCardOverlayActive || !(cardId == 0 && get('warningDismissed') !== true);
+        const rightMenuVisible = isRightMenuVisible(cardId, get('screen'));
         menuWrapper.style.display = (!rightMenuVisible || (projectionMapDisplayActive && !projectionCardOverlayActive)) ? 'none' : 'block';
     }
 
     if (cardId == 1) {
         // 1 = go to main regular menu
-        setState('screen', 'main_menu');
+        if (get('screen') !== 'main_menu') {
+            screenUpdatedByCard = true;
+            setState('screen', 'main_menu');
+        }
     } else if (cardId == 3) {
         // 3 = set to AC menu
-        setState('screen', 'aircon');
+        if (get('screen') !== 'aircon') {
+            screenUpdatedByCard = true;
+            setState('screen', 'aircon');
+        }
+    }
+
+    if (!screenUpdatedByCard) {
+        render();
     }
 });
 
@@ -299,6 +352,11 @@ subscribe('cardId', (cardId) => {
 window.showScreen = function (screenName) {
     try {
         logger.enter('window.showScreen', screenName);
+        if (isMainMenuSessionScreen(screenName)) {
+            setState('mainMenuSessionActive', true);
+        } else {
+            setState('mainMenuSessionActive', false);
+        }
         setState('screen', screenName);
         logger.leave('window.showScreen');
     } catch (e) {
@@ -352,6 +410,7 @@ window.__havalProjectionDebug = function () {
         projectionPreparingD3: get('projectionPreparingD3'),
         cardId: get('cardId'),
         screen: get('screen'),
+        mainMenuSessionActive: get('mainMenuSessionActive'),
         display: get('display'),
         effectiveDisplay: getEffectiveDisplayMode(),
         projectionCardOverlayAllowed: get('projectionCardOverlayAllowed'),

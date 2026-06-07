@@ -66,6 +66,7 @@ var stateManager = new StateManager({
     // Main Menu state
     screen: 'main_menu',
     cardId: 1,
+    mainMenuSessionActive: false,
     tempUnit: '°C',
     focusedMenuItem: 'option_4',
     espStatus: 'ON',
