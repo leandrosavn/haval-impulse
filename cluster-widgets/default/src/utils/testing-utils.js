@@ -89,6 +89,9 @@ document.addEventListener('keydown', (e) => {
         const mapCardActive = currentState.projectionMirrorInDash === true || currentState.carPlayInDash === true;
         const cardMeaning = { 0: 'Hide Menu', 1: 'Main Menu', 3: mapCardActive ? 'Map Display' : 'AC Menu' };
         console.log(`[Card Simulation] Cycle Up -> Card ${targetCard} (${cardMeaning[targetCard]})`);
+        if (mapCardActive) {
+            setState('projectionCardOverlayAllowed', targetCard === 1 || targetCard === 3);
+        }
         setState('cardId', targetCard);
         return;
     }
@@ -100,6 +103,9 @@ document.addEventListener('keydown', (e) => {
         const mapCardActive = currentState.projectionMirrorInDash === true || currentState.carPlayInDash === true;
         const cardMeaning = { 0: 'Hide Menu', 1: 'Main Menu', 3: mapCardActive ? 'Map Display' : 'AC Menu' };
         console.log(`[Card Simulation] Cycle Down -> Card ${targetCard} (${cardMeaning[targetCard]})`);
+        if (mapCardActive) {
+            setState('projectionCardOverlayAllowed', targetCard === 1 || targetCard === 3);
+        }
         setState('cardId', targetCard);
         return;
     }
@@ -291,10 +297,10 @@ document.addEventListener('keydown', (e) => {
         const currentAppInDash = stateManager.getState().appInDash;
         let currentIndex = options.indexOf(currentAppInDash);
         if (currentIndex === -1) currentIndex = 0;
-        
+
         const nextIndex = (currentIndex + 1) % options.length;
         const nextValue = options[nextIndex];
-        
+
         console.log(`[Mask Simulation] Cycle appInDash -> ${nextValue}`);
         setState('appInDash', nextValue);
     }
@@ -330,7 +336,7 @@ document.addEventListener('keydown', (e) => {
         const nextIndex = (currentIndex + 1) % modes.length;
         window.maintenanceMode = modes[nextIndex];
         console.log(`[Maintenance Simulation] Toggle Mode -> ${window.maintenanceMode}`);
-        
+
         if (window.maintenanceMode === 'none') {
             setState('enableRevisionWarning', false);
             setState('nextRevisionKm', 999999);

@@ -50,7 +50,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import br.com.redesurftank.App;
@@ -232,6 +231,12 @@ public class ServiceManager {
     private boolean isClusterHeartbeatRunning = false;
     private int clusterHeartBeatCount = 0;
     private int clusterCardView = 0;
+    private long lastClusterInputAtMs = 0L;
+    private int lastClusterInputKeyCode = -1;
+    private String lastClusterInputKeyName = "";
+    private static final long CLUSTER_INPUT_DEDUP_WINDOW_MS = 220L;
+    private int lastHandledClusterInputKeyCode = -1;
+    private long lastHandledClusterInputAtMs = 0L;
     private final Map<String, String> previousAcState = new HashMap<>();
     private boolean isMaxAcActive = false;
     private Runnable maxAcTimeoutRunnable;
@@ -353,36 +358,78 @@ public class ServiceManager {
         }
 
         try {
-            IBinder controlBinder = new ShizukuBinderWrapper(getSystemService("com.beantechs.intelligentvehiclecontrol"));
+            IBinder rawControlBinder = getSystemService("com.beantechs.intelligentvehiclecontrol");
+            if (rawControlBinder == null) {
+                Log.e(TAG, "IntelligentVehicleControlService binder not available");
+                return false;
+            }
+            IBinder controlBinder = new ShizukuBinderWrapper(rawControlBinder);
             if (!controlBinder.pingBinder()) {
                 Log.e(TAG, "IntelligentVehicleControlService binder not alive");
                 return false;
             }
             controlService = IIntelligentVehicleControlService.Stub.asInterface(controlBinder);
 
-            IBinder poolBinder = new ShizukuBinderWrapper(getSystemService("com.beantechs.voice.adapter.VoiceAdapterService"));
-            if (!poolBinder.pingBinder()) {
-                Log.e(TAG, "IBinderPool binder not alive");
-                return false;
+            IBinder rawPoolBinder = getSystemService("com.beantechs.voice.adapter.VoiceAdapterService");
+            if (rawPoolBinder == null) {
+                Log.w(TAG, "VoiceAdapterService binder unavailable; continuing without vehicle/dvr/model binder pool");
+            } else {
+                IBinder poolBinder = new ShizukuBinderWrapper(rawPoolBinder);
+                if (!poolBinder.pingBinder()) {
+                    Log.w(TAG, "IBinderPool binder not alive; continuing without vehicle/dvr/model binder pool");
+                } else {
+                    IBinderPool pool = IBinderPool.Stub.asInterface(poolBinder);
+                    IBinder vehicleBinder = pool.queryBinder(6);
+                    if (vehicleBinder != null) {
+                        vehicle = IVehicle.Stub.asInterface(new ShizukuBinderWrapper(vehicleBinder));
+                    }
+                    IBinder dvrBinder = pool.queryBinder(8);
+                    if (dvrBinder != null) {
+                        dvr = IDvr.Stub.asInterface(new ShizukuBinderWrapper(dvrBinder));
+                    }
+                    IBinder vehicleModelBinder = pool.queryBinder(13);
+                    if (vehicleModelBinder != null) {
+                        vehicleModel = IVehicleModel.Stub.asInterface(new ShizukuBinderWrapper(vehicleModelBinder));
+                    }
+                }
             }
-            IBinderPool pool = IBinderPool.Stub.asInterface(poolBinder);
-            IBinder vehicleBinder = pool.queryBinder(6);
-            vehicle = IVehicle.Stub.asInterface(new ShizukuBinderWrapper(vehicleBinder));
-            IBinder dvrBinder = pool.queryBinder(8);
-            dvr = IDvr.Stub.asInterface(new ShizukuBinderWrapper(dvrBinder));
-            IBinder vehicleModelBinder = pool.queryBinder(13);
-            vehicleModel = IVehicleModel.Stub.asInterface(new ShizukuBinderWrapper(vehicleModelBinder));
 
             Intent clusterIntent = new Intent();
             clusterIntent.setComponent(new ComponentName("com.autolink.clusterservice", "com.autolink.clusterservice.ClusterService"));
             clusterCallback = new IClusterCallback.Stub() {
                 @Override
                 public void callbackMsg(int msgId, ClusterMsgData data) {
+                    if (DisplayAppLauncher.INSTANCE.shouldLogAndroidAutoClusterCallbackProbe(msgId)) {
+                        Log.w(
+                                TAG,
+                                "Android Auto cluster callback probe msgId="
+                                        + msgId
+                                        + " intValue="
+                                        + data.getIntValue()
+                        );
+                    }
                     if (msgId == 133) {
                         int whichCard = data.getIntValue();
+                        int previousCard = clusterCardView;
                         clusterCardView = whichCard;
                         dispatchServiceManagerEvent(ServiceManagerEventType.CLUSTER_CARD_CHANGED, clusterCardView);
-                        Log.w(TAG, "Cluster card changed: " + whichCard);
+                        long sinceInputMs =
+                                lastClusterInputAtMs == 0L
+                                        ? -1L
+                                        : SystemClock.uptimeMillis() - lastClusterInputAtMs;
+                        Log.w(
+                                TAG,
+                                "Cluster card changed: "
+                                        + previousCard
+                                        + " -> "
+                                        + whichCard
+                                        + " lastInputKey="
+                                        + lastClusterInputKeyName
+                                        + "("
+                                        + lastClusterInputKeyCode
+                                        + ") sinceInputMs="
+                                        + sinceInputMs
+                        );
                     } else if (msgId == 134) {
                         if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.getKey(), false)) {
                             if (data.getIntValue() == 2) {
@@ -391,8 +438,13 @@ public class ServiceManager {
                             }
                         }
                     } else if (msgId == 135) {
+                        int val = data.getIntValue();
+                        Log.w(TAG, "Cluster media command msgId=135 value=" + val);
+                        if (DisplayAppLauncher.INSTANCE.handleAndroidAutoClusterMediaCommand(val)) {
+                            Log.w(TAG, "Android Auto handled cluster media command msgId=135 value=" + val);
+                            return;
+                        }
                         if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.getKey(), false)) {
-                            int val = data.getIntValue();
                             if (val == 1) sendClusterIntMsg(135, 1);
                             else if (val == 2) sendClusterIntMsg(135, 2);
                         }
@@ -417,6 +469,19 @@ public class ServiceManager {
             inputListener = new IInputListener.Stub() {
                 @Override
                 public void dispatchKeyEvent(KeyEvent keyEvent) {
+                    if (DisplayAppLauncher.INSTANCE.shouldLogAndroidAutoMediaInputProbe(keyEvent.getKeyCode())) {
+                        Log.w(
+                                TAG,
+                                "Android Auto media input probe key="
+                                        + keyEvent.getKeyCode()
+                                        + " action="
+                                        + keyEvent.getAction()
+                        );
+                    }
+                    if (DisplayAppLauncher.INSTANCE.handleAndroidAutoSteeringMediaKey(keyEvent.getKeyCode(), keyEvent.getAction())) {
+                        Log.w(TAG, "Android Auto handled steering media key: " + keyEvent.getKeyCode());
+                        return;
+                    }
                     if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_STEERING_WHEEL_CUSTOM_BUTTONS.getKey(), false)) {
                         switch (keyEvent.getKeyCode()) {
                             case 517: handleSteeringWheelCustomButton(sharedPreferences.getString(SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_1_ACTION.getKey(), SteeringWheelCustomActionType.DEFAULT.name()), 1); break;
@@ -454,9 +519,47 @@ public class ServiceManager {
                                 key = Screen.Key.BACK_LONG;
                                 break;
                         }
-                        if (key != null) MainUiManager.getInstance().handleGeneralKeyEvents(key);
-                        if (key == Screen.Key.BACK) {
-                            dispatchServiceManagerEvent(ServiceManagerEventType.DISMISS_WARNING);
+                        if (key != null) {
+                            lastClusterInputAtMs = SystemClock.uptimeMillis();
+                            lastClusterInputKeyCode = keyEvent.getKeyCode();
+                            lastClusterInputKeyName = key.name();
+                            Log.w(
+                                    TAG,
+                                    "Cluster input key: "
+                                            + lastClusterInputKeyName
+                                            + "("
+                                            + lastClusterInputKeyCode
+                                            + ") action="
+                                            + keyEvent.getAction()
+                            );
+                            dispatchServiceManagerEvent(
+                                    ServiceManagerEventType.CLUSTER_INPUT_KEY,
+                                    lastClusterInputKeyName,
+                                    lastClusterInputKeyCode,
+                                    keyEvent.getAction()
+                            );
+                            long now = SystemClock.uptimeMillis();
+                            boolean duplicateClusterInput =
+                                    lastHandledClusterInputKeyCode == keyEvent.getKeyCode()
+                                            && now - lastHandledClusterInputAtMs <= CLUSTER_INPUT_DEDUP_WINDOW_MS;
+                            if (!duplicateClusterInput) {
+                                lastHandledClusterInputKeyCode = keyEvent.getKeyCode();
+                                lastHandledClusterInputAtMs = now;
+                                MainUiManager.getInstance().handleGeneralKeyEvents(key);
+                                if (key == Screen.Key.BACK) {
+                                    dispatchServiceManagerEvent(ServiceManagerEventType.DISMISS_WARNING);
+                                }
+                            } else {
+                                Log.w(
+                                        TAG,
+                                        "Cluster input duplicate ignored: "
+                                                + lastClusterInputKeyName
+                                                + "("
+                                                + lastClusterInputKeyCode
+                                                + ") action="
+                                                + keyEvent.getAction()
+                                );
+                            }
                         }
                     }
                 }
@@ -480,8 +583,13 @@ public class ServiceManager {
             controlService.registerDataChangedListener(context.getPackageName(), listener);
             controlService.addListenerKey(App.getContext().getPackageName(), getCombinedKeys());
 
-            IBinder connectivityBinder = new ShizukuBinderWrapper(getSystemService(Context.CONNECTIVITY_SERVICE));
-            connectivityManager = IConnectivityManager.Stub.asInterface(connectivityBinder);
+            IBinder rawConnectivityBinder = getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (rawConnectivityBinder != null) {
+                IBinder connectivityBinder = new ShizukuBinderWrapper(rawConnectivityBinder);
+                connectivityManager = IConnectivityManager.Stub.asInterface(connectivityBinder);
+            } else {
+                Log.w(TAG, "Connectivity service binder unavailable; tethering controls will be skipped");
+            }
 
             IntentFilter bluetoothFilter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
             bluetoothFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
@@ -547,7 +655,7 @@ public class ServiceManager {
                 ShizukuUtils.runCommandAndGetOutput(new String[]{"sh", "-c", "settings put global force_resizable_activities 1"});
             } catch (Exception e) {}
         });
-        ProjectorManager.getInstance().initialize();
+        new Handler(Looper.getMainLooper()).post(() -> ProjectorManager.getInstance().initialize());
         return true;
     }
 
@@ -645,6 +753,7 @@ public class ServiceManager {
                         App.getContext().startActivity(launchIntent);
                         Log.w(TAG, "Launching app: " + packageName);
                         DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("SERVICE_OPEN_APP_" + packageName);
+                        DisplayAppLauncher.INSTANCE.preserveAndroidAutoClusterContract("SERVICE_OPEN_APP_" + packageName);
                     } else {
                         Log.e(TAG, "App not found: " + packageName);
                     }
@@ -662,12 +771,24 @@ public class ServiceManager {
                         delayNextAVM = true;
                         dvr.setAVM(1);
                         Log.w(TAG, "Camera AVM temporarily triggered");
-                        DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("OPEN_AVM_ONCE_OPEN");
+                        if (DisplayAppLauncher.INSTANCE.isAndroidAutoOnDisplay(3)) {
+                            Log.w(TAG, "Skipping projection guard for OPEN_AVM_ONCE_OPEN because Android Auto is active on D3");
+                            DisplayAppLauncher.INSTANCE.pulseAndroidAutoFocusDuringNativePanel("OPEN_AVM_ONCE_OPEN");
+                        } else {
+                            DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("OPEN_AVM_ONCE_OPEN");
+                            DisplayAppLauncher.INSTANCE.preserveAndroidAutoNativePanelContract("OPEN_AVM_ONCE_OPEN");
+                        }
                     } else {
                         delayNextAVM = false;
                         dvr.setAVM(0);
                         Log.w(TAG, "Camera AVM closed");
-                        DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("OPEN_AVM_ONCE_CLOSE");
+                        if (DisplayAppLauncher.INSTANCE.isAndroidAutoOnDisplay(3)) {
+                            Log.w(TAG, "Skipping projection guard for OPEN_AVM_ONCE_CLOSE because Android Auto is active on D3");
+                            DisplayAppLauncher.INSTANCE.pulseAndroidAutoFocusAfterNativePanelExit("OPEN_AVM_ONCE_CLOSE");
+                        } else {
+                            DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("OPEN_AVM_ONCE_CLOSE");
+                            DisplayAppLauncher.INSTANCE.preserveAndroidAutoNativePanelContract("OPEN_AVM_ONCE_CLOSE");
+                        }
                     }
                 } catch (RemoteException e) {
                     Log.w(TAG, "Error to launch AVM camera");
@@ -1110,10 +1231,25 @@ public class ServiceManager {
         }
         try {
             if (key.equals(CarConstants.SYS_AVM_PREVIEW_STATUS.getValue())) {
-                DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("AVM_PREVIEW_STATUS_" + value);
+                if (DisplayAppLauncher.INSTANCE.isAndroidAutoOnDisplay(3)) {
+                    Log.w(TAG, "Skipping projection guard for AVM_PREVIEW_STATUS_" + value + " because Android Auto is active on D3");
+                    if (value.equals("1")) {
+                        DisplayAppLauncher.INSTANCE.pulseAndroidAutoFocusDuringNativePanel("AVM_PREVIEW_STATUS_" + value);
+                    } else if (value.equals("0")) {
+                        DisplayAppLauncher.INSTANCE.pulseAndroidAutoFocusAfterNativePanelExit("AVM_PREVIEW_STATUS_" + value);
+                    }
+                } else {
+                    DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("AVM_PREVIEW_STATUS_" + value);
+                    DisplayAppLauncher.INSTANCE.preserveAndroidAutoNativePanelContract("AVM_PREVIEW_STATUS_" + value);
+                }
             }
             if (key.equals(CarConstants.CAR_HVAC_PANEL_DISPLAY_NOTIFY.getValue())) {
-                DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("HVAC_PANEL_DISPLAY_" + value);
+                if (DisplayAppLauncher.INSTANCE.isAndroidAutoOnDisplay(3)) {
+                    Log.w(TAG, "Skipping projection guard for HVAC_PANEL_DISPLAY_" + value + " because Android Auto is active on D3");
+                } else {
+                    DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("HVAC_PANEL_DISPLAY_" + value);
+                    DisplayAppLauncher.INSTANCE.preserveAndroidAutoNativePanelContract("HVAC_PANEL_DISPLAY_" + value);
+                }
             }
             if (key.equals(CarConstants.BEAN_PUI_SCENE_NOTIFY.getValue())) {
                 maybeCounterPulseSceneNotify(value);
@@ -1432,8 +1568,8 @@ public class ServiceManager {
 
         // Restores previous AC settings (excluding power/enable keys so they can be restored last)
         for (Map.Entry<String, String> entry : previousAcState.entrySet()) {
-            if (entry.getValue() != null && 
-                !entry.getKey().equals(CarConstants.CAR_HVAC_POWER_MODE.getValue()) && 
+            if (entry.getValue() != null &&
+                !entry.getKey().equals(CarConstants.CAR_HVAC_POWER_MODE.getValue()) &&
                 !entry.getKey().equals(CarConstants.CAR_HVAC_AC_ENABLE.getValue())) {
                 updateData(entry.getKey(), entry.getValue());
             }
@@ -1465,7 +1601,7 @@ public class ServiceManager {
             String tempStr = getUpdatedData(CarConstants.CAR_BASIC_INSIDE_TEMP.getValue());
             if (tempStr == null) return;
             float currentTemp = Float.parseFloat(tempStr);
-            
+
             if (currentTemp >= 85.0f || currentTemp <= -40.0f) {
                 if (retryCount < 5) {
                     Log.w(TAG, "Invalid temp " + currentTemp + " at startup, delaying Max AC check... retry: " + retryCount);
@@ -1581,17 +1717,17 @@ public class ServiceManager {
                 float minTemp = 16.0f;
                 float prevDriverTemp = (previousAcState.get(prevDriverKey) != null) ? Float.parseFloat(previousAcState.get(prevDriverKey)) : 22.0f;
                 float prevPassTemp = (previousAcState.get(prevPassKey) != null) ? Float.parseFloat(previousAcState.get(prevPassKey)) : 22.0f;
-                
+
                 float newDriverTemp = prevDriverTemp - ((prevDriverTemp - minTemp) * factor);
                 newDriverTemp = Math.min(20, newDriverTemp);
-                
+
                 float newPassTemp = prevPassTemp - ((prevPassTemp - minTemp) * factor);
                 newPassTemp = Math.min(20, newPassTemp);
 
                 updateData(CarConstants.CAR_HVAC_FAN_SPEED.getValue(), String.valueOf(newFan));
                 updateData(prevDriverKey, String.format(Locale.US, "%.1f", newDriverTemp));
                 updateData(prevPassKey, String.format(Locale.US, "%.1f", newPassTemp));
-                
+
                 // Enforce Power and AC Enable to ensure they stay ON during the process
                 updateData(CarConstants.CAR_HVAC_POWER_MODE.getValue(), "1");
                 updateData(CarConstants.CAR_HVAC_AC_ENABLE.getValue(), "1");
@@ -1919,7 +2055,12 @@ public class ServiceManager {
 
     private static IBinder getSystemService(String serviceName) {
         try {
-            return (IBinder) Objects.requireNonNull(getService.invoke(null, serviceName));
+            Object service = getService.invoke(null, serviceName);
+            if (service == null) {
+                Log.e(TAG, "System service not found: " + serviceName);
+                return null;
+            }
+            return (IBinder) service;
         } catch (IllegalAccessException | InvocationTargetException e) {
             Log.e(TAG, "Error getting system service: " + serviceName, e);
             throw new RuntimeException(e);

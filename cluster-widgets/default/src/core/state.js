@@ -66,6 +66,7 @@ var stateManager = new StateManager({
     // Main Menu state
     screen: 'main_menu',
     cardId: 1,
+    mainMenuSessionActive: false,
     tempUnit: '°C',
     focusedMenuItem: 'option_4',
     espStatus: 'ON',
@@ -112,6 +113,8 @@ var stateManager = new StateManager({
     appInDash: false,
     carPlayInDash: false,
     projectionMirrorInDash: false,
+    projectionPreparingD3: false,
+    projectionCardOverlayAllowed: false,
     clusterEnabled: true,
     brightness: 100,
     fuelRange: 0,

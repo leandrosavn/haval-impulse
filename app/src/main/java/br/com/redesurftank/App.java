@@ -35,6 +35,7 @@ public class App extends Application {
         // every app launch when the existing bind mounts are already healthy.
         br.com.redesurftank.havalshisuku.managers.AndroidAutoPatchManager.INSTANCE.ensureMounted();
         br.com.redesurftank.havalshisuku.managers.CarPlayPatchManager.INSTANCE.ensureMounted();
+        br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.ensureDefaultDesktopShortcuts();
 
         var context = getContext();
         Intent serviceIntent = new Intent(context, ForegroundService.class);
