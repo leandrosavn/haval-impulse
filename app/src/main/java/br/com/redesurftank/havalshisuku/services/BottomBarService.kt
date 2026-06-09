@@ -235,12 +235,24 @@ class BottomBarService : LifecycleService() {
                     while (isActive) {
                         try {
                             val currentPackage = getTopPackageOnDisplay(0)
+                            val activeClusterProjectionPackage =
+                                    resolveProjectionPackage(getTopPackageOnDisplay(3))
                             if (currentPackage != null) {
                                 withContext(Dispatchers.Main) {
+                                    BottomBarState.activeClusterProjectionPackage =
+                                            activeClusterProjectionPackage ?: ""
+                                    if (activeClusterProjectionPackage != null &&
+                                                    BottomBarState.selectedPackage !=
+                                                            activeClusterProjectionPackage
+                                    ) {
+                                        BottomBarState.selectedPackage =
+                                                activeClusterProjectionPackage
+                                    }
                                     if (BottomBarState.currentPackage != currentPackage) {
                                         BottomBarState.currentPackage = currentPackage
                                         // Auto-select the current app if it's not a launcher or in the ignore list
-                                        if (!IGNORE_PACKAGES.contains(currentPackage) &&
+                                        if (activeClusterProjectionPackage == null &&
+                                                        !IGNORE_PACKAGES.contains(currentPackage) &&
                                                         !isLauncher(currentPackage)
                                         ) {
                                             BottomBarState.selectedPackage = currentPackage
@@ -251,6 +263,12 @@ class BottomBarService : LifecycleService() {
                                 // If we can't find Display 0 package, use tool package as fallback
                                 // to apply default overscan
                                 withContext(Dispatchers.Main) {
+                                    BottomBarState.activeClusterProjectionPackage =
+                                            activeClusterProjectionPackage ?: ""
+                                    if (activeClusterProjectionPackage != null) {
+                                        BottomBarState.selectedPackage =
+                                                activeClusterProjectionPackage
+                                    }
                                     BottomBarState.currentPackage =
                                             this@BottomBarService.packageName
                                 }
@@ -330,6 +348,23 @@ class BottomBarService : LifecycleService() {
 
     private fun getTopPackageOnDisplay(displayId: Int): String? {
         return DisplayAppLauncher.getTopPackageOnDisplay(displayId)
+    }
+
+    private fun resolveProjectionPackage(packageName: String?): String? {
+        if (packageName.isNullOrBlank()) return null
+        val normalized = packageName.lowercase()
+        return when {
+            normalized == "com.ts.carplay.app" ||
+                    normalized == "com.ts.carplay" ||
+                    normalized.contains("carplay") ||
+                    normalized.contains("carlink") ||
+                    normalized.contains("zlink") -> "com.ts.carplay.app"
+            normalized == "com.ts.androidauto.app" ||
+                    normalized == "com.ts.androidauto.projectionservice" ||
+                    normalized.contains("androidauto") ||
+                    normalized.contains("gearhead") -> "com.ts.androidauto.app"
+            else -> null
+        }
     }
 
     private fun isLauncher(packageName: String): Boolean {

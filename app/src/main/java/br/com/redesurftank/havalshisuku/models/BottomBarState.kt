@@ -23,9 +23,9 @@ object BottomBarState {
     var isOverrideMenuExpanded by mutableStateOf(false)
     var selectedPackage by mutableStateOf("")
     var currentPackage by mutableStateOf("")
+    var activeClusterProjectionPackage by mutableStateOf("")
     var autoHideEnabled by mutableStateOf(false)
     var isFridaRunning by mutableStateOf(false)
     var isDeleteModeEnabled by mutableStateOf(false)
     val restoredApps = mutableStateListOf<String>()
 }
-
