@@ -1,6 +1,6 @@
 # Estrategia de Patch Nativo: Android Auto x CarPlay
 
-Atualizado em: 2026-05-31 21:55 -03
+Atualizado em: 2026-06-09 10:53 -03
 
 ## Objetivo
 
@@ -82,6 +82,156 @@ Consequencia:
 
 - Android Auto tem uma combinacao de APK patchado + foco explicito + recuperacao visual dedicada.
 - Isso explica por que ele pode sobreviver melhor a AC/camera/app no display 0.
+
+## Atualizacao 2026-06-07 - Contrato App-side Android Auto D3
+
+O Android Auto passa a ter contrato app-side proprio para o cluster 3, sem reaproveitar o contrato
+nem o watchdog do CarPlay:
+
+- D0 e D3 usam sempre fullscreen fisico resolvido por display: `[0,0][largura,altura]`.
+- `getEffectiveBounds()` e `resizeApp()` tratam `com.ts.androidauto.app` como excecao fullscreen,
+  evitando que o tema virtual do D3 aplique bounds parciais como `[0,62][1920,658]`.
+- O alvo desejado do Android Auto fica separado em `desiredAndroidAutoDisplayId`.
+- Mudancas de janela no D0, abertura de apps, AC/HVAC e camera/AVM acionam um guard exclusivo do
+  Android Auto quando o AA esta no D3 ou quando D3 e o alvo desejado; se CarPlay estiver ativo no
+  D3, o guard de AA fica inerte.
+- O guard de AA pode reaplicar fullscreen, enviar `requestVideoFocus` do Android Auto e restaurar a
+  Activity visual para o D3. Essa agressividade continua proibida para CarPlay.
+- Comandos de midia do volante sao roteados para Android Auto somente quando o AA esta realmente
+  ativo no D3. O caminho cobre `KeyEvent` de midia e `ClusterService msgId=135`; para CarPlay, o
+  comportamento existente de `msgId=135` permanece inalterado.
+
+Risco residual:
+
+- A direcao exata de `msgId=135` (`1`/`2`) para anterior/proxima musica precisa de validacao fisica
+  no Android Auto. A implementacao atual assume `1=previous` e `2=next`.
+
+Atualizacao 2026-06-07 19:00 - Android Auto e paineis nativos:
+
+- Teste fisico reportado pelo usuario na build instalada mostrou que Android Auto nao perde foco no
+  D3 ao abrir AC/camera, mas o menu AC fecha em menos de 2s e, ao fechar camera, o D3 pisca preto e
+  volta.
+- Ajuste local: eventos de AC/HVAC/AVM/camera agora usam contrato passivo de Android Auto
+  (`VERIFY_ONLY`), sem `requestVideoFocus` nem resize quando a task do AA ja esta viva no D3.
+- O guard forte (`FULLSCREEN_AND_FOCUS`) continua para apps comuns no D0 e restore real de AA D3.
+- `AccessibilityService` tambem trata `com.beantechs.hvac` e pacotes com `avm/camera/backcamera`
+  como paineis nativos para evitar roubar foco do D0.
+- O envio de midia do volante para AA usa o binder nativo `LinkCommand.sendKeyEvent(ordinal, action)`
+  com sequencia DOWN/UP; `input keyevent` fica apenas como fallback quando o binder nao estiver
+  disponivel.
+
+Atualizacao 2026-06-07 19:40 - Diagnostico persistente Android Auto:
+
+- Novo `AndroidAutoLoopLoggerService` interno replica o modelo observacional do logger CarPlay para
+  Android Auto, sem alterar os fluxos de CarPlay.
+- O servico fica restrito a `debug`/`leanDebug` via `internalDebug`; release/preview nao deve conter
+  esse diagnostico.
+- A captura foi direcionada aos sintomas ainda abertos:
+  - AC/HVAC fechando rapido de forma intermitente;
+  - camera/AVM piscando preto ao fechar;
+  - botoes do volante next/previous sem efeito no AA.
+- O logger grava estado D0/D3, dumps de WindowManager/SurfaceFlinger/services, configuracao nativa
+  das teclas de volante, logcat filtrado AA/HVAC/AVM/media e RAW D0/D4 sob limite.
+- A sessao iniciada na central em 2026-06-07 19:42 deve ser usada para a proxima analise antes de
+  nova correcao funcional.
+
+Atualizacao 2026-06-07 20:10 - Ajuste por evidencia fisica:
+
+- AC foi reportado pelo usuario como OK e nao recebeu nova mudanca.
+- Camera/AVM:
+  - logs mostraram AA vivo no D3 com Activity e Surface ativas durante `sys.avm.preview_status`
+    `1 -> 0`;
+  - ao fechar AVM, o app envia apenas `view_state foreground`/`requestVideoFocus` do Android Auto
+    para o display 3, se a task D3 continuar viva;
+  - nao faz start, recreate, resize ou limpeza de stacks nesse caminho.
+- Volante:
+  - a central entregou `KEYCODE_MEDIA_PREVIOUS/NEXT` por `IInputService` com `ACTION_UP`;
+  - o roteamento de media do AA agora aceita `ACTION_DOWN` e `ACTION_UP`, mantendo debounce para
+    evitar duplicidade caso os dois eventos sejam entregues em outra central/firmware.
+- CarPlay permanece isolado e nao foi alterado nesta correcao.
+
+Atualizacao 2026-06-07 20:22 - Ajuste apos teste fisico da build 20:08:
+
+- O comando direto `LinkCommand` `0x18/0x19` retornou `sent=true`, mas nao controlou a midia no
+  teste fisico.
+- A nova tentativa envia tambem `LinkCommand.sendKeyEvent` com AAP hardkey `DOWN/UP` para
+  `previous/next`.
+- O pulso pos-camera foi antecipado para imediato + verificacoes curtas, porque o pulso tardio
+  executou mas nao eliminou o blink.
+- CarPlay continua isolado.
+
+Atualizacao 2026-06-07 20:50 - Fallback OEM e pulso durante AVM:
+
+- A transicao `D3->NONE->D0` observada no logger foi explicada pelo usuario como desconexao USB e
+  nao deve ser tratada como regressao do contrato D3.
+- Como `LinkCommand.next/previous` e `sendKeyEvent` AAP `DOWN/UP` retornaram sucesso sem efeito
+  fisico, o AA agora tenta tambem uma rota OEM de midia:
+  - `KEYCODE_MEDIA_NEXT -> input keyevent 1003`;
+  - `KEYCODE_MEDIA_PREVIOUS -> input keyevent 1002`;
+  - `KEYCODE_MEDIA_PLAY_PAUSE -> input keyevent 1004`.
+- O fallback OEM e restrito a Android Auto ativo no D3 e fica logado com `oemInput=true` para
+  calibracao no teste fisico. Se causar duplo comando, remover ou condicionar essa rota.
+- Camera/AVM agora recebe pulso leve de foco tambem enquanto o painel nativo esta aberto
+  (`preview_status=1`), antes dos pulsos pos-fechamento existentes. O caminho continua sem start,
+  recreate, resize ou logica CarPlay.
+
+Atualizacao 2026-06-07 21:07 - Loop do fallback OEM:
+
+- Teste fisico da build `20:48:14` confirmou que o fallback OEM causava loop:
+  - `input keyevent 1003/1002` retornava no `IInputService` como `KEYCODE_MEDIA_NEXT/PREVIOUS`
+    (`87/88`) com `ACTION_UP`;
+  - o handler tratava esse eco como novo clique e reenviava fallback.
+- A build `21:06:33` mantem o fallback OEM, mas marca uma janela de bloqueio de `2_500ms` para o
+  mesmo keycode apos cada envio. Logs esperados:
+  - `Blocking OEM media fallback echo...`;
+  - `Skipping OEM input fallback echo`.
+- Esse bloqueio e isolado ao Android Auto D3 e nao altera CarPlay.
+
+Atualizacao 2026-06-07 21:23 - Fallback OEM desabilitado e telemetria nativa:
+
+- Usuario confirmou que a transicao `D3->NONE->D0->D3` da sessao `21:07` foi causada por
+  desconectar/reconectar USB, portanto nao e regressao do contrato D3.
+- Como o fallback OEM nao resolveu a troca de musica e ja provou risco de eco, a build local
+  desabilita `input keyevent 1003/1002/1004` por padrao.
+- O volante permanece restrito ao Android Auto ativo no D3 e usa:
+  - `LinkCommand.next/previous`;
+  - `LinkCommand.sendKeyEvent` AAP hardkey `DOWN/UP`.
+- A nova telemetria le `LinkCommand.getLinkStatus` e `LinkCommand.getMusicStatus` antes/depois de
+  cada comando. Isso diferencia "comando aceito pelo binder" de "Android Auto/telefone realmente
+  consumiu o comando".
+- Camera/AVM nao recebeu nova agressividade nesta etapa; a evidencia atual segue compativel com
+  blink transiente da rota nativa de video enquanto a Activity/Surface do AA permanece viva no D3.
+
+Atualizacao 2026-06-09 10:36 - Next/previous em rota unica OEM:
+
+- Usuario reportou que o volante voltou a funcionar no Android Auto, mas cada clique passa 2 ou 3
+  musicas.
+- A central estava em `172.20.10.2`, com app instalado `lastUpdateTime=2026-06-07 21:06:33`;
+  portanto a build local que desabilitava OEM nao estava instalada.
+- Logs historicos da build `21:06:33` mostraram `direct=true`, `aap=true` e `oemInput=true` no
+  mesmo clique. Quando mais de uma dessas rotas e consumida pelo AA/telefone, o resultado fisico e
+  multiplos skips.
+- A estrategia foi ajustada: para `KEYCODE_MEDIA_NEXT/PREVIOUS`, usar apenas `OEM_ONLY`
+  (`input keyevent 1003/1002`) com bloqueio de eco. Nao enviar `LinkCommand.next/previous` nem AAP
+  hardkey `DOWN/UP` para o mesmo clique.
+- Se o problema persistir com log `route=OEM_ONLY`, a proxima frente deve investigar repeticao
+  fisica do evento e janela de debounce/eco, nao reintroduzir rotas paralelas.
+
+Atualizacao 2026-06-09 10:53 - Botoes fisicos de midia pela rota nativa da headunit:
+
+- Testes fisicos posteriores mostraram que a rota `OEM_ONLY` ainda duplicava `next/previous` e que
+  `pause/resume` tambem enviava dois comandos.
+- Evidencia: o evento fisico original ja passa pela headunit/Android Auto, e o listener
+  `IInputListener.dispatchKeyEvent()` do Impulse nao consome esse evento porque o callback e
+  `void`. Qualquer injecao app-side vira um segundo comando.
+- A estrategia atual para evento fisico de volante e:
+  - `NEXT`, `PREVIOUS`, `PLAY_PAUSE`, `PLAY` e `PAUSE` usam somente a rota nativa da headunit;
+  - o Impulse nao envia `LinkCommand`, AAP hardkey nem `input keyevent 1002/1003/1004`;
+  - o Impulse apenas registra `using headunit native route only` e envia pulso leve de foco para
+    preservar Android Auto no D3.
+- `ClusterService msgId=135` permanece separado do evento fisico observado e pode usar o caminho
+  app-side quando necessario.
+- CarPlay continua isolado e nao foi alterado nesta correcao.
 
 ## Por Que CarPlay Nao Esta Mais Stock
 

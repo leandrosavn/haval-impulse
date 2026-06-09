@@ -399,6 +399,15 @@ public class ServiceManager {
             clusterCallback = new IClusterCallback.Stub() {
                 @Override
                 public void callbackMsg(int msgId, ClusterMsgData data) {
+                    if (DisplayAppLauncher.INSTANCE.shouldLogAndroidAutoClusterCallbackProbe(msgId)) {
+                        Log.w(
+                                TAG,
+                                "Android Auto cluster callback probe msgId="
+                                        + msgId
+                                        + " intValue="
+                                        + data.getIntValue()
+                        );
+                    }
                     if (msgId == 133) {
                         int whichCard = data.getIntValue();
                         int previousCard = clusterCardView;
@@ -429,8 +438,13 @@ public class ServiceManager {
                             }
                         }
                     } else if (msgId == 135) {
+                        int val = data.getIntValue();
+                        Log.w(TAG, "Cluster media command msgId=135 value=" + val);
+                        if (DisplayAppLauncher.INSTANCE.handleAndroidAutoClusterMediaCommand(val)) {
+                            Log.w(TAG, "Android Auto handled cluster media command msgId=135 value=" + val);
+                            return;
+                        }
                         if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.getKey(), false)) {
-                            int val = data.getIntValue();
                             if (val == 1) sendClusterIntMsg(135, 1);
                             else if (val == 2) sendClusterIntMsg(135, 2);
                         }
@@ -455,6 +469,19 @@ public class ServiceManager {
             inputListener = new IInputListener.Stub() {
                 @Override
                 public void dispatchKeyEvent(KeyEvent keyEvent) {
+                    if (DisplayAppLauncher.INSTANCE.shouldLogAndroidAutoMediaInputProbe(keyEvent.getKeyCode())) {
+                        Log.w(
+                                TAG,
+                                "Android Auto media input probe key="
+                                        + keyEvent.getKeyCode()
+                                        + " action="
+                                        + keyEvent.getAction()
+                        );
+                    }
+                    if (DisplayAppLauncher.INSTANCE.handleAndroidAutoSteeringMediaKey(keyEvent.getKeyCode(), keyEvent.getAction())) {
+                        Log.w(TAG, "Android Auto handled steering media key: " + keyEvent.getKeyCode());
+                        return;
+                    }
                     if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_STEERING_WHEEL_CUSTOM_BUTTONS.getKey(), false)) {
                         switch (keyEvent.getKeyCode()) {
                             case 517: handleSteeringWheelCustomButton(sharedPreferences.getString(SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_1_ACTION.getKey(), SteeringWheelCustomActionType.DEFAULT.name()), 1); break;
@@ -726,6 +753,7 @@ public class ServiceManager {
                         App.getContext().startActivity(launchIntent);
                         Log.w(TAG, "Launching app: " + packageName);
                         DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("SERVICE_OPEN_APP_" + packageName);
+                        DisplayAppLauncher.INSTANCE.preserveAndroidAutoClusterContract("SERVICE_OPEN_APP_" + packageName);
                     } else {
                         Log.e(TAG, "App not found: " + packageName);
                     }
@@ -743,12 +771,24 @@ public class ServiceManager {
                         delayNextAVM = true;
                         dvr.setAVM(1);
                         Log.w(TAG, "Camera AVM temporarily triggered");
-                        DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("OPEN_AVM_ONCE_OPEN");
+                        if (DisplayAppLauncher.INSTANCE.isAndroidAutoOnDisplay(3)) {
+                            Log.w(TAG, "Skipping projection guard for OPEN_AVM_ONCE_OPEN because Android Auto is active on D3");
+                            DisplayAppLauncher.INSTANCE.pulseAndroidAutoFocusDuringNativePanel("OPEN_AVM_ONCE_OPEN");
+                        } else {
+                            DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("OPEN_AVM_ONCE_OPEN");
+                            DisplayAppLauncher.INSTANCE.preserveAndroidAutoNativePanelContract("OPEN_AVM_ONCE_OPEN");
+                        }
                     } else {
                         delayNextAVM = false;
                         dvr.setAVM(0);
                         Log.w(TAG, "Camera AVM closed");
-                        DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("OPEN_AVM_ONCE_CLOSE");
+                        if (DisplayAppLauncher.INSTANCE.isAndroidAutoOnDisplay(3)) {
+                            Log.w(TAG, "Skipping projection guard for OPEN_AVM_ONCE_CLOSE because Android Auto is active on D3");
+                            DisplayAppLauncher.INSTANCE.pulseAndroidAutoFocusAfterNativePanelExit("OPEN_AVM_ONCE_CLOSE");
+                        } else {
+                            DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("OPEN_AVM_ONCE_CLOSE");
+                            DisplayAppLauncher.INSTANCE.preserveAndroidAutoNativePanelContract("OPEN_AVM_ONCE_CLOSE");
+                        }
                     }
                 } catch (RemoteException e) {
                     Log.w(TAG, "Error to launch AVM camera");
@@ -1191,10 +1231,25 @@ public class ServiceManager {
         }
         try {
             if (key.equals(CarConstants.SYS_AVM_PREVIEW_STATUS.getValue())) {
-                DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("AVM_PREVIEW_STATUS_" + value);
+                if (DisplayAppLauncher.INSTANCE.isAndroidAutoOnDisplay(3)) {
+                    Log.w(TAG, "Skipping projection guard for AVM_PREVIEW_STATUS_" + value + " because Android Auto is active on D3");
+                    if (value.equals("1")) {
+                        DisplayAppLauncher.INSTANCE.pulseAndroidAutoFocusDuringNativePanel("AVM_PREVIEW_STATUS_" + value);
+                    } else if (value.equals("0")) {
+                        DisplayAppLauncher.INSTANCE.pulseAndroidAutoFocusAfterNativePanelExit("AVM_PREVIEW_STATUS_" + value);
+                    }
+                } else {
+                    DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("AVM_PREVIEW_STATUS_" + value);
+                    DisplayAppLauncher.INSTANCE.preserveAndroidAutoNativePanelContract("AVM_PREVIEW_STATUS_" + value);
+                }
             }
             if (key.equals(CarConstants.CAR_HVAC_PANEL_DISPLAY_NOTIFY.getValue())) {
-                DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("HVAC_PANEL_DISPLAY_" + value);
+                if (DisplayAppLauncher.INSTANCE.isAndroidAutoOnDisplay(3)) {
+                    Log.w(TAG, "Skipping projection guard for HVAC_PANEL_DISPLAY_" + value + " because Android Auto is active on D3");
+                } else {
+                    DisplayAppLauncher.INSTANCE.preserveCarPlayClusterContract("HVAC_PANEL_DISPLAY_" + value);
+                    DisplayAppLauncher.INSTANCE.preserveAndroidAutoNativePanelContract("HVAC_PANEL_DISPLAY_" + value);
+                }
             }
             if (key.equals(CarConstants.BEAN_PUI_SCENE_NOTIFY.getValue())) {
                 maybeCounterPulseSceneNotify(value);

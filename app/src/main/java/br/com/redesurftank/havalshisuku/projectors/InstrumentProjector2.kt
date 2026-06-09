@@ -702,6 +702,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                             }
                             br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
                                     .preserveCarPlayClusterContract("STEERING_WHEEL_AC_CONTROL")
+                            br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                                    .preserveAndroidAutoNativePanelContract("STEERING_WHEEL_AC_CONTROL")
                         }
                         ServiceManagerEventType.GRAPH_SCREEN_NAVIGATION -> {
                             val screen = args[0]
@@ -716,6 +718,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                 if (arg0.jsName == "aircon") {
                                     br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
                                             .preserveCarPlayClusterContract("UPDATE_SCREEN_AIRCON")
+                                    br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                                            .preserveAndroidAutoNativePanelContract("UPDATE_SCREEN_AIRCON")
                                 }
                             } else {
                                 evaluateJsIfReady(webView, "control('updateScreen', true)")
