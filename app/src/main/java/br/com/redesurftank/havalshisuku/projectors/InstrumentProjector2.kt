@@ -45,8 +45,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private val MAP_DISPLAY_TEST_VALUE = "Mapa"
     private val PROJECTION_NATIVE_PANEL_RESTORE_HOLD_MS = 1200L
     private val PROJECTION_PROJECTOR_WARMUP_BYPASS_MS = 1600L
-    private val PROJECTION_CARD_INPUT_ARM_WINDOW_MS = 1500L
     private val PROJECTION_D3_FALSE_NEGATIVE_HOLD_MS = 12_000L
+    private val PERF_HEARTBEAT_INTERVAL_MS = 60_000L
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val clockRunnable =
             object : Runnable {
@@ -67,8 +67,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     // Dedup cache: skip a JS push when the same key:value pair was the most
     // recently pushed one. Car CAN bus often re-emits identical values back
     // to back; pushing them all the way through to the WebView causes wasted
-    // DOM mutations + Chrome compositor renders. Cleared on bootstrap (init,
-    // card-change, page-finished) where we want a fresh full sync.
+    // DOM mutations + Chrome compositor renders. Cleared on full bootstrap
+    // syncs where we intentionally re-establish the whole JS state.
     private val lastSentValues = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     // Cached EV power values for kW calculation
@@ -88,6 +88,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private var nativePanelBypassHoldUntilMs = 0L
     private var projectorWarmupBypassUntilMs = 0L
     private var projectionBypassRestoreScheduledUntilMs = 0L
+    private var nativeCardPassThroughActive: Boolean? = null
 
     private fun isWarningValueActive(value: String?): Boolean {
         if (value == null) return false
@@ -103,14 +104,24 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private var lastCarPlayInDash: Boolean? = null
     private var lastProjectionMirrorInDash: Boolean? = null
     private var lastProjectionPreparingD3: Boolean? = null
-    private var lastProjectionCardOverlayAllowed: Boolean? = null
-    private var projectionCardOverlayAllowed = false
-    private var projectionActiveSinceMs = 0L
-    private var lastClusterInputAtMs = 0L
     private var lastHealthyCarPlayD3AtMs = 0L
     private var lastCarPlayD3HoldLogAtMs = 0L
     private var lastProjectionVisibilityLog = ""
     private var lastProjectionDomDiagnosticAt = 0L
+    private var lastPerfHeartbeatLogAtMs = 0L
+    private var lastMenuNavigationPerfLogAtMs = 0L
+    private var currentClusterScreenName = "unknown"
+    private var currentGraphName = "unknown"
+
+    private data class ProjectionSnapshot(
+            val carPlayInDash: Boolean,
+            val projectionMirrorInDash: Boolean,
+            val projectionPreparingD3: Boolean,
+            val usedFastPath: Boolean
+    ) {
+        val active: Boolean
+            get() = carPlayInDash || projectionMirrorInDash || projectionPreparingD3
+    }
     private val watchdogRunnable =
             object : Runnable {
                 override fun run() {
@@ -431,21 +442,45 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         )
     }
 
-    private fun applyProjectorViewVisibility(visible: Boolean, bypassActive: Boolean) {
+    private fun applyProjectorViewVisibility(
+            visible: Boolean,
+            bypassActive: Boolean,
+            projectionActive: Boolean = isCachedProjectionActive()
+    ) {
         if (!::root.isInitialized) return
 
-        val alpha = if (bypassActive) 0f else 1f
+        val nativeCardPassThrough =
+                ClusterCardFlowPolicy.shouldUseNativeCardPassThrough(
+                        currentCard,
+                        isWarningActive,
+                        projectionActive
+                )
+        val hidden = bypassActive || nativeCardPassThrough
+        val alpha = if (hidden) 0f else 1f
         root.alpha = alpha
-        root.isVisible = visible && !bypassActive
+        root.isVisible = visible && !hidden
         webView?.alpha = alpha
-        webView?.visibility = if (bypassActive) View.INVISIBLE else View.VISIBLE
+        webView?.visibility = if (hidden) View.INVISIBLE else View.VISIBLE
+        if (nativeCardPassThroughActive != nativeCardPassThrough) {
+            nativeCardPassThroughActive = nativeCardPassThrough
+            Log.w(
+                    TAG,
+                    "Native card pass-through active=$nativeCardPassThrough currentCard=$currentCard warningActive=$isWarningActive projectionActive=$projectionActive"
+            )
+        }
+    }
+
+    private fun isCachedProjectionActive(): Boolean {
+        return lastCarPlayInDash == true ||
+                lastProjectionMirrorInDash == true ||
+                lastProjectionPreparingD3 == true ||
+                isProjectionPreparingD3()
     }
 
     private fun resetProjectionStateCache() {
         lastCarPlayInDash = null
         lastProjectionMirrorInDash = null
         lastProjectionPreparingD3 = null
-        lastProjectionCardOverlayAllowed = null
     }
 
     private fun isProjectionActive(
@@ -456,112 +491,135 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         return carPlayInDash || projectionMirrorInDash || projectionPreparingD3
     }
 
-    private fun refreshProjectionActiveWindow(
-            carPlayInDash: Boolean,
-            projectionMirrorInDash: Boolean,
-            reason: String,
-            projectionPreparingD3: Boolean = isProjectionPreparingD3()
-    ): Boolean {
-        val active = isProjectionActive(carPlayInDash, projectionMirrorInDash, projectionPreparingD3)
-        val now = SystemClock.uptimeMillis()
-        if (active && projectionActiveSinceMs == 0L) {
-            projectionActiveSinceMs = now
-            projectionCardOverlayAllowed = false
-            lastProjectionCardOverlayAllowed = null
-            Log.w(
-                    TAG,
-                    "[PROJECTION_CARD_OVERLAY] Projection became active; suppressing bootstrap card overlay reason=$reason"
-            )
-        } else if (!active && projectionActiveSinceMs != 0L) {
-            projectionActiveSinceMs = 0L
-            setProjectionCardOverlayAllowed(false, "$reason:projection_inactive")
-        }
-        return active
+    private fun updateKnownScreenForCard(cardId: Int) {
+        currentClusterScreenName =
+                when (cardId) {
+                    ClusterCardIds.MAIN_MENU_CARD -> "main_menu"
+                    ClusterCardIds.AIRCON_CARD -> "aircon"
+                    ClusterCardIds.NATIVE_CARD -> "hidden"
+                    else -> currentClusterScreenName
+                }
     }
 
-    private fun setProjectionCardOverlayAllowed(
-            allowed: Boolean,
-            reason: String,
-            force: Boolean = false
-    ) {
-        projectionCardOverlayAllowed = allowed
-        if (force || lastProjectionCardOverlayAllowed != allowed) {
-            Log.w(
-                    TAG,
-                    "[PROJECTION_CARD_OVERLAY] allowed=$allowed reason=$reason cardId=$currentCard loaded=${
-                        webView?.let { webViewsLoaded.getOrDefault(it, false) } ?: false
-                    }"
-            )
-            evaluateJsIfReady(webView, "control('projectionCardOverlayAllowed', $allowed)")
-            lastProjectionCardOverlayAllowed = allowed
-            if (isProjectionActive()) {
-                scheduleProjectionDomDiagnostic("PROJECTION_CARD_OVERLAY")
-            }
-        }
-    }
-
-    private fun reconcileProjectionCardOverlayForCardChange(
-            previousCard: Int,
-            nextCard: Int,
-            carPlayInDash: Boolean,
-            projectionMirrorInDash: Boolean
-    ) {
-        val projectionActive =
-                refreshProjectionActiveWindow(
-                        carPlayInDash,
-                        projectionMirrorInDash,
-                        "CLUSTER_CARD_CHANGED"
-                )
-        if (!projectionActive) {
-            setProjectionCardOverlayAllowed(false, "CLUSTER_CARD_CHANGED:no_projection")
-            return
-        }
-
-        val now = SystemClock.uptimeMillis()
-        val sinceProjectionActive = now - projectionActiveSinceMs
-        val sinceInput = if (lastClusterInputAtMs == 0L) Long.MAX_VALUE else now - lastClusterInputAtMs
-        val recentInput = sinceInput <= PROJECTION_CARD_INPUT_ARM_WINDOW_MS
-        val shouldAllow =
-                ProjectionCardOverlayPolicy.shouldAllowAfterCardChange(
-                        projectionActive,
-                        projectionCardOverlayAllowed,
-                        recentInput
-                )
-
-        setProjectionCardOverlayAllowed(
-                shouldAllow,
-                "CLUSTER_CARD_CHANGED:$previousCard->$nextCard recentInput=$recentInput sinceInputMs=$sinceInput sinceProjectionMs=$sinceProjectionActive reason=${
-                    if (shouldAllow) "physical_input_or_overlay_session" else "no_recent_input"
-                }"
+    private fun logClusterPerfEvent(event: String, details: Map<String, Any?> = emptyMap()) {
+        ClusterPerfEventLogger.log(
+                event,
+                mapOf(
+                        "card" to currentCard,
+                        "screen" to currentClusterScreenName,
+                        "graph" to currentGraphName,
+                        "warningActive" to isWarningActive,
+                        "display1Active" to isAnyAppOnDisplay1,
+                        "display3Active" to isAnyAppOnDisplay3
+                ) + details
         )
     }
 
-    private fun armProjectionCardOverlayFromInput(keyName: String, keyCode: Int, action: Int) {
-        lastClusterInputAtMs = SystemClock.uptimeMillis()
-        val carPlayInDash = isCarPlayInDash()
-        val projectionMirrorInDash = isProjectionMirrorInDash()
-        val projectionActive =
-                refreshProjectionActiveWindow(
-                        carPlayInDash,
-                        projectionMirrorInDash,
-                        "CLUSTER_INPUT_KEY"
+    private fun logPerfHeartbeatIfNeeded() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastPerfHeartbeatLogAtMs < PERF_HEARTBEAT_INTERVAL_MS) return
+        lastPerfHeartbeatLogAtMs = now
+        logClusterPerfEvent(
+                "webview_heartbeat",
+                mapOf(
+                        "webViewLoaded" to (webView?.let { webViewsLoaded.getOrDefault(it, false) } ?: false),
+                        "rootVisible" to (::root.isInitialized && root.isVisible)
                 )
-        if (!projectionActive) {
-            return
+        )
+    }
+
+    private fun logMenuNavigationPerfEventIfNeeded(targetItem: String) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastMenuNavigationPerfLogAtMs < 2_000L) return
+        lastMenuNavigationPerfLogAtMs = now
+        logClusterPerfEvent("menu_item_navigation", mapOf("targetItem" to targetItem))
+    }
+
+    private fun readProjectionSnapshotForCardChange(): ProjectionSnapshot {
+        val projectionPreparingD3 = isProjectionPreparingD3()
+        val heldCarPlayD3 = shouldHoldCarPlayD3State(SystemClock.elapsedRealtime())
+        val cachedProjectionActive =
+                lastCarPlayInDash == true ||
+                        lastProjectionMirrorInDash == true ||
+                        lastProjectionPreparingD3 == true
+
+        if (!isAnyAppOnDisplay3 &&
+                        !projectionPreparingD3 &&
+                        !heldCarPlayD3 &&
+                        !cachedProjectionActive
+        ) {
+            return ProjectionSnapshot(
+                    carPlayInDash = false,
+                    projectionMirrorInDash = false,
+                    projectionPreparingD3 = false,
+                    usedFastPath = true
+            )
         }
 
-        if (ProjectionCardOverlayPolicy.shouldArmFromClusterInput(projectionActive)) {
-            setProjectionCardOverlayAllowed(
-                    true,
-                    "CLUSTER_INPUT_KEY:$keyName($keyCode) action=$action",
-                    force = true
-            )
-        } else {
-            Log.w(
-                    TAG,
-                    "[PROJECTION_CARD_OVERLAY] input ignored for overlay by policy cardId=$currentCard key=$keyName($keyCode) action=$action"
-            )
+        val carPlayInDash = isCarPlayInDash()
+        val projectionMirrorInDash = isProjectionMirrorInDash()
+        return ProjectionSnapshot(
+                carPlayInDash = carPlayInDash,
+                projectionMirrorInDash = projectionMirrorInDash,
+                projectionPreparingD3 = projectionPreparingD3,
+                usedFastPath = false
+        )
+    }
+
+    private fun isProjectionStateMayBeStale(snapshot: ProjectionSnapshot): Boolean {
+        return (lastCarPlayInDash == true && !snapshot.carPlayInDash) ||
+                (lastProjectionMirrorInDash == true && !snapshot.projectionMirrorInDash) ||
+                (lastProjectionPreparingD3 == true && !snapshot.projectionPreparingD3)
+    }
+
+    private fun shouldInspectConfigForDisplay(
+            config: br.com.redesurftank.havalshisuku.models.DisplayAppConfig,
+            displayId: Int
+    ): Boolean {
+        if (config.displayId != displayId) return false
+        if (br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                        .isProjectionMirrorPackage(config.packageName)
+        ) {
+            return false
         }
+        return config.packageName != outerContext.packageName || displayId != 1
+    }
+
+    private fun getManagedSecondaryDisplayConfigs(
+            displayIds: Set<Int>
+    ): List<br.com.redesurftank.havalshisuku.models.DisplayAppConfig> {
+        if (displayIds.isEmpty()) return emptyList()
+        return br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()
+                .filter { config ->
+                    displayIds.any { displayId ->
+                        isDisplayKnownActive(displayId) && shouldInspectConfigForDisplay(config, displayId)
+                    }
+                }
+    }
+
+    private fun hasManagedSecondaryDisplayWork(displayId: Int): Boolean {
+        if (!isDisplayKnownActive(displayId)) return false
+        return getManagedSecondaryDisplayConfigs(setOf(displayId)).isNotEmpty()
+    }
+
+    private fun hasManagedSecondaryDisplayWork(): Boolean {
+        if (!isAnyAppOnDisplay1 && !isAnyAppOnDisplay3) return false
+        return getManagedSecondaryDisplayConfigs(setOf(1, 3)).isNotEmpty()
+    }
+
+    private fun isDisplayKnownActive(displayId: Int): Boolean {
+        return when (displayId) {
+            1 -> isAnyAppOnDisplay1
+            3 -> isAnyAppOnDisplay3
+            else -> false
+        }
+    }
+
+    private fun logClusterInputKey(keyName: String, keyCode: Int, action: Int) {
+        Log.d(
+                TAG,
+                "[CLUSTER_INPUT_KEY] key=$keyName($keyCode) action=$action"
+        )
     }
 
     private fun pushProjectionStateToWebView(
@@ -570,23 +628,15 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
             projectionPreparingD3: Boolean = isProjectionPreparingD3(),
             force: Boolean = false
     ) {
-        refreshProjectionActiveWindow(
-                carPlayInDash,
-                projectionMirrorInDash,
-                "PROJECTION_STATE_PUSH",
-                projectionPreparingD3
-        )
         val sendCarPlay = force || lastCarPlayInDash != carPlayInDash
         val sendProjectionMirror = force || lastProjectionMirrorInDash != projectionMirrorInDash
         val sendProjectionPreparing = force || lastProjectionPreparingD3 != projectionPreparingD3
-        val sendProjectionCardOverlay =
-                force || lastProjectionCardOverlayAllowed != projectionCardOverlayAllowed
-        if (sendCarPlay || sendProjectionMirror || sendProjectionPreparing || sendProjectionCardOverlay) {
+        if (sendCarPlay || sendProjectionMirror || sendProjectionPreparing) {
             Log.w(
                     TAG,
-                    "[PROJECTION_STATE_PUSH] force=$force carPlayInDash=$carPlayInDash projectionMirrorInDash=$projectionMirrorInDash projectionPreparingD3=$projectionPreparingD3 projectionCardOverlayAllowed=$projectionCardOverlayAllowed loaded=${
+                    "[PROJECTION_STATE_PUSH] force=$force carPlayInDash=$carPlayInDash projectionMirrorInDash=$projectionMirrorInDash projectionPreparingD3=$projectionPreparingD3 loaded=${
                         webView?.let { webViewsLoaded.getOrDefault(it, false) } ?: false
-                    } lastCarPlayInDash=$lastCarPlayInDash lastProjectionMirrorInDash=$lastProjectionMirrorInDash lastProjectionPreparingD3=$lastProjectionPreparingD3 lastProjectionCardOverlayAllowed=$lastProjectionCardOverlayAllowed"
+                    } lastCarPlayInDash=$lastCarPlayInDash lastProjectionMirrorInDash=$lastProjectionMirrorInDash lastProjectionPreparingD3=$lastProjectionPreparingD3"
             )
         }
         if (sendCarPlay) {
@@ -600,13 +650,6 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         if (sendProjectionPreparing) {
             evaluateJsIfReady(webView, "control('projectionPreparingD3', $projectionPreparingD3)")
             lastProjectionPreparingD3 = projectionPreparingD3
-        }
-        if (sendProjectionCardOverlay) {
-            evaluateJsIfReady(
-                    webView,
-                    "control('projectionCardOverlayAllowed', $projectionCardOverlayAllowed)"
-            )
-            lastProjectionCardOverlayAllowed = projectionCardOverlayAllowed
         }
         if (carPlayInDash || projectionMirrorInDash || projectionPreparingD3 || force) {
             scheduleProjectionDomDiagnostic("PROJECTION_STATE_PUSH")
@@ -635,56 +678,108 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         }
     }
 
+    private fun handleClusterCardChanged(nextCard: Int) {
+        val startedAt = SystemClock.uptimeMillis()
+        val previousCard = currentCard
+        currentCard = nextCard
+        updateKnownScreenForCard(nextCard)
+
+        val snapshot = readProjectionSnapshotForCardChange()
+        val projectionStateMayBeStale = isProjectionStateMayBeStale(snapshot)
+        val hasManagedSecondaryDisplayWork = hasManagedSecondaryDisplayWork()
+        val cardCanAffectManagedAppBounds =
+                ClusterCardFlowPolicy.cardCanAffectManagedAppBounds(previousCard, nextCard)
+        val decision =
+                ClusterCardFlowPolicy.decideCardChange(
+                        nextCard = nextCard,
+                        projectionActive = snapshot.active,
+                        projectionStateMayBeStale = projectionStateMayBeStale,
+                        hasManagedSecondaryDisplayWork = hasManagedSecondaryDisplayWork,
+                        cardCanAffectManagedAppBounds = cardCanAffectManagedAppBounds
+                )
+
+        if (decision.clearAppliedAppConfigCache) {
+            lastAppliedConfigs.clear()
+        }
+
+        if (decision.pushProjectionStateBeforeCard) {
+            // During projection, projection classes must reach JS before
+            // cardId to avoid a one-frame opaque AC/main menu repaint.
+            pushProjectionStateToWebView(
+                    snapshot.carPlayInDash,
+                    snapshot.projectionMirrorInDash,
+                    snapshot.projectionPreparingD3,
+                    force = decision.forceProjectionStateBeforeCard
+            )
+        }
+
+        applyProjectorViewVisibility(
+                shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn,
+                projectionOverlayBypassActive == true,
+                snapshot.active
+        )
+
+        evaluateJsIfReady(webView, "control('cardId', $currentCard)")
+
+        if (decision.updateVirtualClusterVisibility) {
+            updateVirtualClusterVisibility(
+                    snapshot.carPlayInDash,
+                    snapshot.projectionMirrorInDash,
+                    "CLUSTER_CARD_CHANGED",
+                    snapshot.projectionPreparingD3
+            )
+        }
+
+        if (decision.syncSecondaryDisplayApps) {
+            syncSecondaryDisplayApps(3)
+        }
+
+        MainUiManager.getInstance().handleCardChange(currentCard)
+        if (ClusterCardFlowPolicy.isCardBackedMenu(currentCard)) {
+            isWarningDismissed = false
+        }
+        if (decision.syncVisibleCardValues) {
+            updateCardEntryValuesWebView(currentCard)
+        }
+
+        val elapsedMs = SystemClock.uptimeMillis() - startedAt
+        if (elapsedMs > 80L || !snapshot.usedFastPath || decision.updateVirtualClusterVisibility) {
+            Log.w(
+                    TAG,
+                    "[CARD_FLOW] card=$previousCard->$currentCard elapsedMs=$elapsedMs fastPath=${snapshot.usedFastPath} " +
+                            "projectionActive=${snapshot.active} projectionStale=$projectionStateMayBeStale " +
+                            "managedSecondary=$hasManagedSecondaryDisplayWork boundsMayChange=$cardCanAffectManagedAppBounds decision=$decision"
+            )
+        }
+        logClusterPerfEvent(
+                "card_change",
+                mapOf(
+                        "from" to previousCard,
+                        "to" to currentCard,
+                        "elapsedMs" to elapsedMs,
+                        "fastPath" to snapshot.usedFastPath,
+                        "projectionActive" to snapshot.active,
+                        "projectionStale" to projectionStateMayBeStale,
+                        "managedSecondary" to hasManagedSecondaryDisplayWork,
+                        "boundsMayChange" to cardCanAffectManagedAppBounds,
+                        "visibilityWork" to decision.updateVirtualClusterVisibility,
+                        "syncApps" to decision.syncSecondaryDisplayApps
+                )
+        )
+    }
+
     private val eventListener =
             br.com.redesurftank.havalshisuku.listeners.IServiceManagerEvent { event, args ->
                 ensureUi {
                     when (event) {
                         ServiceManagerEventType.CLUSTER_CARD_CHANGED -> {
-                            val previousCard = currentCard
-                            currentCard = args[0] as Int
-                            lastAppliedConfigs
-                                    .clear() // Invalidate cache on card change to force re-sync
-                            // Re-assert projection state BEFORE the cardId change reaches JS,
-                            // and force-push it (bypassing the dedup cache). Without this, a
-                            // race exists where JS would re-render with `screen-aircon` /
-                            // `screen-main-menu` while `carPlayInDash`/`projectionMirrorInDash`
-                            // were stale-false in JS state, briefly removing the
-                            // `theme-mirror-cluster` class and letting opaque component
-                            // backgrounds repaint over the CarPlay frame.
-                            val carPlayInDash = isCarPlayInDash()
-                            val projectionMirrorInDash = isProjectionMirrorInDash()
-                            val projectionPreparingD3 = isProjectionPreparingD3()
-                            reconcileProjectionCardOverlayForCardChange(
-                                    previousCard,
-                                    currentCard,
-                                    carPlayInDash,
-                                    projectionMirrorInDash
-                            )
-                            pushProjectionStateToWebView(
-                                    carPlayInDash,
-                                    projectionMirrorInDash,
-                                    projectionPreparingD3,
-                                    force = true
-                            )
-                            evaluateJsIfReady(webView, "control('cardId', $currentCard)")
-                            updateVirtualClusterVisibility(
-                                    carPlayInDash,
-                                    projectionMirrorInDash,
-                                    "CLUSTER_CARD_CHANGED",
-                                    projectionPreparingD3
-                            )
-                            syncSecondaryDisplayApps(3)
-                            MainUiManager.getInstance().handleCardChange(currentCard)
-                            if (currentCard == 1 || currentCard == 3) {
-                                isWarningDismissed = false
-                                updateValuesWebView()
-                            }
+                            handleClusterCardChanged(args[0] as Int)
                         }
                         ServiceManagerEventType.CLUSTER_INPUT_KEY -> {
                             val keyName = args.getOrNull(0) as? String ?: "UNKNOWN"
                             val keyCode = args.getOrNull(1) as? Int ?: -1
                             val action = args.getOrNull(2) as? Int ?: -1
-                            armProjectionCardOverlayFromInput(keyName, keyCode, action)
+                            logClusterInputKey(keyName, keyCode, action)
                         }
                         ServiceManagerEventType.STEERING_WHEEL_AC_CONTROL -> {
                             val action = args[0]
@@ -708,12 +803,16 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         ServiceManagerEventType.GRAPH_SCREEN_NAVIGATION -> {
                             val screen = args[0]
                             if (screen is String) {
+                                currentGraphName = screen
+                                logClusterPerfEvent("graph_navigation", mapOf("targetGraph" to screen))
                                 evaluateJsIfReady(webView, "control('currentGraph','$screen')")
                             }
                         }
                         ServiceManagerEventType.UPDATE_SCREEN -> {
                             val arg0 = args[0]
                             if (arg0 is Screen) {
+                                currentClusterScreenName = arg0.jsName
+                                logClusterPerfEvent("screen_update", mapOf("targetScreen" to arg0.jsName))
                                 evaluateJsIfReady(webView, "showScreen('${arg0.jsName}')")
                                 if (arg0.jsName == "aircon") {
                                     br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
@@ -727,8 +826,11 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         }
                         ServiceManagerEventType.MENU_ITEM_NAVIGATION -> {
                             val menuNav = args[0] as String
-                            evaluateJsIfReady(webView, "control('menuNav', '$menuNav')")
-                            evaluateJsIfReady(webView, "focus('$menuNav')")
+                            logMenuNavigationPerfEventIfNeeded(menuNav)
+                            evaluateJsIfReady(
+                                    webView,
+                                    "(function(){control('menuNav', '$menuNav');focus('$menuNav');})()"
+                            )
                         }
                         ServiceManagerEventType.MAX_AUTO_AC_STATUS_CHANGED -> {
                             val status = args[0]
@@ -742,6 +844,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         }
                         ServiceManagerEventType.DISPLAY_SCREEN_SELECTION -> {
                             val arg0 = args[0] as String
+                            logClusterPerfEvent("display_screen_selection", mapOf("scriptOrUrl" to arg0.take(80)))
                             if (args.size > 1 && args[1] == 3) {
                                 webView?.loadUrl(arg0)
                             } else {
@@ -753,6 +856,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                             Log.w(
                                     TAG,
                                     "Display 3 app state changed in cluster projector: $isAnyAppOnDisplay3"
+                            )
+                            logClusterPerfEvent(
+                                    "display3_app_state",
+                                    mapOf("active" to isAnyAppOnDisplay3)
                             )
                             if (!isAnyAppOnDisplay3) {
                                 lastAppliedConfigs.clear()
@@ -766,11 +873,19 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                     TAG,
                                     "Display 1 app state changed in cluster projector: $isAnyAppOnDisplay1"
                             )
+                            logClusterPerfEvent(
+                                    "display1_app_state",
+                                    mapOf("active" to isAnyAppOnDisplay1)
+                            )
                             updateVirtualClusterVisibility(reason = "DISPLAY_1_APP_STATE_CHANGED")
                         }
                         ServiceManagerEventType.DISMISS_WARNING -> {
                             val timeSinceWarning = System.currentTimeMillis() - lastWarningActiveTime
                             Log.d(TAG, "Received DISMISS_WARNING event. timeSinceWarning=${timeSinceWarning}ms (onset=${lastWarningActiveTime})")
+                            logClusterPerfEvent(
+                                    "dismiss_warning",
+                                    mapOf("timeSinceWarningMs" to timeSinceWarning)
+                            )
                             if (timeSinceWarning >= 2500) {
                                 evaluateJsIfReady(webView, "clearWarnings()")
                                 updateWarningUI(false)
@@ -788,6 +903,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                             }
                         }
                         ServiceManagerEventType.APP_GEOMETRY_CHANGED -> {
+                            logClusterPerfEvent("app_geometry_changed")
                             updateVirtualClusterVisibility(reason = "APP_GEOMETRY_CHANGED")
                             syncSecondaryDisplayApps(3)
                         }
@@ -827,6 +943,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
     override fun onStop() {
         Log.w(TAG, "onStop: Cleaning up resources")
+        logClusterPerfEvent("projector_on_stop")
         handler.removeCallbacks(clockRunnable)
         handler.removeCallbacks(watchdogRunnable)
         scope.cancel()
@@ -1069,6 +1186,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                                     TAG,
                                                     "WebView finished loading (PID: ${android.os.Process.myPid()}): $url"
                                             )
+                                            logClusterPerfEvent(
+                                                    "webview_page_finished",
+                                                    mapOf("url" to (url ?: "null"))
+                                            )
 
                                             // Mark the WebView as fully loaded first so that any new incoming
                                             // telemetry events are processed instantly instead of being queued.
@@ -1122,25 +1243,17 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         val carPlayInDash = isCarPlayInDash()
         val projectionMirrorInDash = isProjectionMirrorInDash()
         val projectionPreparingD3 = isProjectionPreparingD3()
-        refreshProjectionActiveWindow(
-                carPlayInDash,
-                projectionMirrorInDash,
-                "WEBVIEW_STATE_SYNC",
-                projectionPreparingD3
-        )
-
         // Projection state must be established before card/screen state reaches
         // JS. Otherwise a stale card such as Display can render an opaque menu
         // over the native CarPlay Surface before mirror classes are active.
         updates["carPlayInDash"] = carPlayInDash.toString()
         updates["projectionMirrorInDash"] = projectionMirrorInDash.toString()
         updates["projectionPreparingD3"] = projectionPreparingD3.toString()
-        updates["projectionCardOverlayAllowed"] = projectionCardOverlayAllowed.toString()
         updates["cardId"] = currentCard.toString()
         updates["display"] = getSavedClusterDisplay()
         Log.w(
                 TAG,
-                "[WEBVIEW_STATE_SYNC] carPlayInDash=$carPlayInDash projectionMirrorInDash=$projectionMirrorInDash projectionPreparingD3=$projectionPreparingD3 projectionCardOverlayAllowed=$projectionCardOverlayAllowed cardId=$currentCard display=${updates["display"]} loaded=${
+                "[WEBVIEW_STATE_SYNC] carPlayInDash=$carPlayInDash projectionMirrorInDash=$projectionMirrorInDash projectionPreparingD3=$projectionPreparingD3 cardId=$currentCard display=${updates["display"]} loaded=${
                     webViewsLoaded.getOrDefault(webView, false)
                 }"
         )
@@ -1258,6 +1371,50 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         batchEvaluateJs(webView, updates)
     }
 
+    private fun updateCardEntryValuesWebView(cardId: Int) {
+        val sm = ServiceManager.getInstance()
+        val updates = mutableMapOf<String, String>()
+
+        when (cardId) {
+            ClusterCardIds.AIRCON_CARD -> {
+                updates["fan"] = sm.getData(CarConstants.CAR_HVAC_FAN_SPEED.value) ?: "0"
+                updates["temp"] =
+                        sm.getData(CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.value) ?: "22"
+                updates["power"] = sm.getData(CarConstants.CAR_HVAC_POWER_MODE.value) ?: "0"
+                updates["recycle"] = sm.getData(CarConstants.CAR_HVAC_CYCLE_MODE.value) ?: "0"
+                updates["auto"] = sm.getData(CarConstants.CAR_HVAC_AUTO_ENABLE.value) ?: "0"
+                updates["aion"] = sm.getData(CarConstants.CAR_HVAC_ANION_ENABLE.value) ?: "0"
+                val tempUnit = sm.getData(CarConstants.CAR_CONFIGURE_DEFAULT_TEMP_UNIT.value)
+                updates["tempUnit"] = if (tempUnit == "1") "°F" else "°C"
+                updates["outside_temp"] =
+                        formatTemp(sm.getData(CarConstants.CAR_BASIC_OUTSIDE_TEMP.value))
+                updates["inside_temp"] =
+                        formatTemp(sm.getData(CarConstants.CAR_BASIC_INSIDE_TEMP.value))
+            }
+            ClusterCardIds.MAIN_MENU_CARD -> {
+                val evMode = sm.getData(CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value)
+                updates["evMode"] = MainMenu.EvModeOptions.getLabel(evMode)
+
+                val drivingMode = sm.getData(CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.value)
+                val drivingModeLabel = MainMenu.DrivingModeOptions.getLabel(drivingMode)
+                updates["drivingMode"] = drivingModeLabel
+                updates["evModeLabel"] = drivingModeLabel
+
+                val steerMode =
+                        sm.getData(CarConstants.CAR_DRIVE_SETTING_STEERING_WHEEL_ASSIST_MODE.value)
+                updates["steerMode"] = MainMenu.SteerModeOptions.getLabel(steerMode)
+
+                val espStatus = sm.getData(CarConstants.CAR_DRIVE_SETTING_ESP_ENABLE.value)
+                updates["espStatus"] = MainMenu.EspOptions.getLabel(espStatus)
+
+                val regenLevel = sm.getData(CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL.value)
+                updates["regenMode"] = RegenScreen.RegenOptions.getLabel(regenLevel)
+            }
+        }
+
+        batchEvaluateJs(webView, updates)
+    }
+
     /**
      * Fire current warning values into the WebView once, on freshly-loaded
      * JS state only (init / page-finished). Intentionally NOT called from
@@ -1333,14 +1490,30 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         )
 
         applyProjectionOverlayBypass(overlayBypassActive)
-        applyProjectorViewVisibility(projectorVisible, overlayBypassActive)
+        applyProjectorViewVisibility(
+                projectorVisible,
+                overlayBypassActive,
+                carPlayInDash || projectionMirrorInDash || projectionPreparingD3
+        )
 
         if (projectionMirrorInDash || projectionPreparingD3) {
             isLeftCovered = true
             isRightCovered = true
         }
 
-        val configs = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()
+        val displayIdsToInspect =
+                buildSet {
+                    if (isAnyAppOnDisplay1) add(1)
+                    if (isAnyAppOnDisplay3 || projectionMirrorInDash || projectionPreparingD3) add(3)
+                }
+        val configs = getManagedSecondaryDisplayConfigs(displayIdsToInspect)
+        val tasksByPackage =
+                if (configs.isEmpty()) {
+                    emptyMap()
+                } else {
+                    br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                            .findFirstTasksForPackages(configs.map { it.packageName })
+                }
 
         for (displayId in listOf(1, 3)) {
             val res =
@@ -1351,14 +1524,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
             val appsOnDisplay =
                     configs.filter { config ->
-                        if (br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
-                                        .isProjectionMirrorPackage(config.packageName)
-                        ) {
-                            return@filter false
-                        }
-                        val task =
-                                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
-                                        .findTaskForPackage(config.packageName)
+                        val task = tasksByPackage[config.packageName]
                         task != null && task.displayId == displayId
                     }
 
@@ -1374,7 +1540,11 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 }
 
                 val actualWidth =
-                        if (displayId == 3 && (!isWarningDismissed && (currentCard == 0 || isWarningActive))) {
+                        if (displayId == 3 &&
+                                        (!isWarningDismissed &&
+                                                (currentCard == ClusterCardIds.NATIVE_CARD ||
+                                                        isWarningActive))
+                        ) {
                             (fullWidth * 0.7f).toInt() - baseX
                         } else {
                             baseWidth
@@ -1394,8 +1564,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     else -> "false"
                 }
 
-        evaluateJsIfReady(webView, "control('clusterEnabled', $clusterEnabled)")
-        evaluateJsIfReady(webView, "control('appInDash', $appInDashValue)")
+        evaluateJsIfReady(
+                webView,
+                "(function(){control('clusterEnabled', $clusterEnabled);control('appInDash', $appInDashValue);})()"
+        )
         pushProjectionStateToWebView(carPlayInDash, projectionMirrorInDash, projectionPreparingD3)
     }
 
@@ -1410,7 +1582,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     ) {
         val snapshot =
                 "carPlayInDash=$carPlayInDash projectionMirrorInDash=$projectionMirrorInDash projectionPreparingD3=$projectionPreparingD3 " +
-                        "projectionCardOverlayAllowed=$projectionCardOverlayAllowed cardId=$currentCard clusterEnabled=$clusterEnabled projectorVisible=$projectorVisible " +
+                        "cardId=$currentCard clusterEnabled=$clusterEnabled projectorVisible=$projectorVisible " +
                         "overlayBypass=$overlayBypassActive anyD3=$isAnyAppOnDisplay3 anyD1=$isAnyAppOnDisplay1"
         if (snapshot != lastProjectionVisibilityLog ||
                         reason == "ON_CREATE" ||
@@ -1462,6 +1634,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     }
 
     private fun syncSecondaryDisplayApps(displayId: Int) {
+        if (!hasManagedSecondaryDisplayWork(displayId)) return
+
         val res =
                 br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getDisplayResolution(
                         displayId
@@ -1469,22 +1643,12 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         val fullWidth = res.first
         if (fullWidth <= 0) return
 
+        val configs = getManagedSecondaryDisplayConfigs(setOf(displayId))
+        val tasksByPackage =
+                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                        .findFirstTasksForPackages(configs.map { it.packageName })
         val appsOnDisplay =
-                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()
-                        .filter { config ->
-                            if (br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
-                                            .isProjectionMirrorPackage(config.packageName)
-                            ) {
-                                return@filter false
-                            }
-                            val task =
-                                    br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
-                                            .findTaskForPackage(config.packageName)
-                            task != null &&
-                                    task.displayId == displayId &&
-                                    (config.packageName != outerContext.packageName ||
-                                            displayId != 1)
-                        }
+                configs.filter { config -> tasksByPackage[config.packageName]?.displayId == displayId }
 
         for (app in appsOnDisplay) {
             val bounds =
@@ -1497,7 +1661,11 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
             val baseHeight = bounds[3] - bounds[1]
 
             val targetWidth =
-                    if (displayId == 3 && (!isWarningDismissed && (currentCard == 0 || isWarningActive))) {
+                    if (displayId == 3 &&
+                                    (!isWarningDismissed &&
+                                            (currentCard == ClusterCardIds.NATIVE_CARD ||
+                                                    isWarningActive))
+                    ) {
                         val calculated = (fullWidth * 0.7f).toInt() - baseX
                         kotlin.math.max(100, kotlin.math.min(baseWidth, calculated))
                     } else {
@@ -1634,7 +1802,12 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     }
 
     override fun carMainScreenOn() {
-        ensureUi { root.visibility = View.VISIBLE }
+        ensureUi {
+            applyProjectorViewVisibility(
+                    shouldShowProjector() && ServiceManager.getInstance().isMainScreenOn,
+                    projectionOverlayBypassActive == true
+            )
+        }
     }
 
     fun getGearLabel(gear: String?): String {
@@ -1789,6 +1962,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         } else {
             Log.w(TAG, "Warnings cleared.")
         }
+        logClusterPerfEvent(
+                "warning_state_changed",
+                mapOf("active" to anyWarningActive)
+        )
 
         updateVirtualClusterVisibility(reason = "WARNING_STATE_CHANGED")
         syncSecondaryDisplayApps(3)
@@ -1801,6 +1978,15 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         @JavascriptInterface
         fun heartbeat() {
             lastHeartbeatTime = System.currentTimeMillis()
+            logPerfHeartbeatIfNeeded()
+        }
+
+        @JavascriptInterface
+        fun perfEvent(name: String, details: String?) {
+            logClusterPerfEvent(
+                    "js_$name",
+                    mapOf("details" to (details ?: ""))
+            )
         }
 
         @JavascriptInterface
@@ -1810,9 +1996,29 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
         @JavascriptInterface
         fun setCardId(cardId: Int) {
+            if (currentCard == cardId) {
+                Log.d(TAG, "Card ID bridge echo ignored: $cardId")
+                logClusterPerfEvent("js_card_echo", mapOf("cardId" to cardId))
+                return
+            }
+            val previousCard = currentCard
             currentCard = cardId
+            updateKnownScreenForCard(cardId)
             Log.d(TAG, "Card ID updated to $cardId")
-            syncSecondaryDisplayApps(3)
+            logClusterPerfEvent(
+                    "js_card_update",
+                    mapOf("from" to previousCard, "to" to cardId)
+            )
+            if (
+                    hasManagedSecondaryDisplayWork(3) &&
+                            ClusterCardFlowPolicy.cardCanAffectManagedAppBounds(
+                                    previousCard,
+                                    cardId
+                            )
+            ) {
+                lastAppliedConfigs.clear()
+                syncSecondaryDisplayApps(3)
+            }
         }
 
         @JavascriptInterface

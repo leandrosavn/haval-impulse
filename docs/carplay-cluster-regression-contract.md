@@ -180,6 +180,19 @@ permanente, sem buffer cinza/sujo e sem exigir tirar/recolocar o cabo.
     react-carplay: o stream e H.264 e a estabilidade depende do decoder cliente; no react-carplay
     moderno o renderer prefere software decode, portanto no app nativo da central a mitigacao
     conservadora e reduzir renegociacoes de `cpScreen`/`NdkMediaCodec` no primeiro frame.
+32. O atalho CarPlay D0/D3 pode executar um pre-start nativo antes da Activity visual quando existe
+    evidencia de link conectado, mas ainda nao houve abertura manual pelo icone da area de
+    trabalho. O unico pre-start permitido e bindar `com.ts.carplay/.CarPlayService`, ler
+    `ICarPlayService.getLinkStatus()` e chamar `requestUi(0)` somente quando o retorno for `2`.
+    Esse pre-start replica o preparo feito pelo fluxo nativo ao abrir a Activity visual e nao
+    substitui o handoff. Ele nao pode enviar `force-stop`, `VIDEO_FOCUS_CHANGE`,
+    `view_state foreground`, `REFRESH_RENDER`, resize parcial, broadcasts de Surface/video ou
+    reinicio de `com.ts.carplay`/`com.ts.carplay.app`.
+33. A recuperacao do icone CarPlay na barra nativa D0 nao deve exigir Activity visual aberta.
+    Processo host `com.ts.carplay`, servico `com.ts.carplay/.CarPlayService` vivo e
+    `getLinkStatus()==2` sao evidencias validas de relevancia. O watchdog continua limitado ao
+    SystemUI e so pode reiniciar `com.android.systemui` sob as guardas ja existentes de veiculo
+    parado, cooldown e relevancia; nao pode alterar Surface, foco, display ou Android Auto.
 
 ## Contrato Unificado de Estado D3
 

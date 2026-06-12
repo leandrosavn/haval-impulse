@@ -35,6 +35,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.edit
 import br.com.redesurftank.App
+import br.com.redesurftank.havalshisuku.BuildConfig
 import br.com.redesurftank.havalshisuku.R
 import br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
 import br.com.redesurftank.havalshisuku.managers.ServiceManager
@@ -69,7 +70,9 @@ fun getRevisionHistory(prefs: SharedPreferences): List<RevisionEntry> {
         val type = object : TypeToken<List<RevisionEntry>>() {}.type
         Gson().fromJson(json, type) ?: emptyList()
     } catch (e: Exception) {
-        Log.e("RevisionHistory", "Error parsing history: ${e.message}")
+        if (BuildConfig.DEBUG) {
+            Log.e("RevisionHistory", "Error parsing history: ${e.message}")
+        }
         emptyList()
     }
 }
@@ -398,7 +401,9 @@ fun TelasTab() {
                         ThemeManager.getInstance(context)
                                 .fetchThemesFromGithub(ThemeManager.THEME_REPO_URL)
             } catch (e: Exception) {
-                Log.e("TelasTab", "Error fetching themes", e)
+                if (BuildConfig.DEBUG) {
+                    Log.e("TelasTab", "Error fetching themes", e)
+                }
             } finally {
                 isFetchingThemes = false
             }
@@ -482,11 +487,13 @@ fun TelasTab() {
                                         ServiceManager.getInstance().startClusterHeartbeat()
                                     }
                                 } catch (e: Exception) {
-                                    Log.e(
-                                            "TelasTab",
-                                            "Erro ao alterar funções do cluster: ${e.message}",
-                                            e
-                                    )
+                                    if (BuildConfig.DEBUG) {
+                                        Log.e(
+                                                "TelasTab",
+                                                "Erro ao alterar funções do cluster: ${e.message}",
+                                                e
+                                        )
+                                    }
                                 }
                             },
                             colors =
