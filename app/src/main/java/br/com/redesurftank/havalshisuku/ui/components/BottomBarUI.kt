@@ -1,8 +1,11 @@
 package br.com.redesurftank.havalshisuku.ui.components
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.Log
 import androidx.compose.animation.*
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -10,6 +13,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -30,6 +34,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.*
@@ -42,18 +47,96 @@ import androidx.compose.ui.unit.*
 import br.com.redesurftank.havalshisuku.R
 import br.com.redesurftank.havalshisuku.managers.*
 import br.com.redesurftank.havalshisuku.models.*
+import br.com.redesurftank.havalshisuku.services.AlbumBackgroundService
+import br.com.redesurftank.havalshisuku.services.BottomBarService
 import br.com.redesurftank.havalshisuku.ui.theme.Michroma
 import br.com.redesurftank.havalshisuku.utils.*
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.*
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 private const val recycleIn = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8CAYAAAA6/NlyAAAJDElEQVR4AcTau5JcVxUG4NOjsUYSJVOYi7kURGROCKGIKV4AZbwAMVSR+gEg5gXIzAtQxBSEJM6IoLiYiymsQjePaM63p//26j379HTPjIRq/l5rr/u/9z6nNbJPptv5s5rLrKb1+kJO06J89Gh957YwTct9pmnj+2SmyZ+bEe6KTSs8ld3FTPAk2PXcbJWakcNqZlqvp3YY6/XquoRzmsMejBmCtF7CO+9Md47FUi29gp0YpDc4nvC8S62YAk3Z/Rg23ISMiG1cR4m+zih5aY7jCCOL6Hq+IrrQyRlLDepwc9gr+dnXo5/rGMKr7TNaiGKgKFmRIaptqH9+utvs5Aic7OQBWOprRjiE8GruA7PY/VEAdq3TpGlv264zPAkckX+fXlg2RI+PDFrA/GE9i9GPGaD37SOMJPQ506NH6/bWrQ7Fg2pvegbrZXOWj/iZqm5dwQdsvWQr6GeqhJGrKGkX6j6iFxHdp2GAOZK+gOf3p/tckfSDkNokDJJCHOGQHIRN06PNaZIJSDIZW5NpRkIzXv4IoV6ePZ2eskXSK1SyJvdCbxgEIXzJjFxQnQhCtV3SFxqJMyyEUGyRfNFJcSTQ47euuvUQg1l2CI9IKoQk0IdQGAbODEYaWgidvAo1rtfVYgsWa5kLNgGN8LWIKhJsilVhkKyjR8Z+E1lrVfKLNc06Oy+9bWdb+1pZPFGJkK8NCQV1kKqXkEV1fTY95Owl2z7UPtEjd/LmudsJx4gkZH1JzglbW9U3xjSJtPMb11Yg88HjJ+/+6V8f/fIPHz7+oOKPf3n8e2uS/89//egXJMgJ/vnsxXfU2RYtip76k8W8VRthJGFrrQpiQbVvdMWpkbVRbPwGNDAyzz9++YOX69U32JfAXyEn+M+T5z9Xx0YgX2ukJwnVRz/ZS1TEHiiIIJmwqrMhaigDGpjttmBDkB8RT49unqmdcJxNOs2mzB9Vn5d+UoDsyfJXIPu3fzz5oaGq/c5q/btPPTj7/le/9PDr+yCm4uyNOz8D+bXePuKZ0bxyLhNmHRBlhhSgpwi9B7KewXqqBkXgy19883tvffrub/ucfi2m4gufe/BTkG+jkK85lbj+fJnR3NYXhEMwkqcgSSQkuYRsVY0AWQPEgaxBEYjtphL5JeIeIe+M9DA3/YIwbQ9ZBCWQQulkD0TZerJOAlm+V4G3Hz54d0Tc7fJ8Zy5zn0x7iPbDSehtdf3hv198087Wk3WFnUSNu209hBDXz21KD7M4gKw/OeGNpZKKHrkJ2QqNwFvY9elfTppfdYVt0rHYDtApZvnsvbu/cpvcqriRNqP1JcKuLYKkgEAxSYi5JuA0AVHXJ7F2eB9ZBO16cuUfA3np1Utzsjltc9ArtoSRDATQK0FNDIWYHQNxPTSxw0529Xx63PvzNbWU38cfu05PxE9PT3/T528J1xPNKVaCfWLWCIIr5FSRjU/T6KSTtWF0SI68Y+AFJX+E2vP8/PxbfUwj7DSB01U11OgEKjEDaowguEJOVY3sMr3i2dNnP8parpeZnGORGlfJykEP8Y0wBVzhGsSWUzDgVz7z5ndDzMshxMjsbNXlV6S2mtX+OnRz6XOSk7WoJ2AoJEOQHxCTTFpXxE6yR9JdZxJO3zj9Nfn/wPaE+9N13QyMGAnRD5HIiCMhV4p+/vH5t8lj4YVXN+6Y/MyyJVyHOJv/kt4THBUfxSjMPor3DmD3jiCPxel8M7xIfaUdQjz99El8I2zIOoTCgjI4KaaXvY0f2Gs+He7dv/cTEnzN5cQMcwjkIeFdcBVxc9SvpTyujbBmioGCXkh0gwcK0KtMTGz8YB0fGbjWZ/PtydomG/wYIJt8utzRiZvDY1lj6Y1wvc7ZFQkZnMy6l4oE4qKT/ZrNEL7SbKz168V0+R8ATufnpCdV18cMmLw+x0n77kb8WNSNostXS82+T39z+S9OePA3Ek7I0JFsh8IJy1uKN+QxUMc1voqoOL3z3Frn5jbCDIEBBGdNN/RNpFryyZvAo7fvRGvt/mvWzeVvhO2aRcV1SaaGfHov2a4Lz78DOSTf5iTOjciLuBGOg/RVYXfohq0nk/U+GZ/8mmv9uuDZ9Q2QfvXrsBE+G3xV5HsSATA8RK9SA790yIH8Y3ok23XhADL4PmkGX0/6+KpKbD1dtkbYVbHoYZc0DNHqj00jDUaPRY2/rm4GRPblL82ArDd4cv0K3Agb3i8KXghOW2CCNHTFxeRU+egksuSrhM208Us96ts4MXgga+7YyBOsKRwebL8d+TWwkkbKPwrYSUTBAK6PXBBv07721sO3D4X4QE500trQaoON19MM1kA3gw2xhuTigRMbhGf79dACOAK7g0TWGiKuAVjHR3ox1AZsI9gsdlJ8kDUfm7VHbd8M5hEfuKFys47ELb8Gb084Bk6BEnvS7D0MZFfdjt43WqvLHklHLmsya7oZ6kmLHwHZfTOEV3uGFWCAEGfT0PVWTFPk2Elg52e7CfSp+dZIx+Z66lVn4DMD22jDcRETSYctYQtkBYB1pJ3TFDnPFgns4gxI3iZSM1IvV1xfM0DTTx/8ODF9/8xf7TuEExDiCYw96yWZuF6KZ4Po5LEYETNr6tT61R4/eTIN/teFJEqKToIkEqL3cilvZFcH1Lgu5ENff6cenjMuTnhWdpybhSJUhSKrLXpk4rKWUzGy1xz+66DWqP2ajhu0Rf19OMbITQBhiCp73RoSRz8UV+WEzJLUZ1gDD6j/sXAOvjjhWWk/CSCb4RV8qA0Hlg6ZJTksU+tXfQ7eJTwbts90AnspZh/6eOuK5FYbnZ0MsiavQnIiF+Lff396eeJjwT8NySsqYSRHNrE9umvW3MmNL2sSBI1kbMkT1wFHYG4nbAEMByFNeil5T2PuhuS1RffR+1Iv9l4mPfasN7Ln1QhvfBMnZH0tudB4VCu9Ikcx21s2dI6N6gU14r33Vv898VGN9ARHsh2CxB8q1RQbSa9gBzZyCfwVfRyOwN5O2CJg7FGL7dP7POvUvUqK7ZFe7NFHkn+E9Ky+RrgaEhRZfUt6YkdyKae3j3Jj62NH68RWOYq7RLgPqgWW9D7nttdLfav90J7/AwAA//83rYeYAAAABklEQVQDAMltCzwxszfdAAAAAElFTkSuQmCC"
 private const val recycleOut = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8BAMAAADI0sRBAAAAJ1BMVEV6pf97nfh7o/12kO5bjPJlf+leVZZlk/ZHcExejvJgj/P//+0A/9FP0Or/AAAADXRSTlMeDBMG/QMBVQDLlQEBuyPuOwAAAtFJREFUOMt9Vc1q20AQHpaAcU6VdOpttQRMchPCL1AWjHw18RtYl/ZgjCEkTxBoDyEITG+mGIzzALkk51z6Uv1m9kerFvfDyDv7zcyORrMz9Ojw4+21BW4Dlix9PNLj93dZ/cZjdZuAFT7ovX1tv7bRsnaY8hp79NE6rBISWEyFp7a3XNQD8AGgl6uULASBp8GZVeZRVY6ntrcsiqwqooLwBM8LYSORKpAzraLbsiyNccuCaWY9lefG4AeFsoTI1otgCiOQeSkKePBeTT5e2UuRs4OCxJa9emitw1JoPlgkpUhddtba5ufLURk5H9ZZTkIq0pc2oFmzf9BZ9snu4ZJIjWyPZgP7jGCsoUuMg1uM7h5OnicO+t7OmR0HNXjCMQ3OJ45LH+wTjDp+BoCfm5xgrDWYNW2dDw8F/gnWiJp1G8S1jqTGS97bRmiOeotgZ9HSqRzshtg3jU78LsFY+/9r0Mi0I1PfTmsM2uibTtJw6iM7uj+hDdjmZc1JmXv77U4iuLCKDCLeud0OaneMrdu5sIbMtd17n6OuT/ku0FsbgwkxRhrOuzRXo9Q5h6b7bES40OjGPtMk/Q7DFyP7BSp7Ogeh1+fYEZxfn6VReb/+Q+MrbujKxi80hKIDvveVPZ49emboM2oKJT7IKL8LisU+G6SFRSXlEmvc17xCzpHoGemJTbHnjNo9qhDXp8PxKGUtkBqer3HZlDYZas2MxWLj7iFfUgljhksGOnfijinlLvClV8cd44s/OTU7lVx99dA1ezZmGrw2/yCXBkRJa8jzPDNeKtkW3aGSZmXEVexdxvWuoqbat6w8k2bFbMaauXQuik1tANHkvlYXKZ+0x6KoxLryW9yFpdGGjomhQK4ZV9KhK9eXnVTwyHA9ldd1kY6C0M//mhHTab/kabAK3X4aR9Ri6sVlS8lou20Hk44nGYWdpWchuNkjgh9UPb6lwtsfbTVCnXvwUeQAAAAASUVORK5CYII="
 private const val BOTTOM_BAR_TAG = "BottomBarUI"
+private const val BOTTOM_BAR_CARPLAY_PACKAGE = "com.ts.carplay.app"
+private const val BOTTOM_BAR_ANDROID_AUTO_PACKAGE = "com.ts.androidauto.app"
+
+private val DashboardReadableFont = FontFamily.SansSerif
+
+private val DashboardSteeringWheelIcon: ImageVector =
+        ImageVector.Builder(
+                        name = "DashboardSteeringWheel",
+                        defaultWidth = 24.dp,
+                        defaultHeight = 24.dp,
+                        viewportWidth = 24f,
+                        viewportHeight = 24f
+                )
+                .apply {
+                        path(
+                                fill = null,
+                                stroke = SolidColor(Color.Black),
+                                strokeLineWidth = 2f,
+                                strokeLineCap = StrokeCap.Round,
+                                strokeLineJoin = StrokeJoin.Round
+                        ) {
+                                moveTo(12f, 3.5f)
+                                curveTo(7.3f, 3.5f, 3.5f, 7.3f, 3.5f, 12f)
+                                curveTo(3.5f, 16.7f, 7.3f, 20.5f, 12f, 20.5f)
+                                curveTo(16.7f, 20.5f, 20.5f, 16.7f, 20.5f, 12f)
+                                curveTo(20.5f, 7.3f, 16.7f, 3.5f, 12f, 3.5f)
+                                moveTo(5.2f, 12.5f)
+                                curveTo(7.1f, 11.5f, 9.5f, 11f, 12f, 11f)
+                                curveTo(14.5f, 11f, 16.9f, 11.5f, 18.8f, 12.5f)
+                                moveTo(12f, 11f)
+                                lineTo(12f, 20f)
+                                moveTo(8.2f, 17.8f)
+                                lineTo(12f, 14.4f)
+                                lineTo(15.8f, 17.8f)
+                        }
+                }
+                .build()
+
+internal fun mergeBottomBarProjectionConfigs(
+        savedConfigs: List<DisplayAppConfig>,
+        predefinedConfigs: List<DisplayAppConfig>
+): List<DisplayAppConfig> {
+        val savedPackages = savedConfigs.mapTo(mutableSetOf()) { it.packageName }
+        val projectionDefaults =
+                predefinedConfigs.filter {
+                        it.packageName == BOTTOM_BAR_CARPLAY_PACKAGE ||
+                                it.packageName == BOTTOM_BAR_ANDROID_AUTO_PACKAGE
+                }
+
+        return savedConfigs + projectionDefaults.filter { savedPackages.add(it.packageName) }
+}
+
+internal fun resolveBottomBarEffectivePackage(
+        projectionPackageOnMain: String?,
+        projectionPackageOnCluster: String?,
+        selectedPackage: String,
+        firstConfiguredPackage: String
+): String {
+        return projectionPackageOnMain
+                ?: projectionPackageOnCluster
+                ?: selectedPackage.takeIf { it.isNotEmpty() }
+                ?: firstConfiguredPackage
+}
+
+private fun getBottomBarAppConfigs(): List<DisplayAppConfig> {
+        return mergeBottomBarProjectionConfigs(
+                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs(),
+                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.PREDEFINED_APPS
+        )
+}
+
+private fun getProjectionPackageOnMainForBottomBar(): String? {
+        return br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                .resolveActiveProjectionPackageForDisplay(0)
+}
 
 private val commonTextStyle =
         TextStyle(
@@ -211,7 +294,7 @@ fun BottomBarContent() {
                 modifier = Modifier.fillMaxWidth().height(60.dp),
                 contentAlignment = Alignment.BottomCenter
         ) {
-                if (BottomBarState.isVisible) {
+                if (BottomBarState.isVisible && !BottomBarState.isDashboardExpanded) {
                         Surface(
                                 modifier =
                                         Modifier.fillMaxWidth()
@@ -242,12 +325,15 @@ fun BottomBarContent() {
                                                                                                 change.previousPosition
                                                                                                         .y
 
-                                                                                // Confirmed
-                                                                                // downward swipe
-                                                                                // past bottom →
-                                                                                // hide
-                                                                                // bar
-                                                                                if (totalDragY > 20f
+                                                                                val shouldExpand =
+                                                                                        totalDragY <
+                                                                                                -45f
+                                                                                val shouldHide =
+                                                                                        totalDragY >
+                                                                                                20f
+
+                                                                                if (shouldExpand ||
+                                                                                                shouldHide
                                                                                 ) {
                                                                                         event.changes
                                                                                                 .forEach {
@@ -268,9 +354,30 @@ fun BottomBarContent() {
                                                                                                 .any {
                                                                                                         it.pressed
                                                                                                 })
-                                                                                        BottomBarState
-                                                                                                .isVisible =
-                                                                                                false
+                                                                                        if (shouldExpand) {
+                                                                                                BottomBarState
+                                                                                                        .isDashboardExpanded =
+                                                                                                        true
+                                                                                                BottomBarState
+                                                                                                        .isVisible =
+                                                                                                        true
+                                                                                                BottomBarState
+                                                                                                        .isMenuExpanded =
+                                                                                                        false
+                                                                                                BottomBarState
+                                                                                                        .isSettingsMenuExpanded =
+                                                                                                        false
+                                                                                                BottomBarState
+                                                                                                        .isOverrideMenuExpanded =
+                                                                                                        false
+                                                                                        } else {
+                                                                                                BottomBarState
+                                                                                                        .isDashboardExpanded =
+                                                                                                        false
+                                                                                                BottomBarState
+                                                                                                        .isVisible =
+                                                                                                        false
+                                                                                        }
                                                                                         break
                                                                                 }
                                                                         } while (event.changes.any {
@@ -617,7 +724,7 @@ fun BottomBarContent() {
                         }
                 }
 
-                if (!BottomBarState.isVisible) {
+                if (!BottomBarState.isVisible && !BottomBarState.isDashboardExpanded) {
                         Box(
                                 modifier =
                                         Modifier.fillMaxWidth()
@@ -648,7 +755,8 @@ fun BottomBarContent() {
                                                                                                         .y
 
                                                                                 // Confirmed upward
-                                                                                // swipe → show bar
+                                                                                // swipe → open the
+                                                                                // full dashboard
                                                                                 if (totalDragY <
                                                                                                 -30f
                                                                                 ) {
@@ -669,6 +777,9 @@ fun BottomBarContent() {
                                                                                                 })
                                                                                         BottomBarState
                                                                                                 .isVisible =
+                                                                                                true
+                                                                                        BottomBarState
+                                                                                                .isDashboardExpanded =
                                                                                                 true
                                                                                         break
                                                                                 }
@@ -705,7 +816,7 @@ fun getSubstituteIconVector(substituteIcon: String?): ImageVector? {
 fun AppSwitcherSection() {
         val scope = rememberCoroutineScope()
         val context = LocalContext.current
-        val configs = br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()
+        val configs = getBottomBarAppConfigs()
 
         // Initialize if empty
         if (br.com.redesurftank.havalshisuku.models.BottomBarState.selectedPackage.isEmpty()) {
@@ -715,15 +826,18 @@ fun AppSwitcherSection() {
 
         val selectedPackage = br.com.redesurftank.havalshisuku.models.BottomBarState.selectedPackage
         val showMenu = br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded
-        val projectionPackageOnMain =
-                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
-                        .resolveActiveProjectionPackageForDisplay(0)
+        val projectionPackageOnMain = getProjectionPackageOnMainForBottomBar()
+        val projectionPackageOnCluster =
+                br.com.redesurftank.havalshisuku.models.BottomBarState
+                        .activeClusterProjectionPackage
+                        .takeIf { it.isNotEmpty() }
         val effectiveSelectedPackage =
-                projectionPackageOnMain
-                        ?: when {
-                                selectedPackage.isNotEmpty() -> selectedPackage
-                                else -> configs.firstOrNull()?.packageName ?: ""
-                        }
+                resolveBottomBarEffectivePackage(
+                        projectionPackageOnMain = projectionPackageOnMain,
+                        projectionPackageOnCluster = projectionPackageOnCluster,
+                        selectedPackage = selectedPackage,
+                        firstConfiguredPackage = configs.firstOrNull()?.packageName ?: ""
+                )
 
         val selectedConfig = configs.find { it.packageName == effectiveSelectedPackage }
         val substituteIconVector = getSubstituteIconVector(selectedConfig?.substituteIcon)
@@ -960,12 +1074,16 @@ fun AppSwitcherSection() {
 
 @Composable
 fun AppMenuContent() {
-        val initialConfigs = remember {
-                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.getAllConfigs()
-        }
         val configsList = remember {
                 mutableStateListOf<br.com.redesurftank.havalshisuku.models.DisplayAppConfig>()
-                        .apply { addAll(initialConfigs) }
+                        .apply { addAll(getBottomBarAppConfigs()) }
+        }
+        LaunchedEffect(Unit) {
+                val latestConfigs = getBottomBarAppConfigs()
+                if (configsList.toList() != latestConfigs) {
+                        configsList.clear()
+                        configsList.addAll(latestConfigs)
+                }
         }
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
@@ -1290,12 +1408,7 @@ fun AppMenuContent() {
                                                                                         scope
                                                                                 ) {
                                                                                         val newConfigs =
-                                                                                                br.com
-                                                                                                        .redesurftank
-                                                                                                        .havalshisuku
-                                                                                                        .managers
-                                                                                                        .DisplayAppLauncher
-                                                                                                        .getAllConfigs()
+                                                                                                getBottomBarAppConfigs()
                                                                                         configsList
                                                                                                 .clear()
                                                                                         configsList
@@ -1639,85 +1752,3221 @@ fun BottomBarMenus() {
                 onDispose { serviceManager.removeDataChangedListener(listener) }
         }
 
+        val dashboardExpanded = BottomBarState.isDashboardExpanded
+
         Box(
                 modifier =
                         Modifier.fillMaxSize()
                                 .background(
-                                        Color.Black.copy(alpha = 0.4f)
-                                ) // Semi-transparent black overlay
-                                .pointerInput(appMenuBounds, secondaryMenuBounds) {
-                                        detectTapGestures { offset ->
-                                                val insideAppMenu =
-                                                        BottomBarState.isMenuExpanded &&
-                                                                appMenuBounds?.contains(offset) == true
-                                                val insideSecondaryMenu =
-                                                        (BottomBarState.isSettingsMenuExpanded ||
-                                                                        BottomBarState.isOverrideMenuExpanded) &&
-                                                                secondaryMenuBounds?.contains(offset) == true
-                                                if (!insideAppMenu && !insideSecondaryMenu) {
-                                                        BottomBarState.isMenuExpanded = false
-                                                        BottomBarState.isSettingsMenuExpanded = false
-                                                        BottomBarState.isOverrideMenuExpanded = false
-                                                        BottomBarState.isDeleteModeEnabled = false
-                                                        BottomBarState.activeSliderType = null
+                                        if (dashboardExpanded) Color(0xFF05070A)
+                                        else Color.Black.copy(alpha = 0.4f)
+                                )
+                                .pointerInput(appMenuBounds, secondaryMenuBounds, dashboardExpanded) {
+                                        if (!dashboardExpanded) {
+                                                detectTapGestures { offset ->
+                                                        val insideAppMenu =
+                                                                BottomBarState.isMenuExpanded &&
+                                                                        appMenuBounds?.contains(
+                                                                                offset
+                                                                        ) == true
+                                                        val insideSecondaryMenu =
+                                                                (BottomBarState
+                                                                                .isSettingsMenuExpanded ||
+                                                                                BottomBarState
+                                                                                        .isOverrideMenuExpanded) &&
+                                                                        secondaryMenuBounds
+                                                                                ?.contains(offset) ==
+                                                                                true
+                                                        if (!insideAppMenu && !insideSecondaryMenu) {
+                                                                BottomBarState.isMenuExpanded = false
+                                                                BottomBarState.isSettingsMenuExpanded =
+                                                                        false
+                                                                BottomBarState.isOverrideMenuExpanded =
+                                                                        false
+                                                                BottomBarState.isDeleteModeEnabled =
+                                                                        false
+                                                                BottomBarState.activeSliderType =
+                                                                        null
+                                                        }
                                                 }
                                         }
                                 },
                 contentAlignment = Alignment.BottomCenter
         ) {
-                // We use a Box with fillMaxWidth to contain our menus at the bottom
-                Box(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 60.dp),
-                ) {
-                        // Custom Vertical Slider Overlay
-                        if (BottomBarState.activeSliderType != null) {
-                                VerticalSliderOverlay()
-                        }
-
-                        // App Menu (Left side)
-                        if (br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded) {
-                                Box(
-                                        modifier =
-                                                Modifier.padding(start = 16.dp)
-                                                        .align(Alignment.BottomStart)
-                                                        .onGloballyPositioned {
-                                                                appMenuBounds = it.boundsInRoot()
-                                                        }
-                                ) { AppMenuContent() }
-                        }
-
-                        // Settings/Override Menu
-                        if (BottomBarState.isSettingsMenuExpanded ||
-                                        BottomBarState.isOverrideMenuExpanded
+                if (dashboardExpanded) {
+                        ExpandedImpulseDashboard()
+                } else {
+                        // We use a Box with fillMaxWidth to contain our menus at the bottom
+                        Box(
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 60.dp),
                         ) {
-                                Box(
-                                        modifier =
-                                                Modifier.align(
-                                                                if (BottomBarState
-                                                                                .isSettingsMenuExpanded
-                                                                )
-                                                                        Alignment.BottomStart
-                                                                else Alignment.BottomEnd
-                                                        )
-                                                        .padding(horizontal = 16.dp)
-                                                        .onGloballyPositioned {
-                                                                secondaryMenuBounds = it.boundsInRoot()
-                                                        }
+                                // Custom Vertical Slider Overlay
+                                if (BottomBarState.activeSliderType != null) {
+                                        VerticalSliderOverlay()
+                                }
+
+                                // App Menu (Left side)
+                                if (br.com.redesurftank.havalshisuku.models.BottomBarState
+                                                .isMenuExpanded
                                 ) {
-                                        if (BottomBarState.isSettingsMenuExpanded) {
-                                                SettingsMenuContent(
-                                                        driveMode,
-                                                        powerModel,
-                                                        energyRecovery,
-                                                        steeringMode
-                                                )
-                                        } else if (BottomBarState.isOverrideMenuExpanded) {
-                                                OverrideMenuContent()
+                                        Box(
+                                                modifier =
+                                                        Modifier.padding(start = 16.dp)
+                                                                .align(Alignment.BottomStart)
+                                                                .onGloballyPositioned {
+                                                                        appMenuBounds =
+                                                                                it.boundsInRoot()
+                                                                }
+                                        ) { AppMenuContent() }
+                                }
+
+                                // Settings/Override Menu
+                                if (BottomBarState.isSettingsMenuExpanded ||
+                                                BottomBarState.isOverrideMenuExpanded
+                                ) {
+                                        Box(
+                                                modifier =
+                                                        Modifier.align(
+                                                                        if (BottomBarState
+                                                                                        .isSettingsMenuExpanded
+                                                                        )
+                                                                                Alignment
+                                                                                        .BottomStart
+                                                                        else Alignment.BottomEnd
+                                                                )
+                                                                .padding(horizontal = 16.dp)
+                                                                .onGloballyPositioned {
+                                                                        secondaryMenuBounds =
+                                                                                it.boundsInRoot()
+                                                                }
+                                        ) {
+                                                if (BottomBarState.isSettingsMenuExpanded) {
+                                                        SettingsMenuContent(
+                                                                driveMode,
+                                                                powerModel,
+                                                                energyRecovery,
+                                                                steeringMode
+                                                        )
+                                                } else if (BottomBarState.isOverrideMenuExpanded) {
+                                                        OverrideMenuContent()
+                                                }
                                         }
                                 }
                         }
                 }
         }
+}
+
+private data class DashboardVehicleSnapshot(
+        val speed: String,
+        val gear: String,
+        val driveMode: String,
+        val powerModel: String,
+        val energyRecovery: String,
+        val steeringMode: String,
+        val driverTemp: String,
+        val passTemp: String,
+        val fanSpeed: String,
+        val hvacPower: String,
+        val blowerMode: String,
+        val acSync: String,
+        val acAuto: String,
+        val acRecirc: String,
+        val driverSeatVentilation: String,
+        val passengerSeatVentilation: String,
+        val seatVentilationMaxLevel: String,
+        val insideTemp: String,
+        val outsideTemp: String,
+        val batteryPercent: String,
+        val fuelPercent: String,
+        val batteryRange: String,
+        val fuelRange: String,
+        val odometer: String,
+        val avgFuel: String,
+        val avgEnergy: String,
+        val batteryVoltage: String,
+        val batteryCurrent: String,
+        val volume: String,
+        val readyState: String
+)
+
+private const val DASHBOARD_FUEL_TANK_CAPACITY_LITERS = 55f
+
+@Composable
+private fun rememberDashboardVehicleSnapshot(
+        serviceManager: ServiceManager
+): DashboardVehicleSnapshot {
+        var speed by remember {
+                mutableStateOf(
+                        serviceManager.getData(CarConstants.CAR_BASIC_VEHICLE_SPEED.getValue())
+                                ?: "--"
+                )
+        }
+        var gear by remember {
+                mutableStateOf(
+                        serviceManager.getData(CarConstants.CAR_BASIC_GEAR_STATUS.getValue()) ?: "--"
+                )
+        }
+        var driveMode by remember {
+                mutableStateOf(
+                        serviceManager.getData(CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.getValue())
+                                ?: "0"
+                )
+        }
+        var powerModel by remember {
+                mutableStateOf(
+                        serviceManager.getData(
+                                CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.getValue()
+                        )
+                                ?: "0"
+                )
+        }
+        var energyRecovery by remember {
+                mutableStateOf(
+                        serviceManager.getData(
+                                CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL.getValue()
+                        )
+                                ?: "0"
+                )
+        }
+        var steeringMode by remember {
+                mutableStateOf(
+                        serviceManager.getData(
+                                CarConstants.CAR_DRIVE_SETTING_STEERING_WHEEL_ASSIST_MODE
+                                        .getValue()
+                        )
+                                ?: "0"
+                )
+        }
+        var driverTemp by remember {
+                mutableStateOf(
+                        serviceManager.getData(CarConstants.CAR_HVAC_DRIVER_TEMPERATURE.getValue())
+                                ?: "--"
+                )
+        }
+        var passTemp by remember {
+                mutableStateOf(
+                        serviceManager.getData(CarConstants.CAR_HVAC_PASS_TEMPERATURE.getValue())
+                                ?: "--"
+                )
+        }
+        var fanSpeed by remember {
+                mutableStateOf(
+                        serviceManager.getData(CarConstants.CAR_HVAC_FAN_SPEED.getValue()) ?: "0"
+                )
+        }
+        var hvacPower by remember {
+                mutableStateOf(
+                        serviceManager.getData(CarConstants.CAR_HVAC_POWER_MODE.getValue()) ?: "1"
+                )
+        }
+        var blowerMode by remember {
+                mutableStateOf(
+                        serviceManager.getData(CarConstants.CAR_HVAC_BLOWER_MODE.getValue()) ?: "0"
+                )
+        }
+        var acSync by remember {
+                mutableStateOf(
+                        serviceManager.getData(CarConstants.CAR_HVAC_SYNC_ENABLE.getValue()) ?: "0"
+                )
+        }
+        var acAuto by remember {
+                mutableStateOf(
+                        serviceManager.getData(CarConstants.CAR_HVAC_AUTO_ENABLE.getValue()) ?: "0"
+                )
+        }
+        var acRecirc by remember {
+                mutableStateOf(
+                        if ((serviceManager.getData(CarConstants.CAR_HVAC_CYCLE_MODE.getValue())
+                                                        ?: "0") == "0"
+                        )
+                                "1"
+                        else "0"
+                )
+        }
+        var driverSeatVentilation by remember {
+                mutableStateOf(
+                        serviceManager.getData(
+                                CarConstants.CAR_COMFORT_SETTING_DRIVER_SEAT_VENTILATION_LEVEL
+                                        .getValue()
+                        )
+                                ?: "0"
+                )
+        }
+        var passengerSeatVentilation by remember {
+                mutableStateOf(
+                        serviceManager.getData(
+                                CarConstants.CAR_COMFORT_SETTING_PASSENGER_SEAT_VENTILATION_LEVEL
+                                        .getValue()
+                        )
+                                ?: "0"
+                )
+        }
+        var seatVentilationMaxLevel by remember {
+                mutableStateOf(
+                        serviceManager.getData(
+                                CarConstants.CAR_COMFORT_SETTING_SEAT_VENTILATION_MAX_LEVEL
+                                        .getValue()
+                        )
+                                ?: "3"
+                )
+        }
+        var insideTemp by remember {
+                mutableStateOf(
+                        serviceManager.getData(CarConstants.CAR_BASIC_INSIDE_TEMP.getValue())
+                                ?: "--"
+                )
+        }
+        var outsideTemp by remember {
+                mutableStateOf(
+                        serviceManager.getData(CarConstants.CAR_BASIC_OUTSIDE_TEMP.getValue())
+                                ?: "--"
+                )
+        }
+        var batteryPercent by remember {
+                mutableStateOf(readDashboardBatteryPercent(serviceManager))
+        }
+        var fuelPercent by remember {
+                mutableStateOf(
+                        serviceManager.getData(
+                                CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE.getValue()
+                        )
+                                ?: "--"
+                )
+        }
+        var batteryRange by remember {
+                mutableStateOf(
+                        serviceManager.getData(
+                                CarConstants.CAR_EV_INFO_ELECTRIC_MODE_REMAIN_ODOMETER.getValue()
+                        )
+                                ?: "--"
+                )
+        }
+        var fuelRange by remember {
+                mutableStateOf(readDashboardFuelRange(serviceManager))
+        }
+        var odometer by remember {
+                mutableStateOf(
+                        serviceManager.getData(CarConstants.CAR_BASIC_TOTAL_ODOMETER.getValue())
+                                ?: "--"
+                )
+        }
+        var avgFuel by remember {
+                mutableStateOf(
+                        serviceManager.getData(
+                                CarConstants.CAR_BASIC_CUR_JOURNEY_AVG_FUEL_CONSUME.getValue()
+                        )
+                                ?: serviceManager.getData(
+                                        CarConstants.CAR_BASIC_AVG_FUEL_CONSUMPTION.getValue()
+                                )
+                                ?: "--"
+                )
+        }
+        var avgEnergy by remember {
+                mutableStateOf(
+                        serviceManager.getData(
+                                CarConstants.CAR_EV_INFO_AVG_ENERGY_CONSUME_INFO_SINCE_STARTUP
+                                        .getValue()
+                        )
+                                ?: "--"
+                )
+        }
+        var batteryVoltage by remember {
+                mutableStateOf(
+                        serviceManager.getData(
+                                CarConstants.CAR_EV_INFO_POWER_BATTERY_VOLTAGE.getValue()
+                        )
+                                ?: "0"
+                )
+        }
+        var batteryCurrent by remember {
+                mutableStateOf(
+                        serviceManager.getData(
+                                CarConstants.CAR_EV_INFO_POWER_BATTERY_CURRENT.getValue()
+                        )
+                                ?: "0"
+                )
+        }
+        var volume by remember {
+                mutableStateOf(
+                        serviceManager.getData(
+                                CarConstants.SYS_SETTINGS_AUDIO_MEDIA_VOLUME.getValue()
+                        )
+                                ?: "0"
+                )
+        }
+        var readyState by remember {
+                mutableStateOf(
+                        serviceManager.getData(CarConstants.CAR_BASIC_DRIVING_READY_STATE.getValue())
+                                ?: "--"
+                )
+        }
+
+        DisposableEffect(Unit) {
+                val listener =
+                        object : br.com.redesurftank.havalshisuku.listeners.IDataChanged {
+                                override fun onDataChanged(key: String, value: String?) {
+                                        if (value == null) return
+                                        when (key) {
+                                                CarConstants.CAR_BASIC_VEHICLE_SPEED.getValue() ->
+                                                        speed = value
+                                                CarConstants.CAR_BASIC_GEAR_STATUS.getValue() ->
+                                                        gear = value
+                                                CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE
+                                                        .getValue() -> driveMode = value
+                                                CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG
+                                                        .getValue() -> powerModel = value
+                                                CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL
+                                                        .getValue() -> energyRecovery = value
+                                                CarConstants
+                                                        .CAR_DRIVE_SETTING_STEERING_WHEEL_ASSIST_MODE
+                                                        .getValue() -> steeringMode = value
+                                                CarConstants.CAR_HVAC_DRIVER_TEMPERATURE
+                                                        .getValue() -> driverTemp = value
+                                                CarConstants.CAR_HVAC_PASS_TEMPERATURE.getValue() ->
+                                                        passTemp = value
+                                                CarConstants.CAR_HVAC_FAN_SPEED.getValue() ->
+                                                        fanSpeed = value
+                                                CarConstants.CAR_HVAC_POWER_MODE.getValue() ->
+                                                        hvacPower = value
+                                                CarConstants.CAR_HVAC_BLOWER_MODE.getValue() ->
+                                                        blowerMode = value
+                                                CarConstants.CAR_HVAC_SYNC_ENABLE.getValue() ->
+                                                        acSync = value
+                                                CarConstants.CAR_HVAC_AUTO_ENABLE.getValue() ->
+                                                        acAuto = value
+                                                CarConstants.CAR_HVAC_CYCLE_MODE.getValue() ->
+                                                        acRecirc = if (value == "0") "1" else "0"
+                                                CarConstants
+                                                        .CAR_COMFORT_SETTING_DRIVER_SEAT_VENTILATION_LEVEL
+                                                        .getValue() ->
+                                                        driverSeatVentilation = value
+                                                CarConstants
+                                                        .CAR_COMFORT_SETTING_PASSENGER_SEAT_VENTILATION_LEVEL
+                                                        .getValue() ->
+                                                        passengerSeatVentilation = value
+                                                CarConstants
+                                                        .CAR_COMFORT_SETTING_SEAT_VENTILATION_MAX_LEVEL
+                                                        .getValue() ->
+                                                        seatVentilationMaxLevel = value
+                                                CarConstants.CAR_BASIC_INSIDE_TEMP.getValue() ->
+                                                        insideTemp = value
+                                                CarConstants.CAR_BASIC_OUTSIDE_TEMP.getValue() ->
+                                                        outsideTemp = value
+                                                CarConstants
+                                                        .CAR_EV_INFO_CUR_BATTERY_POWER_PERCENTAGE
+                                                        .getValue(),
+                                                CarConstants
+                                                        .CAR_EV_INFO_CAR_EV_INFO_SOC_OF_BATTERY
+                                                        .getValue(),
+                                                CarConstants.CAR_EV_INFO_BATTERY_POWER_PERCENTAGE
+                                                        .getValue() -> {
+                                                        batteryPercent =
+                                                                readDashboardBatteryPercent(
+                                                                        serviceManager,
+                                                                        key,
+                                                                        value
+                                                                )
+                                                }
+                                                CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE
+                                                        .getValue() -> fuelPercent = value
+                                                CarConstants
+                                                        .CAR_EV_INFO_ELECTRIC_MODE_REMAIN_ODOMETER
+                                                        .getValue() -> batteryRange = value
+                                                CarConstants
+                                                        .CAR_EV_INFO_FUEL_MODE_REMAIN_ODOMETER
+                                                        .getValue(),
+                                                CarConstants.CAR_BASIC_REMAIN_ODOMETER.getValue() ->
+                                                        fuelRange =
+                                                                readDashboardFuelRange(
+                                                                        serviceManager,
+                                                                        key,
+                                                                        value
+                                                                )
+                                                CarConstants.CAR_BASIC_TOTAL_ODOMETER.getValue() ->
+                                                        odometer = value
+                                                CarConstants.CAR_BASIC_CUR_JOURNEY_AVG_FUEL_CONSUME
+                                                        .getValue() -> avgFuel = value
+                                                CarConstants.CAR_BASIC_AVG_FUEL_CONSUMPTION
+                                                        .getValue() -> avgFuel = value
+                                                CarConstants
+                                                        .CAR_EV_INFO_AVG_ENERGY_CONSUME_INFO_SINCE_STARTUP
+                                                        .getValue() -> avgEnergy = value
+                                                CarConstants.CAR_EV_INFO_POWER_BATTERY_VOLTAGE
+                                                        .getValue() -> batteryVoltage = value
+                                                CarConstants.CAR_EV_INFO_POWER_BATTERY_CURRENT
+                                                        .getValue() -> batteryCurrent = value
+                                                CarConstants.SYS_SETTINGS_AUDIO_MEDIA_VOLUME
+                                                        .getValue() -> volume = value
+                                                CarConstants.CAR_BASIC_DRIVING_READY_STATE
+                                                        .getValue() -> readyState = value
+                                        }
+                                }
+                        }
+                serviceManager.addDataChangedListener(listener)
+                onDispose { serviceManager.removeDataChangedListener(listener) }
+        }
+
+        return DashboardVehicleSnapshot(
+                speed = speed,
+                gear = gear,
+                driveMode = driveMode,
+                powerModel = powerModel,
+                energyRecovery = energyRecovery,
+                steeringMode = steeringMode,
+                driverTemp = driverTemp,
+                passTemp = passTemp,
+                fanSpeed = fanSpeed,
+                hvacPower = hvacPower,
+                blowerMode = blowerMode,
+                acSync = acSync,
+                acAuto = acAuto,
+                acRecirc = acRecirc,
+                driverSeatVentilation = driverSeatVentilation,
+                passengerSeatVentilation = passengerSeatVentilation,
+                seatVentilationMaxLevel = seatVentilationMaxLevel,
+                insideTemp = insideTemp,
+                outsideTemp = outsideTemp,
+                batteryPercent = batteryPercent,
+                fuelPercent = fuelPercent,
+                batteryRange = batteryRange,
+                fuelRange = fuelRange,
+                odometer = odometer,
+                avgFuel = avgFuel,
+                avgEnergy = avgEnergy,
+                batteryVoltage = batteryVoltage,
+                batteryCurrent = batteryCurrent,
+                volume = volume,
+                readyState = readyState
+        )
+}
+
+private fun readDashboardBatteryPercent(
+        serviceManager: ServiceManager,
+        overrideKey: String? = null,
+        overrideValue: String? = null
+): String {
+        val currentKey = CarConstants.CAR_EV_INFO_CUR_BATTERY_POWER_PERCENTAGE.getValue()
+        val socKey = CarConstants.CAR_EV_INFO_CAR_EV_INFO_SOC_OF_BATTERY.getValue()
+        val chargeKey = CarConstants.CAR_EV_INFO_BATTERY_POWER_PERCENTAGE.getValue()
+        val values =
+                listOf(
+                        valueForDashboardBatteryKey(serviceManager, currentKey, overrideKey, overrideValue),
+                        valueForDashboardBatteryKey(serviceManager, socKey, overrideKey, overrideValue),
+                        valueForDashboardBatteryKey(serviceManager, chargeKey, overrideKey, overrideValue)
+                )
+        return selectDashboardBatteryPercent(values) ?: "--"
+}
+
+private fun readDashboardFuelRange(
+        serviceManager: ServiceManager,
+        overrideKey: String? = null,
+        overrideValue: String? = null
+): String {
+        val fuelModeKey = CarConstants.CAR_EV_INFO_FUEL_MODE_REMAIN_ODOMETER.getValue()
+        val totalRemainKey = CarConstants.CAR_BASIC_REMAIN_ODOMETER.getValue()
+        val values =
+                listOf(
+                        valueForDashboardFuelRangeKey(
+                                serviceManager,
+                                fuelModeKey,
+                                overrideKey,
+                                overrideValue
+                        ),
+                        valueForDashboardFuelRangeKey(
+                                serviceManager,
+                                totalRemainKey,
+                                overrideKey,
+                                overrideValue
+                        )
+                )
+        return selectDashboardRange(values) ?: "--"
+}
+
+private fun valueForDashboardBatteryKey(
+        serviceManager: ServiceManager,
+        key: String,
+        overrideKey: String?,
+        overrideValue: String?
+): String? {
+        return if (key == overrideKey) overrideValue else serviceManager.getData(key)
+}
+
+private fun valueForDashboardFuelRangeKey(
+        serviceManager: ServiceManager,
+        key: String,
+        overrideKey: String?,
+        overrideValue: String?
+): String? {
+        return if (key == overrideKey) overrideValue else serviceManager.getData(key)
+}
+
+private fun selectDashboardBatteryPercent(values: List<String?>): String? {
+        val normalized = values.mapNotNull { it?.trim()?.takeIf { value -> value.isNotEmpty() } }
+        return normalized.firstOrNull { isValidDashboardPercent(it, allowZero = false) }
+                ?: normalized.firstOrNull { isValidDashboardPercent(it, allowZero = true) }
+}
+
+private fun selectDashboardRange(values: List<String?>): String? {
+        val normalized = values.mapNotNull { it?.trim()?.takeIf { value -> value.isNotEmpty() } }
+        return normalized.firstOrNull { (it.toFloatOrNull() ?: -1f) > 0f }
+                ?: normalized.firstOrNull { (it.toFloatOrNull() ?: -1f) >= 0f }
+}
+
+private fun isValidDashboardPercent(value: String, allowZero: Boolean): Boolean {
+        val parsed = value.toFloatOrNull() ?: return false
+        return parsed in 0f..100f && (allowZero || parsed > 0f)
+}
+
+@Composable
+fun ImpulseDashboardFullscreenContent() {
+        ExpandedImpulseDashboard()
+}
+
+@Composable
+private fun ExpandedImpulseDashboard() {
+        val serviceManager = ServiceManager.getInstance()
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
+        val snapshot = rememberDashboardVehicleSnapshot(serviceManager)
+        val entryProgress = remember { Animatable(0f) }
+        var currentTime by remember { mutableStateOf(formatDashboardClock()) }
+
+        LaunchedEffect(Unit) {
+                entryProgress.animateTo(
+                        targetValue = 1f,
+                        animationSpec = tween(durationMillis = 360, easing = FastOutSlowInEasing)
+                )
+        }
+
+        LaunchedEffect(Unit) {
+                while (true) {
+                        currentTime = formatDashboardClock()
+                        delay(30000)
+                }
+        }
+
+        val activeProjectionPackage =
+                BottomBarState.activeClusterProjectionPackage.takeIf { it.isNotEmpty() }
+        val effectivePackage =
+                activeProjectionPackage
+                        ?: BottomBarState.selectedPackage.takeIf { it.isNotEmpty() }
+                        ?: getBottomBarAppConfigs().firstOrNull()?.packageName
+        val effectiveConfig =
+                remember(effectivePackage) {
+                        getBottomBarAppConfigs().find { it.packageName == effectivePackage }
+                }
+        val appInfo =
+                remember(effectivePackage, effectiveConfig?.customName) {
+                        effectivePackage?.let {
+                                DisplayAppLauncher.resolveAppInfo(
+                                        context,
+                                        it,
+                                        effectiveConfig?.customName
+                                )
+                        }
+                }
+
+        Box(
+                modifier =
+                        Modifier.fillMaxSize()
+                                .background(
+                                        Brush.linearGradient(
+                                                colors =
+                                                        listOf(
+                                                                Color(0xFF05070A),
+                                                                Color(0xFF0D1318),
+                                                                Color(0xFF12120F)
+                                                        )
+                                        )
+                                )
+                                .pointerInput(Unit) {
+                                        awaitPointerEventScope {
+                                                while (true) {
+                                                        awaitFirstDown(requireUnconsumed = false)
+                                                        var totalDragY = 0f
+                                                        do {
+                                                                val event = awaitPointerEvent()
+                                                                val change =
+                                                                        event.changes.firstOrNull()
+                                                                if (change != null) {
+                                                                        totalDragY +=
+                                                                                change.position.y -
+                                                                                        change.previousPosition
+                                                                                                .y
+                                                                        if (totalDragY > 20f) {
+                                                                                event.changes
+                                                                                        .forEach {
+                                                                                                it.consume()
+                                                                                        }
+                                                                        }
+                                                                }
+                                                        } while (event.changes.any { it.pressed })
+
+                                                        if (totalDragY > 80f) {
+                                                                BottomBarState
+                                                                        .isDashboardExpanded =
+                                                                        false
+                                                                BottomBarState.isVisible = true
+                                                                BottomBarState.isMenuExpanded = false
+                                                                BottomBarState
+                                                                        .isSettingsMenuExpanded =
+                                                                        false
+                                                                BottomBarState
+                                                                        .isOverrideMenuExpanded =
+                                                                        false
+                                                                BottomBarState.activeSliderType =
+                                                                        null
+                                                        }
+                                                }
+                                        }
+                                }
+        ) {
+                Column(
+                        modifier =
+                                Modifier.fillMaxSize()
+                                        .graphicsLayer {
+                                                alpha = 0.82f + (0.18f * entryProgress.value)
+                                                translationY = (1f - entryProgress.value) * 180f
+                                        }
+                                        .padding(
+                                                start = 18.dp,
+                                                top = 8.dp,
+                                                end = 18.dp,
+                                                bottom = 18.dp
+                                        ),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                        DashboardTopDragHandle(
+                                modifier = Modifier.align(Alignment.CenterHorizontally)
+                        )
+                        DashboardHeader(
+                                time = currentTime,
+                                snapshot = snapshot,
+                                activeProjectionPackage = activeProjectionPackage,
+                                onShowNativeMenu = {
+                                        BottomBarState.isDashboardExpanded = false
+                                        BottomBarState.isVisible = true
+                                        BottomBarState.isMenuExpanded = false
+                                        BottomBarState.isSettingsMenuExpanded = false
+                                        BottomBarState.isOverrideMenuExpanded = false
+                                        BottomBarState.activeSliderType = null
+                                }
+                        )
+                        Row(
+                                modifier = Modifier.weight(1f).fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                                DashboardMediaPanel(
+                                        appLabel = appInfo?.label,
+                                        appIcon = appInfo?.icon,
+                                        activeProjectionPackage = activeProjectionPackage,
+                                        volume = snapshot.volume,
+                                        serviceManager = serviceManager,
+                                        modifier = Modifier.weight(1.12f).fillMaxHeight()
+                                )
+                                DashboardSettingsPanel(
+                                        snapshot = snapshot,
+                                        serviceManager = serviceManager,
+                                        modifier = Modifier.weight(0.9f).fillMaxHeight()
+                                )
+                                Column(
+                                        modifier = Modifier.weight(1.03f).fillMaxHeight(),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                        DashboardHvacPanel(
+                                                snapshot = snapshot,
+                                                serviceManager = serviceManager,
+                                                modifier = Modifier.weight(1f)
+                                        )
+                                        DashboardProjectionActionsPanel(
+                                                effectivePackage = effectivePackage,
+                                                context = context,
+                                                scope = scope,
+                                                modifier = Modifier.height(94.dp)
+                                        )
+                                }
+                        }
+                }
+        }
+}
+
+@Composable
+private fun DashboardHeader(
+        time: String,
+        snapshot: DashboardVehicleSnapshot,
+        activeProjectionPackage: String?,
+        onShowNativeMenu: () -> Unit
+) {
+        Row(
+                modifier = Modifier.fillMaxWidth().height(62.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+        ) {
+                Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                        Icon(
+                                Icons.Default.DirectionsCar,
+                                contentDescription = null,
+                                tint = Color(0xFF66E3FF),
+                                modifier = Modifier.size(34.dp)
+                        )
+                        Column {
+                                Text(
+                                        text = "IMPULSE DRIVE",
+                                        color = Color.White,
+                                        fontFamily = DashboardReadableFont,
+                                        fontSize = 25.sp,
+                                        fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                        text = projectionLabel(activeProjectionPackage),
+                                        color = Color.White.copy(alpha = 0.62f),
+                                        fontSize = 13.sp,
+                                        fontFamily = DashboardReadableFont
+                                )
+                        }
+                }
+                Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                        DashboardStatusChip(
+                                icon = Icons.Default.DeviceThermostat,
+                                text = "Cabine ${formatTemperature(snapshot.insideTemp)}"
+                        )
+                        DashboardStatusChip(
+                                icon = Icons.Default.WbSunny,
+                                text = "Externa ${formatTemperature(snapshot.outsideTemp)}"
+                        )
+                        DashboardStatusChip(icon = Icons.Default.AccessTime, text = time)
+                        DashboardNativeMenuButton(onClick = onShowNativeMenu)
+                }
+        }
+}
+
+@Composable
+private fun DashboardNativeMenuButton(onClick: () -> Unit) {
+        Surface(
+                onClick = onClick,
+                modifier = Modifier.height(44.dp),
+                color = Color(0xFF66E3FF).copy(alpha = 0.14f),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, Color(0xFF66E3FF).copy(alpha = 0.34f))
+        ) {
+                Row(
+                        modifier = Modifier.padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                        Icon(
+                                Icons.Default.Visibility,
+                                contentDescription = null,
+                                tint = Color(0xFF66E3FF),
+                                modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                                text = "Menu nativo",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontFamily = DashboardReadableFont,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                        )
+                }
+        }
+}
+
+@Composable
+private fun DashboardTopDragHandle(modifier: Modifier = Modifier) {
+        Box(
+                modifier = modifier.width(148.dp).height(24.dp),
+                contentAlignment = Alignment.Center
+        ) {
+                Box(
+                        modifier =
+                                Modifier.width(86.dp)
+                                        .height(5.dp)
+                                        .background(
+                                                Color.White.copy(alpha = 0.42f),
+                                                RoundedCornerShape(50)
+                                        )
+                )
+        }
+}
+
+@Composable
+private fun DashboardDrivePanel(snapshot: DashboardVehicleSnapshot, modifier: Modifier) {
+        DashboardPanel(modifier = modifier) {
+                Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+                        Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Top
+                        ) {
+                                Column {
+                                        Text(
+                                                text = "Velocidade",
+                                                color = Color.White.copy(alpha = 0.6f),
+                                                fontSize = 15.sp,
+                                                fontFamily = DashboardReadableFont
+                                        )
+                                        Row(verticalAlignment = Alignment.Bottom) {
+                                                Text(
+                                                        text = formatSpeed(snapshot.speed),
+                                                        color = Color.White,
+                                                        fontSize = 98.sp,
+                                                        fontFamily = DashboardReadableFont,
+                                                        fontWeight = FontWeight.Bold
+                                                )
+                                                Text(
+                                                        text = "km/h",
+                                                        color = Color.White.copy(alpha = 0.55f),
+                                                        fontSize = 18.sp,
+                                                        fontFamily = DashboardReadableFont,
+                                                        modifier = Modifier.padding(start = 8.dp, bottom = 19.dp)
+                                                )
+                                        }
+                                }
+                                Box(
+                                        modifier =
+                                                Modifier.size(90.dp)
+                                                        .background(
+                                                                Color(0xFF66E3FF).copy(alpha = 0.12f),
+                                                                RoundedCornerShape(8.dp)
+                                                        )
+                                                        .border(
+                                                                1.dp,
+                                                                Color(0xFF66E3FF).copy(alpha = 0.42f),
+                                                                RoundedCornerShape(8.dp)
+                                                        ),
+                                        contentAlignment = Alignment.Center
+                                ) {
+                                        Text(
+                                                text = formatGear(snapshot.gear),
+                                                color = Color(0xFF66E3FF),
+                                                fontSize = 44.sp,
+                                                fontFamily = DashboardReadableFont,
+                                                fontWeight = FontWeight.Bold
+                                        )
+                                }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                DashboardStatPill(
+                                        label = "Condução",
+                                        value = driveModeLabel(snapshot.driveMode),
+                                        icon = Icons.Default.Speed,
+                                        modifier = Modifier.weight(1f)
+                                )
+                                DashboardStatPill(
+                                        label = "Direção",
+                                        value = steeringModeLabel(snapshot.steeringMode),
+                                        icon = DashboardSteeringWheelIcon,
+                                        modifier = Modifier.weight(1f)
+                                )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                DashboardStatPill(
+                                        label = "EV",
+                                        value = powerModelLabel(snapshot.powerModel),
+                                        icon = Icons.Default.ElectricBolt,
+                                        accent = Color(0xFF78E08F),
+                                        modifier = Modifier.weight(1f)
+                                )
+                                DashboardStatPill(
+                                        label = "Regen",
+                                        value = regenLabel(snapshot.energyRecovery),
+                                        icon = Icons.Default.Autorenew,
+                                        accent = Color(0xFFFFC857),
+                                        modifier = Modifier.weight(1f)
+                                )
+                        }
+                        DashboardReadinessStrip(snapshot.readyState)
+                }
+        }
+}
+
+@Composable
+private fun DashboardEnergyPanel(snapshot: DashboardVehicleSnapshot, modifier: Modifier) {
+        val evPowerKw = calculateEvPowerKw(snapshot.batteryVoltage, snapshot.batteryCurrent)
+        DashboardPanel(modifier = modifier) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        DashboardPanelTitle(Icons.Default.ElectricBolt, "Energia e autonomia")
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                DashboardLinearMeter(
+                                        label = "Bateria",
+                                        value = formatPercent(snapshot.batteryPercent),
+                                        fraction = percentFraction(snapshot.batteryPercent),
+                                        accent = Color(0xFF78E08F),
+                                        icon = Icons.Default.BatteryChargingFull,
+                                        modifier = Modifier.weight(1f)
+                                )
+                                DashboardLinearMeter(
+                                        label = "Combustível",
+                                        value = formatPercent(snapshot.fuelPercent),
+                                        fraction = percentFraction(snapshot.fuelPercent),
+                                        accent = Color(0xFFFFC857),
+                                        icon = Icons.Default.LocalGasStation,
+                                        modifier = Modifier.weight(1f)
+                                )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                DashboardMetricTile(
+                                        label = "Autonomia EV",
+                                        value = formatDistance(snapshot.batteryRange),
+                                        icon = Icons.Default.ElectricCar,
+                                        modifier = Modifier.weight(1f)
+                                )
+                                DashboardMetricTile(
+                                        label = "Autonomia HEV",
+                                        value = formatDistance(snapshot.fuelRange),
+                                        icon = Icons.Default.Route,
+                                        modifier = Modifier.weight(1f)
+                                )
+                                DashboardMetricTile(
+                                        label = "Potência",
+                                        value = evPowerKw,
+                                        icon = Icons.Default.Bolt,
+                                        modifier = Modifier.weight(1f)
+                                )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                DashboardMetricTile(
+                                        label = "Odômetro",
+                                        value = formatDistance(snapshot.odometer),
+                                        icon = Icons.Default.Timeline,
+                                        modifier = Modifier.weight(1f)
+                                )
+                                DashboardMetricTile(
+                                        label = "Consumo",
+                                        value = formatConsumption(snapshot.avgFuel, "L/100"),
+                                        icon = Icons.Default.LocalGasStation,
+                                        modifier = Modifier.weight(1f)
+                                )
+                                DashboardMetricTile(
+                                        label = "Elétrico",
+                                        value = formatConsumption(snapshot.avgEnergy, "kWh"),
+                                        icon = Icons.Default.ElectricBolt,
+                                        modifier = Modifier.weight(1f)
+                                )
+                        }
+                }
+        }
+}
+
+@Composable
+private fun DashboardSettingsPanel(
+        snapshot: DashboardVehicleSnapshot,
+        serviceManager: ServiceManager,
+        modifier: Modifier
+) {
+        DashboardPanel(modifier = modifier) {
+                val driveOptions = listOf("2" to "Eco", "0" to "Normal", "1" to "Sport")
+                val powerOptions = listOf("0" to "HEV", "1" to "EV Prior.", "3" to "EV")
+                val regenOptions = listOf("2" to "Baixo", "0" to "Normal", "1" to "Alto")
+                val steeringOptions = listOf("2" to "Conforto", "0" to "Normal", "1" to "Sport")
+
+                Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                        Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                                DashboardPanelTitle(Icons.Default.Tune, "Dinâmica")
+                                DashboardDynamicsReadyBadge(snapshot.readyState)
+                        }
+                        Row(
+                                modifier = Modifier.fillMaxWidth().height(138.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                                DashboardCircularResourceGauge(
+                                        label = "Bateria",
+                                        value = formatPercent(snapshot.batteryPercent),
+                                        fraction = percentFraction(snapshot.batteryPercent),
+                                        detail = formatDistance(snapshot.batteryRange),
+                                        accent = Color(0xFF78E08F),
+                                        icon = Icons.Default.BatteryChargingFull,
+                                        modifier = Modifier.weight(1f)
+                                )
+                                DashboardCircularResourceGauge(
+                                        label = "Combustível",
+                                        value = formatPercent(snapshot.fuelPercent),
+                                        fraction = percentFraction(snapshot.fuelPercent),
+                                        detail = formatFuelLiters(snapshot.fuelPercent),
+                                        accent = Color(0xFFFFC857),
+                                        icon = Icons.Default.LocalGasStation,
+                                        modifier = Modifier.weight(1f)
+                                )
+                        }
+                        Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                                Row(
+                                        modifier = Modifier.weight(1f),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                        DashboardPremiumCycleControl(
+                                                label = "Condução",
+                                                value = driveModeLabel(snapshot.driveMode),
+                                                nextValue =
+                                                        nextDashboardOptionLabel(
+                                                                snapshot.driveMode,
+                                                                driveOptions
+                                                        ),
+                                                icon = Icons.Default.Speed,
+                                                accent = Color(0xFF66E3FF),
+                                                modifier = Modifier.weight(1f)
+                                        ) {
+                                                serviceManager.updateData(
+                                                        CarConstants
+                                                                .CAR_DRIVE_SETTING_DRIVE_MODE
+                                                                .getValue(),
+                                                        nextDashboardOption(
+                                                                snapshot.driveMode,
+                                                                driveOptions
+                                                        )
+                                                )
+                                        }
+                                        DashboardPremiumCycleControl(
+                                                label = "Energia",
+                                                value = powerModelLabel(snapshot.powerModel),
+                                                nextValue =
+                                                        nextDashboardOptionLabel(
+                                                                snapshot.powerModel,
+                                                                powerOptions
+                                                        ),
+                                                icon = Icons.Default.ElectricBolt,
+                                                accent = Color(0xFF78E08F),
+                                                modifier = Modifier.weight(1f)
+                                        ) {
+                                                serviceManager.updateData(
+                                                        CarConstants
+                                                                .CAR_EV_SETTING_POWER_MODEL_CONFIG
+                                                                .getValue(),
+                                                        nextDashboardOption(
+                                                                snapshot.powerModel,
+                                                                powerOptions
+                                                        )
+                                                )
+                                        }
+                                }
+                                Row(
+                                        modifier = Modifier.weight(1f),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                        DashboardPremiumCycleControl(
+                                                label = "Regeneração",
+                                                value = regenLabel(snapshot.energyRecovery),
+                                                nextValue =
+                                                        nextDashboardOptionLabel(
+                                                                snapshot.energyRecovery,
+                                                                regenOptions
+                                                        ),
+                                                icon = Icons.Default.Autorenew,
+                                                accent = Color(0xFFFFC857),
+                                                modifier = Modifier.weight(1f)
+                                        ) {
+                                                serviceManager.updateData(
+                                                        CarConstants
+                                                                .CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL
+                                                                .getValue(),
+                                                        nextDashboardOption(
+                                                                snapshot.energyRecovery,
+                                                                regenOptions
+                                                        )
+                                                )
+                                        }
+                                        DashboardPremiumCycleControl(
+                                                label = "Direção",
+                                                value = steeringModeLabel(snapshot.steeringMode),
+                                                nextValue =
+                                                        nextDashboardOptionLabel(
+                                                                snapshot.steeringMode,
+                                                                steeringOptions
+                                                        ),
+                                                icon = DashboardSteeringWheelIcon,
+                                                accent = Color(0xFFB7A6FF),
+                                                modifier = Modifier.weight(1f)
+                                        ) {
+                                                serviceManager.updateData(
+                                                        CarConstants
+                                                                .CAR_DRIVE_SETTING_STEERING_WHEEL_ASSIST_MODE
+                                                                .getValue(),
+                                                        nextDashboardOption(
+                                                                snapshot.steeringMode,
+                                                                steeringOptions
+                                                        )
+                                                )
+                                        }
+                                }
+                        }
+                }
+        }
+}
+
+@Composable
+private fun DashboardMediaPanel(
+        appLabel: String?,
+        appIcon: android.graphics.drawable.Drawable?,
+        activeProjectionPackage: String?,
+        volume: String,
+        serviceManager: ServiceManager,
+        modifier: Modifier
+) {
+        val mediaTitle = BottomBarState.mediaTitle?.takeIf { it.isNotBlank() }
+        val mediaArtist = BottomBarState.mediaArtist?.takeIf { it.isNotBlank() }
+        val mediaAlbum = BottomBarState.mediaAlbum?.takeIf { it.isNotBlank() }
+        val mediaArtwork = BottomBarState.mediaArtwork
+        val mediaPackageName = BottomBarState.mediaPackageName
+        val isPlaying = BottomBarState.mediaIsPlaying
+        val durationMs = BottomBarState.mediaDurationMs
+        val elapsedMs = BottomBarState.mediaElapsedMs
+        val progressUpdatedAtMs = BottomBarState.mediaProgressUpdatedAtMs
+        val canSeek = BottomBarState.mediaCanSeek
+        val displayedElapsedMs =
+                rememberMediaElapsedMs(
+                        elapsedMs = elapsedMs,
+                        durationMs = durationMs,
+                        progressUpdatedAtMs = progressUpdatedAtMs,
+                        isPlaying = isPlaying
+                )
+        val artworkKey =
+                remember(mediaPackageName, mediaTitle, mediaArtist, mediaAlbum, mediaArtwork) {
+                        listOfNotNull(
+                                        mediaPackageName,
+                                        mediaTitle,
+                                        mediaArtist,
+                                        mediaAlbum,
+                                        mediaArtwork?.generationId?.toString()
+                                )
+                                .joinToString("|")
+                }
+        var albumColors by remember { mutableStateOf(AlbumBackgroundService.fallbackColors) }
+        LaunchedEffect(artworkKey, mediaArtwork) {
+                albumColors =
+                        withContext(Dispatchers.Default) {
+                                AlbumBackgroundService.extractColors(mediaArtwork, artworkKey)
+                        }
+        }
+        val dynamicPrimary by
+                animateColorAsState(
+                        targetValue = Color(albumColors.primary),
+                        animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing),
+                        label = "albumPrimary"
+                )
+        val dynamicSecondary by
+                animateColorAsState(
+                        targetValue = Color(albumColors.secondary),
+                        animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing),
+                        label = "albumSecondary"
+                )
+        val dynamicAccent by
+                animateColorAsState(
+                        targetValue = Color(albumColors.accent),
+                        animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing),
+                        label = "albumAccent"
+                )
+        val dynamicDark by
+                animateColorAsState(
+                        targetValue = Color(albumColors.dark),
+                        animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing),
+                        label = "albumDark"
+                )
+        val title =
+                mediaTitle
+                        ?: appLabel
+                        ?: shortProjectionLabel(activeProjectionPackage)
+                        ?: "Audio"
+        val mediaSubtitle =
+                listOfNotNull(mediaArtist, mediaAlbum).distinct().joinToString(" • ")
+                        .takeIf { it.isNotBlank() }
+        val subtitle =
+                mediaSubtitle
+                        ?: when {
+                                activeProjectionPackage != null -> "Projecao ativa no cluster"
+                                mediaPackageName != null -> "Midia do sistema"
+                                else -> "Sistema de audio"
+                        }
+
+        Box(
+                modifier =
+                        modifier.clip(RoundedCornerShape(8.dp))
+                                .background(
+                                        Brush.linearGradient(
+                                                colors =
+                                                        listOf(
+                                                                dynamicPrimary.copy(alpha = 0.38f),
+                                                                dynamicSecondary.copy(alpha = 0.28f),
+                                                                dynamicDark.copy(alpha = 0.98f)
+                                                        ),
+                                                start = Offset.Zero,
+                                                end = Offset(900f, 620f)
+                                        )
+                                )
+                                .border(
+                                        1.dp,
+                                        Color.White.copy(alpha = 0.14f),
+                                        RoundedCornerShape(8.dp)
+                                )
+        ) {
+                DashboardAlbumDynamicBackground(
+                        primary = dynamicPrimary,
+                        secondary = dynamicSecondary,
+                        accent = dynamicAccent,
+                        dark = dynamicDark,
+                        hasArtwork = mediaArtwork != null,
+                        modifier = Modifier.matchParentSize()
+                )
+                Column(
+                        modifier = Modifier.fillMaxSize().padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                        Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                                DashboardPanelTitle(Icons.Default.Album, "Midia")
+                                DashboardMediaBadge(isPlaying = isPlaying, hasMetadata = mediaTitle != null)
+                        }
+                        Box(
+                                modifier =
+                                        Modifier.fillMaxWidth()
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(Color.White.copy(alpha = 0.06f))
+                                                .border(
+                                                        1.dp,
+                                                        Color.White.copy(alpha = 0.12f),
+                                                        RoundedCornerShape(8.dp)
+                                                )
+                        ) {
+                                if (mediaArtwork != null) {
+                                        Box(
+                                                modifier =
+                                                        Modifier.fillMaxSize()
+                                                                .background(
+                                                                        Brush.linearGradient(
+                                                                                colors =
+                                                                                        listOf(
+                                                                                                dynamicPrimary,
+                                                                                                dynamicSecondary,
+                                                                                                dynamicDark
+                                                                                        ),
+                                                                                start = Offset.Zero,
+                                                                                end = Offset(900f, 620f)
+                                                                        )
+                                                                )
+                                        )
+                                        Image(
+                                                bitmap = mediaArtwork.asImageBitmap(),
+                                                contentDescription = null,
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Crop
+                                        )
+                                        Box(
+                                                modifier =
+                                                        Modifier.fillMaxSize()
+                                                                .background(
+                                                                        Brush.verticalGradient(
+                                                                                colors =
+                                                                                        listOf(
+                                                                                                Color.Transparent,
+                                                                                                Color.Black.copy(alpha = 0.72f)
+                                                                                        ),
+                                                                                startY = 120f
+                                                                        )
+                                                                )
+                                        )
+                                } else {
+                                        DashboardArtworkFallback(
+                                                appIcon = appIcon,
+                                                activeProjectionPackage = activeProjectionPackage,
+                                                modifier = Modifier.fillMaxSize()
+                                        )
+                                }
+                                Column(
+                                        modifier =
+                                                Modifier.align(Alignment.BottomStart)
+                                                        .fillMaxWidth()
+                                                        .padding(20.dp)
+                                ) {
+                                        Text(
+                                                text = title,
+                                                color = Color.White,
+                                                fontSize = 31.sp,
+                                                fontFamily = DashboardReadableFont,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                                text = subtitle,
+                                                color = Color.White.copy(alpha = 0.72f),
+                                                fontSize = 16.sp,
+                                                fontFamily = DashboardReadableFont,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.padding(top = 6.dp)
+                                        )
+                                }
+                        }
+                        Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                                DashboardIconButton(
+                                        Icons.Default.SkipPrevious,
+                                        size = 66.dp,
+                                        contentDescription = "Musica anterior"
+                                ) {
+                                        BottomBarService.skipCurrentMediaPrevious()
+                                }
+                                DashboardIconButton(
+                                        if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                        size = 66.dp,
+                                        contentDescription =
+                                                if (isPlaying) "Pausar musica" else "Reproduzir musica"
+                                ) {
+                                        BottomBarService.toggleCurrentMediaPlayback()
+                                }
+                                DashboardMediaProgressMeter(
+                                        elapsedMs = displayedElapsedMs,
+                                        durationMs = durationMs,
+                                        canSeek = canSeek,
+                                        accent = dynamicAccent,
+                                        modifier = Modifier.weight(1f),
+                                        onSeek = { BottomBarService.seekCurrentMediaTo(it) }
+                                )
+                                DashboardIconButton(
+                                        Icons.Default.SkipNext,
+                                        size = 66.dp,
+                                        contentDescription = "Proxima musica"
+                                ) {
+                                        BottomBarService.skipCurrentMediaNext()
+                                }
+                        }
+                        Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                                DashboardIconButton(Icons.Default.Remove, size = 62.dp) {
+                                        val next =
+                                                (volume.toIntOrNull() ?: 0).minus(1).coerceIn(0, 30)
+                                        serviceManager.updateData(
+                                                CarConstants.SYS_SETTINGS_AUDIO_MEDIA_VOLUME
+                                                        .getValue(),
+                                                next.toString()
+                                        )
+                                }
+                                DashboardLinearMeter(
+                                        label = "Volume",
+                                        value = volume,
+                                        fraction = ((volume.toFloatOrNull() ?: 0f) / 30f).coerceIn(0f, 1f),
+                                        accent = Color(0xFF66E3FF),
+                                        icon = Icons.Default.VolumeUp,
+                                        modifier = Modifier.weight(1f)
+                                )
+                                DashboardIconButton(Icons.Default.Add, size = 62.dp) {
+                                        val next =
+                                                (volume.toIntOrNull() ?: 0).plus(1).coerceIn(0, 30)
+                                        serviceManager.updateData(
+                                                CarConstants.SYS_SETTINGS_AUDIO_MEDIA_VOLUME
+                                                        .getValue(),
+                                                next.toString()
+                                        )
+                                }
+                        }
+                }
+        }
+}
+
+@Composable
+private fun rememberMediaElapsedMs(
+        elapsedMs: Long,
+        durationMs: Long,
+        progressUpdatedAtMs: Long,
+        isPlaying: Boolean
+): Long {
+        var nowMs by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
+        LaunchedEffect(elapsedMs, durationMs, progressUpdatedAtMs, isPlaying) {
+                nowMs = SystemClock.elapsedRealtime()
+                while (isPlaying && durationMs > 0L) {
+                        delay(1000)
+                        nowMs = SystemClock.elapsedRealtime()
+                }
+        }
+        val deltaMs =
+                if (isPlaying && durationMs > 0L && progressUpdatedAtMs > 0L) {
+                        (nowMs - progressUpdatedAtMs).coerceAtLeast(0L)
+                } else {
+                        0L
+                }
+        return if (durationMs > 0L) {
+                (elapsedMs + deltaMs).coerceIn(0L, durationMs)
+        } else {
+                elapsedMs.coerceAtLeast(0L)
+        }
+}
+
+@Composable
+private fun DashboardAlbumDynamicBackground(
+        primary: Color,
+        secondary: Color,
+        accent: Color,
+        dark: Color,
+        hasArtwork: Boolean,
+        modifier: Modifier = Modifier
+) {
+        Canvas(
+                modifier =
+                        modifier.fillMaxSize()
+                                .clip(RoundedCornerShape(8.dp))
+                                .alpha(if (hasArtwork) 1f else 0.56f)
+        ) {
+                drawRect(
+                        brush =
+                                Brush.linearGradient(
+                                        colors =
+                                                listOf(
+                                                        primary.copy(alpha = 0.34f),
+                                                        secondary.copy(alpha = 0.3f),
+                                                        dark.copy(alpha = 0.72f)
+                                                ),
+                                        start = Offset.Zero,
+                                        end = Offset(size.width, size.height)
+                                )
+                )
+                drawCircle(
+                        brush =
+                                Brush.radialGradient(
+                                        colors =
+                                                listOf(
+                                                        primary.copy(alpha = 0.58f),
+                                                        primary.copy(alpha = 0.08f),
+                                                        Color.Transparent
+                                                ),
+                                        center = Offset(size.width * 0.22f, size.height * 0.18f),
+                                        radius = size.maxDimension * 0.72f
+                                ),
+                        radius = size.maxDimension * 0.72f,
+                        center = Offset(size.width * 0.22f, size.height * 0.18f)
+                )
+                drawCircle(
+                        brush =
+                                Brush.radialGradient(
+                                        colors =
+                                                listOf(
+                                                        secondary.copy(alpha = 0.48f),
+                                                        secondary.copy(alpha = 0.08f),
+                                                        Color.Transparent
+                                                ),
+                                        center = Offset(size.width * 0.82f, size.height * 0.72f),
+                                        radius = size.maxDimension * 0.82f
+                                ),
+                        radius = size.maxDimension * 0.82f,
+                        center = Offset(size.width * 0.82f, size.height * 0.72f)
+                )
+                drawCircle(
+                        brush =
+                                Brush.radialGradient(
+                                        colors =
+                                                listOf(
+                                                        accent.copy(alpha = 0.22f),
+                                                        Color.Transparent
+                                                ),
+                                        center = Offset(size.width * 0.62f, size.height * 0.12f),
+                                        radius = size.maxDimension * 0.48f
+                                ),
+                        radius = size.maxDimension * 0.48f,
+                        center = Offset(size.width * 0.62f, size.height * 0.12f)
+                )
+                drawRect(Color.Black.copy(alpha = if (hasArtwork) 0.42f else 0.58f))
+        }
+}
+
+@Composable
+private fun DashboardMediaProgressMeter(
+        elapsedMs: Long,
+        durationMs: Long,
+        canSeek: Boolean,
+        accent: Color,
+        modifier: Modifier = Modifier,
+        onSeek: (Long) -> Unit
+) {
+        var trackWidthPx by remember { mutableFloatStateOf(1f) }
+        var dragFraction by remember { mutableStateOf<Float?>(null) }
+        val progressFraction =
+                if (durationMs > 0L) {
+                        elapsedMs.toFloat() / durationMs.toFloat()
+                } else {
+                        0f
+                }
+        val activeFraction = (dragFraction ?: progressFraction).coerceIn(0f, 1f)
+        val trackModifier =
+                Modifier.fillMaxWidth()
+                        .height(14.dp)
+                        .onSizeChanged { trackWidthPx = it.width.toFloat().coerceAtLeast(1f) }
+                        .pointerInput(canSeek, durationMs, trackWidthPx) {
+                                if (!canSeek || durationMs <= 0L) return@pointerInput
+
+                                fun updateFraction(positionX: Float) {
+                                        dragFraction = (positionX / trackWidthPx).coerceIn(0f, 1f)
+                                }
+
+                                awaitEachGesture {
+                                        val down = awaitFirstDown(requireUnconsumed = false)
+                                        updateFraction(down.position.x)
+                                        down.consume()
+
+                                        var pressed: Boolean
+                                        do {
+                                                val event = awaitPointerEvent()
+                                                val change = event.changes.firstOrNull()
+                                                if (change != null) {
+                                                        updateFraction(change.position.x)
+                                                        change.consume()
+                                                }
+                                                pressed = event.changes.any { it.pressed }
+                                        } while (pressed)
+
+                                        val target =
+                                                ((dragFraction ?: activeFraction) * durationMs)
+                                                        .roundToLong()
+                                                        .coerceIn(0L, durationMs)
+                                        dragFraction = null
+                                        onSeek(target)
+                                }
+                        }
+
+        Column(
+                modifier =
+                        modifier.fillMaxWidth()
+                                .height(72.dp)
+                                .background(Color.White.copy(alpha = 0.065f), RoundedCornerShape(8.dp))
+                                .border(
+                                        1.dp,
+                                        accent.copy(alpha = if (durationMs > 0L) 0.24f else 0.1f),
+                                        RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+        ) {
+                Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                ) {
+                        Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                                Icon(
+                                        Icons.Default.AccessTime,
+                                        contentDescription = null,
+                                        tint = accent,
+                                        modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                        text = "Tempo",
+                                        color = Color.White.copy(alpha = 0.68f),
+                                        fontSize = 13.sp,
+                                        fontFamily = DashboardReadableFont,
+                                        fontWeight = FontWeight.Medium
+                                )
+                        }
+                        Text(
+                                text =
+                                        "${formatMediaTime(elapsedMs)} / ${
+                                                formatMediaTime(durationMs, unknownWhenZero = true)
+                                        }",
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontFamily = DashboardReadableFont,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                        )
+                }
+                Box(
+                        modifier =
+                                trackModifier.background(
+                                        Color.White.copy(alpha = 0.12f),
+                                        RoundedCornerShape(50)
+                                )
+                ) {
+                        Box(
+                                modifier =
+                                        Modifier.fillMaxWidth(activeFraction)
+                                                .fillMaxHeight()
+                                                .background(accent, RoundedCornerShape(50))
+                        )
+                        if (durationMs > 0L) {
+                                Box(
+                                        modifier =
+                                                Modifier.fillMaxWidth(
+                                                                activeFraction.coerceIn(0.01f, 1f)
+                                                        )
+                                                        .fillMaxHeight(),
+                                        contentAlignment = Alignment.CenterEnd
+                                ) {
+                                        Box(
+                                                modifier =
+                                                        Modifier.size(if (canSeek) 20.dp else 14.dp)
+                                                                .background(
+                                                                        Color.White,
+                                                                        CircleShape
+                                                                )
+                                                                .border(
+                                                                        2.dp,
+                                                                        accent.copy(alpha = 0.86f),
+                                                                        CircleShape
+                                                                )
+                                        )
+                                }
+                        }
+                }
+        }
+}
+
+@Composable
+private fun DashboardProjectionActionsPanel(
+        effectivePackage: String?,
+        context: Context,
+        scope: CoroutineScope,
+        modifier: Modifier
+) {
+        DashboardPanel(modifier = modifier) {
+                Row(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                ) {
+                        DashboardActionButton(
+                                text = "Cluster",
+                                icon = Icons.Default.KeyboardArrowLeft,
+                                enabled = effectivePackage != null,
+                                modifier = Modifier.weight(1f),
+                                height = 58.dp
+                        ) {
+                                val pkg = effectivePackage ?: return@DashboardActionButton
+                                scope.launch {
+                                        DisplayAppLauncher.getOrCreateDefaultConfig(context, pkg)
+                                                ?.let { DisplayAppLauncher.sendToDisplay(it) }
+                                }
+                        }
+                        DashboardActionButton(
+                                text = "D0",
+                                icon = Icons.Default.KeyboardArrowRight,
+                                modifier = Modifier.weight(1f),
+                                height = 58.dp
+                        ) {
+                                scope.launch { DisplayAppLauncher.bringAllToMainDisplay() }
+                        }
+                        DashboardActionButton(
+                                text = "Apps",
+                                icon = Icons.Default.GridView,
+                                modifier = Modifier.weight(1f),
+                                height = 58.dp
+                        ) {
+                                BottomBarState.isDashboardExpanded = false
+                                BottomBarState.isMenuExpanded = true
+                        }
+                }
+        }
+}
+
+@Composable
+private fun DashboardMediaBadge(isPlaying: Boolean, hasMetadata: Boolean) {
+        Row(
+                modifier =
+                        Modifier.background(
+                                        if (isPlaying) Color(0xFF78E08F).copy(alpha = 0.16f)
+                                        else Color.White.copy(alpha = 0.08f),
+                                        RoundedCornerShape(8.dp)
+                                )
+                                .border(
+                                        1.dp,
+                                        if (isPlaying) Color(0xFF78E08F).copy(alpha = 0.42f)
+                                        else Color.White.copy(alpha = 0.12f),
+                                        RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+) {
+                Icon(
+                        if (isPlaying) Icons.Default.GraphicEq else Icons.Default.MusicNote,
+                        contentDescription = null,
+                        tint = if (isPlaying) Color(0xFF78E08F) else Color.White.copy(alpha = 0.72f),
+                        modifier = Modifier.size(20.dp)
+                )
+                Text(
+                        text =
+                                when {
+                                        isPlaying -> "PLAY"
+                                        hasMetadata -> "MIDIA"
+                                        else -> "AUDIO"
+                                },
+                        color = if (isPlaying) Color(0xFF78E08F) else Color.White.copy(alpha = 0.78f),
+                        fontSize = 12.sp,
+                        fontFamily = DashboardReadableFont,
+                        fontWeight = FontWeight.Bold
+                )
+        }
+}
+
+@Composable
+private fun DashboardArtworkFallback(
+        appIcon: android.graphics.drawable.Drawable?,
+        activeProjectionPackage: String?,
+        modifier: Modifier = Modifier
+) {
+        Box(
+                modifier =
+                        modifier.background(
+                                Brush.linearGradient(
+                                        colors =
+                                                listOf(
+                                                        Color(0xFF1B2A31),
+                                                        Color(0xFF11161A),
+                                                        Color(0xFF2A2214)
+                                                ),
+                                        start = Offset.Zero,
+                                        end = Offset(900f, 620f)
+                                )
+                        ),
+                contentAlignment = Alignment.Center
+        ) {
+                Box(
+                        modifier =
+                                Modifier.size(168.dp)
+                                        .background(
+                                                Color.White.copy(alpha = 0.08f),
+                                                RoundedCornerShape(8.dp)
+                                        )
+                                        .border(
+                                                1.dp,
+                                                Color.White.copy(alpha = 0.16f),
+                                                RoundedCornerShape(8.dp)
+                                        ),
+                        contentAlignment = Alignment.Center
+                ) {
+                        if (appIcon != null) {
+                                AsyncImage(
+                                        model = appIcon,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(104.dp)
+                                )
+                        } else {
+                                Icon(
+                                        if (activeProjectionPackage == BOTTOM_BAR_CARPLAY_PACKAGE)
+                                                Icons.Default.DirectionsCar
+                                        else Icons.Default.MusicNote,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.78f),
+                                        modifier = Modifier.size(82.dp)
+                                )
+                        }
+                }
+                Text(
+                        text = shortProjectionLabel(activeProjectionPackage) ?: "IMPULSE AUDIO",
+                        color = Color.White.copy(alpha = 0.1f),
+                        fontSize = 34.sp,
+                        fontFamily = DashboardReadableFont,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.align(Alignment.TopStart).padding(18.dp),
+                        maxLines = 1
+                )
+        }
+}
+
+@Composable
+private fun DashboardQuickActionsPanel(
+        context: Context,
+        scope: CoroutineScope,
+        effectivePackage: String?,
+        modifier: Modifier
+) {
+        DashboardPanel(modifier = modifier) {
+                Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+                        DashboardPanelTitle(Icons.Default.Apps, "Atalhos")
+                        DashboardActionButton(
+                                text = "Enviar ao cluster",
+                                icon = Icons.Default.KeyboardArrowLeft,
+                                enabled = effectivePackage != null
+                        ) {
+                                val pkg = effectivePackage ?: return@DashboardActionButton
+                                scope.launch {
+                                        DisplayAppLauncher.getOrCreateDefaultConfig(context, pkg)
+                                                ?.let { DisplayAppLauncher.sendToDisplay(it) }
+                                }
+                        }
+                        DashboardActionButton(
+                                text = "Trazer para D0",
+                                icon = Icons.Default.KeyboardArrowRight
+                        ) {
+                                scope.launch { DisplayAppLauncher.bringAllToMainDisplay() }
+                        }
+                        DashboardActionButton(
+                                text = "Menu de apps",
+                                icon = Icons.Default.GridView
+                        ) {
+                                BottomBarState.isDashboardExpanded = false
+                                BottomBarState.isMenuExpanded = true
+                        }
+                        DashboardActionButton(
+                                text = "Ocultar painel",
+                                icon = Icons.Default.KeyboardDoubleArrowDown
+                        ) {
+                                BottomBarState.isDashboardExpanded = false
+                                BottomBarState.isVisible = false
+                        }
+                }
+        }
+}
+
+@Composable
+private fun DashboardHvacPanel(
+        snapshot: DashboardVehicleSnapshot,
+        serviceManager: ServiceManager,
+        modifier: Modifier
+) {
+        val hvacEnabled = snapshot.hvacPower == "1"
+        var blowerMode by remember { mutableStateOf(snapshot.blowerMode) }
+        var driverSeatVentilation by remember {
+                mutableStateOf(snapshot.driverSeatVentilation)
+        }
+        var passengerSeatVentilation by remember {
+                mutableStateOf(snapshot.passengerSeatVentilation)
+        }
+
+        LaunchedEffect(snapshot.blowerMode) { blowerMode = snapshot.blowerMode }
+        LaunchedEffect(snapshot.driverSeatVentilation) {
+                driverSeatVentilation = snapshot.driverSeatVentilation
+        }
+        LaunchedEffect(snapshot.passengerSeatVentilation) {
+                passengerSeatVentilation = snapshot.passengerSeatVentilation
+        }
+
+        DashboardPanel(modifier = modifier) {
+                Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                        Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                                DashboardPanelTitle(Icons.Default.AcUnit, "Climatização")
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                DashboardTempAdjuster(
+                                        label = "Motorista",
+                                        temp = snapshot.driverTemp,
+                                        enabled = hvacEnabled,
+                                        modifier = Modifier.weight(1f)
+                                ) {
+                                        updateTemperature(
+                                                serviceManager,
+                                                CarConstants.CAR_HVAC_DRIVER_TEMPERATURE,
+                                                snapshot.driverTemp,
+                                                it
+                                        )
+                                }
+                                DashboardTempAdjuster(
+                                        label = "Passageiro",
+                                        temp = snapshot.passTemp,
+                                        enabled = hvacEnabled,
+                                        modifier = Modifier.weight(1f)
+                                ) {
+                                        updateTemperature(
+                                                serviceManager,
+                                                CarConstants.CAR_HVAC_PASS_TEMPERATURE,
+                                                snapshot.passTemp,
+                                                it
+                                        )
+                                }
+                        }
+                        DashboardFanAdjuster(
+                                speed = snapshot.fanSpeed,
+                                enabled = true,
+                                modifier = Modifier.fillMaxWidth()
+                        ) {
+                                val next =
+                                        (snapshot.fanSpeed.toIntOrNull() ?: 0).plus(it).coerceIn(0, 7)
+                                serviceManager.updateData(
+                                        CarConstants.CAR_HVAC_FAN_SPEED.getValue(),
+                                        next.toString()
+                                )
+                                if (next == 0 && snapshot.hvacPower == "1") {
+                                        serviceManager.updateData(
+                                                CarConstants.CAR_HVAC_POWER_MODE.getValue(),
+                                                "0"
+                                        )
+                                } else if (next > 0 && snapshot.hvacPower == "0") {
+                                        serviceManager.updateData(
+                                                CarConstants.CAR_HVAC_POWER_MODE.getValue(),
+                                                "1"
+                                        )
+                                }
+                        }
+                        DashboardAirflowModeSelector(
+                                mode = blowerMode,
+                                enabled = hvacEnabled,
+                                modifier = Modifier.fillMaxWidth()
+                        ) { nextMode ->
+                                blowerMode = nextMode
+                                serviceManager.updateData(
+                                        CarConstants.CAR_HVAC_BLOWER_MODE.getValue(),
+                                        nextMode
+                                )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                DashboardSeatVentilationButton(
+                                        label = "Motorista",
+                                        level = driverSeatVentilation,
+                                        maxLevel = snapshot.seatVentilationMaxLevel,
+                                        modifier = Modifier.weight(1f)
+                                ) {
+                                        val nextLevel =
+                                                nextSeatVentilationLevel(
+                                                        driverSeatVentilation,
+                                                        snapshot.seatVentilationMaxLevel
+                                                )
+                                        driverSeatVentilation = nextLevel
+                                        updateSeatVentilationLevel(
+                                                serviceManager,
+                                                CarConstants
+                                                        .CAR_COMFORT_SETTING_DRIVER_SEAT_VENTILATION_LEVEL,
+                                                nextLevel
+                                        )
+                                }
+                                DashboardSeatVentilationButton(
+                                        label = "Passageiro",
+                                        level = passengerSeatVentilation,
+                                        maxLevel = snapshot.seatVentilationMaxLevel,
+                                        modifier = Modifier.weight(1f)
+                                ) {
+                                        val nextLevel =
+                                                nextSeatVentilationLevel(
+                                                        passengerSeatVentilation,
+                                                        snapshot.seatVentilationMaxLevel
+                                                )
+                                        passengerSeatVentilation = nextLevel
+                                        updateSeatVentilationLevel(
+                                                serviceManager,
+                                                CarConstants
+                                                        .CAR_COMFORT_SETTING_PASSENGER_SEAT_VENTILATION_LEVEL,
+                                                nextLevel
+                                        )
+                                }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                DashboardToggleButton(
+                                        label = "AC",
+                                        icon = Icons.Default.PowerSettingsNew,
+                                        active = hvacEnabled,
+                                        modifier = Modifier.weight(1f)
+                                ) {
+                                        serviceManager.updateData(
+                                                CarConstants.CAR_HVAC_POWER_MODE.getValue(),
+                                                if (hvacEnabled) "0" else "1"
+                                        )
+                                }
+                                DashboardToggleButton(
+                                        label = "Auto",
+                                        icon = Icons.Default.AutoMode,
+                                        active = snapshot.acAuto == "1",
+                                        enabled = hvacEnabled,
+                                        modifier = Modifier.weight(1f)
+                                ) {
+                                        serviceManager.updateData(
+                                                CarConstants.CAR_HVAC_AUTO_ENABLE.getValue(),
+                                                if (snapshot.acAuto == "1") "0" else "1"
+                                        )
+                                }
+                                DashboardToggleButton(
+                                        label = "Sync",
+                                        icon = Icons.Default.Sync,
+                                        active = snapshot.acSync == "1",
+                                        enabled = hvacEnabled,
+                                        modifier = Modifier.weight(1f)
+                                ) {
+                                        serviceManager.updateData(
+                                                CarConstants.CAR_HVAC_SYNC_ENABLE.getValue(),
+                                                if (snapshot.acSync == "1") "0" else "1"
+                                        )
+                                }
+                                DashboardToggleButton(
+                                        label = "Recirc",
+                                        icon = Icons.Default.Autorenew,
+                                        active = snapshot.acRecirc == "1",
+                                        enabled = hvacEnabled,
+                                        modifier = Modifier.weight(1f)
+                                ) {
+                                        val next = if (snapshot.acRecirc == "1") "0" else "1"
+                                        val carValue = if (next == "0") "1" else "0"
+                                        serviceManager.updateData(
+                                                CarConstants.CAR_HVAC_CYCLE_MODE.getValue(),
+                                                carValue
+                                        )
+                                }
+                        }
+                }
+        }
+}
+
+@Composable
+private fun DashboardPanel(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
+        Box(
+                modifier =
+                        modifier.background(
+                                        Brush.linearGradient(
+                                                colors =
+                                                        listOf(
+                                                                Color(0xFF171D22).copy(alpha = 0.96f),
+                                                                Color(0xFF0E1115).copy(alpha = 0.98f)
+                                                        )
+                                        ),
+                                        RoundedCornerShape(8.dp)
+                                )
+                                .border(
+                                        1.dp,
+                                        Color.White.copy(alpha = 0.12f),
+                                        RoundedCornerShape(8.dp)
+                                )
+                                .padding(18.dp),
+                content = content
+        )
+}
+
+@Composable
+private fun DashboardPanelTitle(icon: ImageVector, title: String, compact: Boolean = false) {
+        Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+                Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = Color(0xFF66E3FF),
+                        modifier = Modifier.size(if (compact) 22.dp else 26.dp)
+                )
+                Text(
+                        text = title,
+                        color = Color.White,
+                        fontSize = if (compact) 15.sp else 18.sp,
+                        fontFamily = DashboardReadableFont,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                )
+        }
+}
+
+@Composable
+private fun DashboardStatusChip(icon: ImageVector, text: String) {
+        Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier =
+                        Modifier.background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                                .border(
+                                        1.dp,
+                                        Color.White.copy(alpha = 0.12f),
+                                        RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
+        ) {
+                Icon(icon, contentDescription = null, tint = Color(0xFF66E3FF), modifier = Modifier.size(20.dp))
+                Text(text = text, color = Color.White, fontSize = 14.sp, fontFamily = DashboardReadableFont)
+        }
+}
+
+@Composable
+private fun DashboardDynamicsReadyBadge(readyState: String) {
+        val ready = readyState == "1" || readyState.equals("true", ignoreCase = true)
+        val accent = if (ready) Color(0xFF78E08F) else Color.White.copy(alpha = 0.72f)
+        Row(
+                modifier =
+                        Modifier.height(34.dp)
+                                .background(accent.copy(alpha = if (ready) 0.15f else 0.08f), RoundedCornerShape(8.dp))
+                                .border(1.dp, accent.copy(alpha = if (ready) 0.38f else 0.14f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+                Box(
+                        modifier = Modifier.size(8.dp).background(accent, CircleShape)
+                )
+                Text(
+                        text = if (ready) "READY" else "STBY",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontFamily = DashboardReadableFont,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                )
+        }
+}
+
+@Composable
+private fun DashboardCircularResourceGauge(
+        label: String,
+        value: String,
+        fraction: Float,
+        detail: String,
+        accent: Color,
+        icon: ImageVector,
+        modifier: Modifier = Modifier
+) {
+        Row(
+                modifier =
+                        modifier.fillMaxHeight()
+                                .background(Color.White.copy(alpha = 0.055f), RoundedCornerShape(8.dp))
+                                .border(1.dp, accent.copy(alpha = 0.24f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(13.dp)
+        ) {
+                Box(modifier = Modifier.size(96.dp), contentAlignment = Alignment.Center) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                                val strokeWidth = 8.dp.toPx()
+                                val diameter = size.minDimension - strokeWidth
+                                val topLeft =
+                                        Offset(
+                                                (size.width - diameter) / 2f,
+                                                (size.height - diameter) / 2f
+                                        )
+                                val arcSize = Size(diameter, diameter)
+                                drawArc(
+                                        color = Color.White.copy(alpha = 0.10f),
+                                        startAngle = -90f,
+                                        sweepAngle = 360f,
+                                        useCenter = false,
+                                        topLeft = topLeft,
+                                        size = arcSize,
+                                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                                )
+                                drawArc(
+                                        color = accent,
+                                        startAngle = -90f,
+                                        sweepAngle = 360f * fraction.coerceIn(0f, 1f),
+                                        useCenter = false,
+                                        topLeft = topLeft,
+                                        size = arcSize,
+                                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                                )
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                        text = value,
+                                        color = Color.White,
+                                        fontSize = 23.sp,
+                                        fontFamily = DashboardReadableFont,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                )
+                                Icon(
+                                        icon,
+                                        contentDescription = null,
+                                        tint = accent.copy(alpha = 0.88f),
+                                        modifier = Modifier.size(18.dp)
+                                )
+                        }
+                }
+                Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                        Text(
+                                text = label,
+                                color = Color.White,
+                                fontSize = 17.sp,
+                                fontFamily = DashboardReadableFont,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                                text = detail,
+                                color = Color.White.copy(alpha = 0.62f),
+                                fontSize = 13.sp,
+                                fontFamily = DashboardReadableFont,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                        )
+                        Box(
+                                modifier =
+                                        Modifier.fillMaxWidth()
+                                                .height(4.dp)
+                                                .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(4.dp))
+                        ) {
+                                Box(
+                                        modifier =
+                                                Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f))
+                                                        .fillMaxHeight()
+                                                        .background(accent.copy(alpha = 0.92f), RoundedCornerShape(4.dp))
+                                )
+                        }
+                }
+        }
+}
+
+@Composable
+private fun DashboardCompactStatusTile(
+        label: String,
+        value: String,
+        accent: Color,
+        icon: ImageVector,
+        modifier: Modifier = Modifier
+) {
+        Column(
+                modifier =
+                        modifier.height(74.dp)
+                                .background(Color.White.copy(alpha = 0.06f), RoundedCornerShape(8.dp))
+                                .border(1.dp, accent.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 9.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+        ) {
+                Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                        Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
+                        Text(
+                                text = label,
+                                color = Color.White.copy(alpha = 0.58f),
+                                fontSize = 9.sp,
+                                fontFamily = DashboardReadableFont,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                        )
+                }
+                Text(
+                        text = value,
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontFamily = DashboardReadableFont,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                )
+        }
+}
+
+@Composable
+private fun DashboardStatPill(
+        label: String,
+        value: String,
+        icon: ImageVector,
+        modifier: Modifier = Modifier,
+        accent: Color = Color(0xFF66E3FF)
+) {
+        Row(
+                modifier =
+                        modifier.background(Color.White.copy(alpha = 0.07f), RoundedCornerShape(8.dp))
+                                .border(1.dp, accent.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
+                                .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(24.dp))
+                Column {
+                        Text(
+                                text = label,
+                                color = Color.White.copy(alpha = 0.54f),
+                                fontSize = 11.sp,
+                                fontFamily = DashboardReadableFont,
+                                maxLines = 1
+                        )
+                        Text(
+                                text = value,
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontFamily = DashboardReadableFont,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                        )
+                }
+        }
+}
+
+@Composable
+private fun DashboardReadinessStrip(readyState: String) {
+        val ready = readyState == "1" || readyState.equals("true", ignoreCase = true)
+        Row(
+                modifier =
+                        Modifier.fillMaxWidth()
+                                .height(46.dp)
+                                .background(
+                                        if (ready) Color(0xFF78E08F).copy(alpha = 0.13f)
+                                        else Color.White.copy(alpha = 0.07f),
+                                        RoundedCornerShape(8.dp)
+                                )
+                                .border(
+                                        1.dp,
+                                        if (ready) Color(0xFF78E08F).copy(alpha = 0.4f)
+                                        else Color.White.copy(alpha = 0.12f),
+                                        RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+                Text(
+                        text = if (ready) "READY" else "STANDBY",
+                        color = if (ready) Color(0xFF78E08F) else Color.White.copy(alpha = 0.7f),
+                        fontSize = 16.sp,
+                        fontFamily = DashboardReadableFont,
+                        fontWeight = FontWeight.Bold
+                )
+                Text(
+                        text = "Display 0",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 12.sp,
+                        fontFamily = DashboardReadableFont
+                )
+        }
+}
+
+@Composable
+private fun DashboardLinearMeter(
+        label: String,
+        value: String,
+        fraction: Float,
+        accent: Color,
+        icon: ImageVector,
+        modifier: Modifier = Modifier
+) {
+        Column(
+                        modifier =
+                                modifier.background(Color.White.copy(alpha = 0.06f), RoundedCornerShape(8.dp))
+                                .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+                Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                ) {
+                        Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(20.dp))
+                                Text(
+                                        text = label,
+                                        color = Color.White.copy(alpha = 0.58f),
+                                        fontSize = 12.sp,
+                                        fontFamily = DashboardReadableFont
+                                )
+                        }
+                        Text(text = value, color = Color.White, fontSize = 15.sp, fontFamily = DashboardReadableFont)
+                }
+                Box(
+                        modifier =
+                                Modifier.fillMaxWidth()
+                                        .height(9.dp)
+                                        .background(Color.White.copy(alpha = 0.09f), RoundedCornerShape(4.dp))
+                ) {
+                        Box(
+                                modifier =
+                                        Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f))
+                                                .fillMaxHeight()
+                                                .background(accent, RoundedCornerShape(4.dp))
+                        )
+                }
+        }
+}
+
+@Composable
+private fun DashboardMetricTile(
+        label: String,
+        value: String,
+        icon: ImageVector,
+        modifier: Modifier = Modifier
+) {
+        Row(
+                modifier =
+                        modifier.background(Color.White.copy(alpha = 0.055f), RoundedCornerShape(8.dp))
+                                .padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+                Icon(icon, contentDescription = null, tint = Color(0xFF66E3FF), modifier = Modifier.size(19.dp))
+                Column {
+                        Text(
+                                text = label,
+                                color = Color.White.copy(alpha = 0.52f),
+                                fontSize = 9.sp,
+                                fontFamily = DashboardReadableFont,
+                                maxLines = 1
+                        )
+                        Text(
+                                text = value,
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontFamily = DashboardReadableFont,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                        )
+                }
+        }
+}
+
+@Composable
+private fun DashboardQuickCycleControl(
+        label: String,
+        value: String,
+        icon: ImageVector,
+        accent: Color,
+        modifier: Modifier = Modifier,
+        onClick: () -> Unit
+) {
+        Surface(
+                onClick = onClick,
+                modifier = modifier.fillMaxWidth(),
+                color = accent.copy(alpha = 0.13f),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, accent.copy(alpha = 0.5f))
+        ) {
+                Row(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                        Box(
+                                modifier =
+                                        Modifier.size(58.dp)
+                                                .background(
+                                                        accent.copy(alpha = 0.18f),
+                                                        RoundedCornerShape(8.dp)
+                                                ),
+                                contentAlignment = Alignment.Center
+                        ) {
+                                Icon(
+                                        icon,
+                                        contentDescription = null,
+                                        tint = accent,
+                                        modifier = Modifier.size(30.dp)
+                                )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                        text = label,
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        fontSize = 13.sp,
+                                        fontFamily = DashboardReadableFont,
+                                        maxLines = 1
+                                )
+                                Text(
+                                        text = value,
+                                        color = Color.White,
+                                        fontSize = 24.sp,
+                                        fontFamily = DashboardReadableFont,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                )
+                        }
+                }
+        }
+}
+
+@Composable
+private fun DashboardPremiumCycleControl(
+        label: String,
+        value: String,
+        nextValue: String,
+        icon: ImageVector,
+        accent: Color,
+        modifier: Modifier = Modifier,
+        onClick: () -> Unit
+) {
+        Surface(
+                onClick = onClick,
+                modifier = modifier.fillMaxHeight(),
+                color = Color.White.copy(alpha = 0.052f),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, accent.copy(alpha = 0.24f))
+        ) {
+                Box(
+                        modifier =
+                                Modifier.fillMaxSize()
+                                        .background(
+                                                Brush.linearGradient(
+                                                        colors =
+                                                                listOf(
+                                                                        accent.copy(alpha = 0.13f),
+                                                                        Color.Transparent,
+                                                                        Color.Black.copy(alpha = 0.10f)
+                                                                ),
+                                                        start = Offset.Zero,
+                                                        end = Offset(420f, 180f)
+                                                )
+                                        )
+                                        .padding(14.dp)
+                ) {
+                        Column(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                                Box(
+                                        modifier =
+                                                Modifier.size(42.dp)
+                                                        .background(
+                                                                accent.copy(alpha = 0.18f),
+                                                                RoundedCornerShape(8.dp)
+                                                        ),
+                                        contentAlignment = Alignment.Center
+                                ) {
+                                        Icon(
+                                                icon,
+                                                contentDescription = null,
+                                                tint = accent,
+                                                modifier = Modifier.size(24.dp)
+                                        )
+                                }
+                                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text(
+                                                text = label,
+                                                color = Color.White.copy(alpha = 0.62f),
+                                                fontSize = 12.sp,
+                                                fontFamily = DashboardReadableFont,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                                text = value,
+                                                color = Color.White,
+                                                fontSize = 24.sp,
+                                                fontFamily = DashboardReadableFont,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                                text = "Prox. $nextValue",
+                                                color = accent.copy(alpha = 0.86f),
+                                                fontSize = 11.sp,
+                                                fontFamily = DashboardReadableFont,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                        )
+                                }
+                        }
+                }
+        }
+}
+
+@Composable
+private fun DashboardOptionGroup(
+        label: String,
+        currentValue: String,
+        options: List<Pair<String, String>>,
+        columns: Int,
+        modifier: Modifier = Modifier,
+        onSelect: (String) -> Unit
+) {
+        Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                        text = label,
+                        color = Color.White.copy(alpha = 0.58f),
+                        fontSize = 10.sp,
+                        fontFamily = DashboardReadableFont
+                )
+                options.chunked(columns).forEach { rowOptions ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                rowOptions.forEach { (value, text) ->
+                                        val selected = currentValue == value
+                                        Surface(
+                                                onClick = { onSelect(value) },
+                                                modifier = Modifier.weight(1f).height(34.dp),
+                                                color =
+                                                        if (selected)
+                                                                Color(0xFF66E3FF).copy(alpha = 0.2f)
+                                                        else Color.White.copy(alpha = 0.06f),
+                                                shape = RoundedCornerShape(8.dp),
+                                                border =
+                                                        BorderStroke(
+                                                                1.dp,
+                                                                if (selected) Color(0xFF66E3FF)
+                                                                else Color.White.copy(alpha = 0.08f)
+                                                        )
+                                        ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                        Text(
+                                                                text = text,
+                                                                color =
+                                                                        if (selected)
+                                                                                Color(0xFF66E3FF)
+                                                                        else Color.White,
+                                                                fontSize = 10.sp,
+                                                                fontFamily = DashboardReadableFont,
+                                                                textAlign = TextAlign.Center,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
+                                                        )
+                                                }
+                                        }
+                                }
+                                repeat(columns - rowOptions.size) {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                }
+                        }
+                }
+        }
+}
+
+@Composable
+private fun DashboardIconButton(
+        icon: ImageVector,
+        size: Dp = 58.dp,
+        contentDescription: String? = null,
+        onClick: () -> Unit
+) {
+        Surface(
+                onClick = onClick,
+                color = Color.White.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                modifier = Modifier.size(size)
+        ) {
+                Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                                icon,
+                                contentDescription = contentDescription,
+                                tint = Color.White,
+                                modifier = Modifier.size((size.value * 0.48f).dp)
+                        )
+                }
+        }
+}
+
+@Composable
+private fun DashboardActionButton(
+        text: String,
+        icon: ImageVector,
+        enabled: Boolean = true,
+        modifier: Modifier = Modifier.fillMaxWidth(),
+        height: Dp = 58.dp,
+        onClick: () -> Unit
+) {
+        Surface(
+                onClick = onClick,
+                enabled = enabled,
+                color =
+                        if (enabled) Color.White.copy(alpha = 0.07f)
+                        else Color.White.copy(alpha = 0.03f),
+                shape = RoundedCornerShape(8.dp),
+                border =
+                        BorderStroke(
+                                1.dp,
+                                if (enabled) Color.White.copy(alpha = 0.12f)
+                                else Color.White.copy(alpha = 0.05f)
+                        ),
+                modifier = modifier.height(height)
+        ) {
+                Row(
+                        modifier = Modifier.padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                        Icon(
+                                icon,
+                                contentDescription = null,
+                                tint = if (enabled) Color(0xFF66E3FF) else Color.White.copy(alpha = 0.3f),
+                                modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                                text = text,
+                                color = if (enabled) Color.White else Color.White.copy(alpha = 0.35f),
+                                fontSize = 14.sp,
+                                fontFamily = DashboardReadableFont,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                        )
+                }
+        }
+}
+
+@Composable
+private fun DashboardTempAdjuster(
+        label: String,
+        temp: String,
+        enabled: Boolean,
+        modifier: Modifier = Modifier,
+        onDelta: (Float) -> Unit
+) {
+        Row(
+                modifier =
+                        modifier.alpha(if (enabled) 1f else 0.45f)
+                                .background(Color.White.copy(alpha = 0.055f), RoundedCornerShape(8.dp))
+                                .height(78.dp)
+                                .padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+                DashboardIconButton(Icons.Default.Remove, size = 54.dp) { if (enabled) onDelta(-0.5f) }
+                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                                text = label,
+                                color = Color.White.copy(alpha = 0.58f),
+                                fontSize = 12.sp,
+                                fontFamily = DashboardReadableFont,
+                                maxLines = 1
+                        )
+                        Text(
+                                text = if (enabled) formatTemperature(temp) else "--",
+                                color = Color.White,
+                                fontSize = 22.sp,
+                                fontFamily = DashboardReadableFont,
+                                maxLines = 1
+                        )
+                }
+                DashboardIconButton(Icons.Default.Add, size = 54.dp) { if (enabled) onDelta(0.5f) }
+        }
+}
+
+@Composable
+private fun DashboardFanAdjuster(
+        speed: String,
+        enabled: Boolean,
+        modifier: Modifier = Modifier,
+        onDelta: (Int) -> Unit
+) {
+        Row(
+                modifier =
+                        modifier.alpha(if (enabled) 1f else 0.45f)
+                                .background(Color.White.copy(alpha = 0.055f), RoundedCornerShape(8.dp))
+                                .height(70.dp)
+                                .padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+                DashboardIconButton(Icons.Default.Remove, size = 54.dp) { if (enabled) onDelta(-1) }
+                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                                text = "Ventilação",
+                                color = Color.White.copy(alpha = 0.58f),
+                                fontSize = 12.sp,
+                                fontFamily = DashboardReadableFont,
+                                maxLines = 1
+                        )
+                        Text(
+                                text = speed.toIntOrNull()?.toString() ?: "--",
+                                color = Color.White,
+                                fontSize = 22.sp,
+                                fontFamily = DashboardReadableFont,
+                                maxLines = 1
+                        )
+                }
+                DashboardIconButton(Icons.Default.Add, size = 54.dp) { if (enabled) onDelta(1) }
+        }
+}
+
+private data class DashboardAirflowModeOption(
+        val value: String,
+        val label: String,
+        val iconRes: Int
+)
+
+private val DashboardAirflowModeOptions =
+        listOf(
+                DashboardAirflowModeOption("2", "Pés", R.drawable.ic_hvac_blower_feet),
+                DashboardAirflowModeOption("1", "Rosto/Pés", R.drawable.ic_hvac_blower_feet_and_face),
+                DashboardAirflowModeOption("0", "Rosto", R.drawable.ic_hvac_blower_face),
+                DashboardAirflowModeOption("3", "Vidro/Pés", R.drawable.ic_hvac_blower_feet_and_defrost)
+        )
+
+@Composable
+private fun DashboardAirflowModeSelector(
+        mode: String,
+        enabled: Boolean,
+        modifier: Modifier = Modifier,
+        onSelect: (String) -> Unit
+) {
+        Row(
+                modifier = modifier.alpha(if (enabled) 1f else 0.45f),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+                DashboardAirflowModeOptions.forEach { option ->
+                        val active = mode == option.value
+                        Surface(
+                                onClick = { onSelect(option.value) },
+                                enabled = enabled,
+                                modifier = Modifier.weight(1f).height(62.dp),
+                                color =
+                                        if (active && enabled) Color(0xFF66E3FF).copy(alpha = 0.16f)
+                                        else Color.White.copy(alpha = 0.055f),
+                                shape = RoundedCornerShape(8.dp),
+                                border =
+                                        BorderStroke(
+                                                1.dp,
+                                                if (active && enabled)
+                                                        Color(0xFF66E3FF).copy(alpha = 0.55f)
+                                                else Color.White.copy(alpha = 0.08f)
+                                        )
+                        ) {
+                                Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                ) {
+                                        Icon(
+                                                painter = painterResource(option.iconRes),
+                                                contentDescription = null,
+                                                tint =
+                                                        if (active && enabled) Color(0xFF66E3FF)
+                                                        else Color.White.copy(
+                                                                alpha = if (enabled) 0.82f else 0.35f
+                                                        ),
+                                                modifier = Modifier.size(40.dp)
+                                        )
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                                text = option.label,
+                                                color =
+                                                        if (active && enabled) Color(0xFF66E3FF)
+                                                        else Color.White.copy(
+                                                                alpha = if (enabled) 0.76f else 0.35f
+                                                        ),
+                                                fontSize = 10.sp,
+                                                fontFamily = DashboardReadableFont,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                        )
+                                }
+                        }
+                }
+        }
+}
+
+@Composable
+private fun DashboardSeatVentilationButton(
+        label: String,
+        level: String,
+        maxLevel: String,
+        modifier: Modifier = Modifier,
+        onClick: () -> Unit
+) {
+        val parsedLevel = parseSeatVentilationLevel(level, maxLevel)
+        val active = parsedLevel > 0
+        Surface(
+                onClick = onClick,
+                modifier = modifier.height(68.dp),
+                color =
+                        if (active) Color(0xFF78E08F).copy(alpha = 0.15f)
+                        else Color.White.copy(alpha = 0.055f),
+                shape = RoundedCornerShape(8.dp),
+                border =
+                        BorderStroke(
+                                1.dp,
+                                if (active) Color(0xFF78E08F).copy(alpha = 0.42f)
+                                else Color.White.copy(alpha = 0.1f)
+                        )
+        ) {
+                Row(
+                        modifier = Modifier.padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                        Icon(
+                                Icons.Default.EventSeat,
+                                contentDescription = null,
+                                tint =
+                                        if (active) Color(0xFF78E08F)
+                                        else Color.White.copy(alpha = 0.62f),
+                                modifier = Modifier.size(27.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                        text = label,
+                                        color = Color.White.copy(alpha = 0.58f),
+                                        fontSize = 12.sp,
+                                        fontFamily = DashboardReadableFont,
+                                        maxLines = 1
+                                )
+                                Text(
+                                        text = if (active) "Nível $parsedLevel" else "Desligado",
+                                        color = Color.White,
+                                        fontSize = 16.sp,
+                                        fontFamily = DashboardReadableFont,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                )
+                        }
+                        DashboardSeatVentilationLevelIndicator(
+                                level = parsedLevel,
+                                maxLevel = parseSeatVentilationMaxLevel(maxLevel),
+                                active = active
+                        )
+                }
+        }
+}
+
+@Composable
+private fun DashboardSeatVentilationLevelIndicator(level: Int, maxLevel: Int, active: Boolean) {
+        Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.Bottom) {
+                repeat(maxLevel.coerceIn(1, 3)) { index ->
+                        val step = index + 1
+                        val isFilled = active && step <= level
+                        Box(
+                                modifier =
+                                        Modifier.width(5.dp)
+                                                .height((10 + index * 5).dp)
+                                                .background(
+                                                        if (isFilled) Color(0xFF78E08F)
+                                                        else Color.White.copy(alpha = 0.16f),
+                                                        RoundedCornerShape(99.dp)
+                                                )
+                        )
+                }
+        }
+}
+
+@Composable
+private fun DashboardToggleButton(
+        label: String,
+        icon: ImageVector,
+        active: Boolean,
+        enabled: Boolean = true,
+        modifier: Modifier = Modifier,
+        onClick: () -> Unit
+) {
+        Surface(
+                onClick = onClick,
+                enabled = enabled,
+                modifier = modifier.height(68.dp),
+                color =
+                        if (active && enabled) Color(0xFF66E3FF).copy(alpha = 0.16f)
+                        else Color.White.copy(alpha = 0.055f),
+                shape = RoundedCornerShape(8.dp),
+                border =
+                        BorderStroke(
+                                1.dp,
+                                if (active && enabled) Color(0xFF66E3FF).copy(alpha = 0.55f)
+                                else Color.White.copy(alpha = 0.08f)
+                        )
+        ) {
+                Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                ) {
+                        Icon(
+                                icon,
+                                contentDescription = null,
+                                tint =
+                                        if (active && enabled) Color(0xFF66E3FF)
+                                        else Color.White.copy(alpha = if (enabled) 0.82f else 0.35f),
+                                modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                                text = label,
+                                color =
+                                        if (active && enabled) Color(0xFF66E3FF)
+                                        else Color.White.copy(alpha = if (enabled) 0.76f else 0.35f),
+                                fontSize = 11.sp,
+                                fontFamily = DashboardReadableFont,
+                                maxLines = 1
+                        )
+                }
+        }
+}
+
+@Composable
+private fun DashboardTinyReadout(label: String, value: String, modifier: Modifier = Modifier) {
+        Row(
+                modifier =
+                        modifier.fillMaxWidth()
+                                .height(40.dp)
+                                .background(Color.White.copy(alpha = 0.055f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+        ) {
+                Text(
+                        text = label,
+                        color = Color.White.copy(alpha = 0.52f),
+                        fontSize = 10.sp,
+                        fontFamily = DashboardReadableFont
+                )
+                Text(text = value, color = Color.White, fontSize = 12.sp, fontFamily = DashboardReadableFont)
+        }
+}
+
+private fun updateTemperature(
+        serviceManager: ServiceManager,
+        key: CarConstants,
+        currentValue: String,
+        delta: Float
+) {
+        val current = currentValue.toFloatOrNull() ?: 22.0f
+        val next = (current + delta).coerceIn(16.0f, 32.0f)
+        serviceManager.updateData(key.getValue(), String.format(java.util.Locale.US, "%.1f", next))
+}
+
+private fun updateSeatVentilationLevel(
+        serviceManager: ServiceManager,
+        key: CarConstants,
+        nextLevel: String
+) {
+        serviceManager.updateData(key.getValue(), nextLevel)
+}
+
+private fun nextSeatVentilationLevel(currentLevel: String, maxLevel: String): String {
+        val max = parseSeatVentilationMaxLevel(maxLevel).coerceAtMost(3)
+        val current = parseSeatVentilationLevel(currentLevel, max.toString())
+        return if (current >= max) "0" else (current + 1).toString()
+}
+
+private fun parseSeatVentilationLevel(value: String, maxLevel: String): Int {
+        val max = parseSeatVentilationMaxLevel(maxLevel)
+        return value.toIntOrNull()?.coerceIn(0, max) ?: 0
+}
+
+private fun parseSeatVentilationMaxLevel(value: String): Int {
+        return value.toIntOrNull()?.takeIf { it > 0 }?.coerceAtMost(5) ?: 3
+}
+
+private fun formatMediaTime(valueMs: Long, unknownWhenZero: Boolean = false): String {
+        if (unknownWhenZero && valueMs <= 0L) return "--:--"
+        val totalSeconds = (valueMs.coerceAtLeast(0L) / 1000L)
+        val minutes = totalSeconds / 60L
+        val seconds = totalSeconds % 60L
+        return String.format(java.util.Locale.US, "%d:%02d", minutes, seconds)
+}
+
+private fun formatDashboardClock(): String {
+        return java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date())
+}
+
+private fun projectionLabel(packageName: String?): String {
+        return when (packageName) {
+                BOTTOM_BAR_CARPLAY_PACKAGE -> "Apple CarPlay ativo no cluster"
+                BOTTOM_BAR_ANDROID_AUTO_PACKAGE -> "Android Auto ativo no cluster"
+                null -> "Dashboard do display 0"
+                else -> "Projeção ativa"
+        }
+}
+
+private fun shortProjectionLabel(packageName: String?): String? {
+        return when (packageName) {
+                BOTTOM_BAR_CARPLAY_PACKAGE -> "Apple CarPlay"
+                BOTTOM_BAR_ANDROID_AUTO_PACKAGE -> "Android Auto"
+                null -> null
+                else -> "Projecao"
+        }
+}
+
+private fun driveModeLabel(value: String): String {
+        return when (value) {
+                "2" -> "Eco"
+                "1" -> "Sport"
+                "3" -> "Neve"
+                "4" -> "Areia"
+                "5" -> "Lama"
+                else -> "Normal"
+        }
+}
+
+private fun powerModelLabel(value: String): String {
+        return when (value) {
+                "1" -> "EV Prior."
+                "3" -> "EV"
+                else -> "HEV"
+        }
+}
+
+private fun regenLabel(value: String): String {
+        return when (value) {
+                "2" -> "Baixo"
+                "1" -> "Alto"
+                else -> "Normal"
+        }
+}
+
+private fun nextDashboardOption(currentValue: String, options: List<Pair<String, String>>): String {
+        val currentIndex = options.indexOfFirst { it.first == currentValue }
+        return options[(currentIndex + 1).coerceAtLeast(0) % options.size].first
+}
+
+private fun nextDashboardOptionLabel(
+        currentValue: String,
+        options: List<Pair<String, String>>
+): String {
+        val nextValue = nextDashboardOption(currentValue, options)
+        return options.firstOrNull { it.first == nextValue }?.second ?: nextValue
+}
+
+private fun steeringModeLabel(value: String): String {
+        return when (value) {
+                "2" -> "Conforto"
+                "1" -> "Sport"
+                else -> "Normal"
+        }
+}
+
+private fun formatGear(value: String): String {
+        return when (value.toIntOrNull()) {
+                2 -> "D"
+                3 -> "P"
+                4 -> "R"
+                else -> "N"
+        }
+}
+
+private fun formatSpeed(value: String): String {
+        return value.toFloatOrNull()?.roundToInt()?.toString() ?: "--"
+}
+
+private fun formatTemperature(value: String): String {
+        val parsed = value.toFloatOrNull() ?: return "--"
+        if (parsed <= -40f || parsed >= 85f || parsed == -1f || parsed == 255f) return "--"
+        return String.format(java.util.Locale.US, "%.1f°C", parsed)
+}
+
+private fun formatPercent(value: String): String {
+        return value.toFloatOrNull()?.roundToInt()?.coerceIn(0, 100)?.let { "$it%" } ?: "--"
+}
+
+private fun percentFraction(value: String): Float {
+        return ((value.toFloatOrNull() ?: 0f) / 100f).coerceIn(0f, 1f)
+}
+
+private fun formatDistance(value: String): String {
+        return value.toFloatOrNull()?.roundToInt()?.let { "$it km" } ?: "--"
+}
+
+private fun formatFuelLiters(percent: String): String {
+        val parsed = percent.toFloatOrNull() ?: return "--"
+        if (parsed < 0f || parsed > 100f) return "--"
+        val liters = parsed.coerceIn(0f, 100f) * DASHBOARD_FUEL_TANK_CAPACITY_LITERS / 100f
+        return String.format(java.util.Locale.US, "%.1f L", liters)
+}
+
+private fun formatConsumption(value: String, suffix: String): String {
+        val parsed = value.toFloatOrNull() ?: return "--"
+        if (parsed <= 0f) return "--"
+        return String.format(java.util.Locale.US, "%.1f %s", parsed, suffix)
+}
+
+private fun calculateEvPowerKw(voltage: String, current: String): String {
+        val volts = voltage.toFloatOrNull() ?: return "--"
+        val amps = current.toFloatOrNull() ?: return "--"
+        val kw = volts * amps / 1000f
+        val label = if (kw < -0.5f) "REGEN" else "EV"
+        val displayKw = if (kw < -0.5f) -kw else kw
+        return String.format(java.util.Locale.US, "%s %.1f kW", label, displayKw)
 }
 
 @Composable

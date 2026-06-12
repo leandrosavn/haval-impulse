@@ -231,12 +231,19 @@ public class ServiceManager {
     private boolean isClusterHeartbeatRunning = false;
     private int clusterHeartBeatCount = 0;
     private int clusterCardView = 0;
+    private static final int[] CLUSTER_CARD_SEQUENCE = new int[] {0, 1, 3};
     private long lastClusterInputAtMs = 0L;
     private int lastClusterInputKeyCode = -1;
     private String lastClusterInputKeyName = "";
     private static final long CLUSTER_INPUT_DEDUP_WINDOW_MS = 220L;
     private int lastHandledClusterInputKeyCode = -1;
     private long lastHandledClusterInputAtMs = 0L;
+    private static final long STEERING_WHEEL_PROJECTION_TOGGLE_DEDUP_WINDOW_MS = 800L;
+    private static final int[] INPUT_LISTENER_KEY_CODES = new int[] {
+            -1
+    };
+    private int lastProjectionDisplayToggleButton = -1;
+    private long lastProjectionDisplayToggleAtMs = 0L;
     private final Map<String, String> previousAcState = new HashMap<>();
     private boolean isMaxAcActive = false;
     private Runnable maxAcTimeoutRunnable;
@@ -469,6 +476,15 @@ public class ServiceManager {
             inputListener = new IInputListener.Stub() {
                 @Override
                 public void dispatchKeyEvent(KeyEvent keyEvent) {
+                    Log.w(
+                            TAG,
+                            "InputService dispatch key="
+                                    + keyEvent.getKeyCode()
+                                    + "("
+                                    + KeyEvent.keyCodeToString(keyEvent.getKeyCode())
+                                    + ") action="
+                                    + keyEvent.getAction()
+                    );
                     if (DisplayAppLauncher.INSTANCE.shouldLogAndroidAutoMediaInputProbe(keyEvent.getKeyCode())) {
                         Log.w(
                                 TAG,
@@ -496,6 +512,12 @@ public class ServiceManager {
                                 break;
                             case 1025:
                                 key = Screen.Key.DOWN;
+                                break;
+                            case 1026:
+                                key = Screen.Key.LEFT;
+                                break;
+                            case 1027:
+                                key = Screen.Key.RIGHT;
                                 break;
                             case 1028:
                                 key = Screen.Key.ENTER;
@@ -545,9 +567,13 @@ public class ServiceManager {
                             if (!duplicateClusterInput) {
                                 lastHandledClusterInputKeyCode = keyEvent.getKeyCode();
                                 lastHandledClusterInputAtMs = now;
-                                MainUiManager.getInstance().handleGeneralKeyEvents(key);
-                                if (key == Screen.Key.BACK) {
-                                    dispatchServiceManagerEvent(ServiceManagerEventType.DISMISS_WARNING);
+                                if (key == Screen.Key.LEFT || key == Screen.Key.RIGHT) {
+                                    handleClusterCardNavigationKey(key);
+                                } else {
+                                    MainUiManager.getInstance().handleGeneralKeyEvents(key);
+                                    if (key == Screen.Key.BACK) {
+                                        dispatchServiceManagerEvent(ServiceManagerEventType.DISMISS_WARNING);
+                                    }
                                 }
                             } else {
                                 Log.w(
@@ -568,7 +594,26 @@ public class ServiceManager {
                 @Override
                 public void onServiceConnected(ComponentName name, IBinder service) {
                     inputService = IInputService.Stub.asInterface(service);
-                    try { inputService.registerKeyEventListener(new int[]{-1}, inputListener); } catch (Exception e) {}
+                    try {
+                        inputService.registerKeyEventListener(INPUT_LISTENER_KEY_CODES, inputListener);
+                        Log.w(
+                                TAG,
+                                "InputService listener registered keyCodes="
+                                        + Arrays.toString(INPUT_LISTENER_KEY_CODES)
+                        );
+                    } catch (Exception e) {
+                        Log.e(
+                                TAG,
+                                "InputService explicit listener registration failed; trying wildcard",
+                                e
+                        );
+                        try {
+                            inputService.registerKeyEventListener(new int[]{-1}, inputListener);
+                            Log.w(TAG, "InputService wildcard listener registered");
+                        } catch (Exception fallbackError) {
+                            Log.e(TAG, "InputService wildcard listener registration failed", fallbackError);
+                        }
+                    }
                 }
                 @Override public void onServiceDisconnected(ComponentName name) { inputService = null; }
             };
@@ -759,6 +804,9 @@ public class ServiceManager {
                     }
                 }
                 break;
+            case TOGGLE_PROJECTION_DISPLAY:
+                handleSteeringWheelProjectionDisplayToggle(button);
+                break;
             case TOGGLE_CAMERA_AVM:
                 boolean cameraAVM = sharedPreferences.getBoolean(SharedPreferencesKeys.DISABLE_AVM_CAR_STOPPED.getKey(), false);
                 cameraAVM = !cameraAVM;
@@ -795,6 +843,66 @@ public class ServiceManager {
                 }
                 break;
         }
+    }
+
+    private void handleClusterCardNavigationKey(Screen.Key key) {
+        int currentCard = clusterCardView;
+        if (!isKnownClusterCard(currentCard)) {
+            currentCard = MainUiManager.getInstance().getCurrentCard();
+        }
+        if (!isKnownClusterCard(currentCard)) {
+            currentCard = 0;
+        }
+
+        int currentIndex = indexOfClusterCard(currentCard);
+        int direction = key == Screen.Key.RIGHT ? 1 : -1;
+        int nextIndex = (currentIndex + direction + CLUSTER_CARD_SEQUENCE.length) % CLUSTER_CARD_SEQUENCE.length;
+        int nextCard = CLUSTER_CARD_SEQUENCE[nextIndex];
+        int previousCard = clusterCardView;
+        clusterCardView = nextCard;
+
+        Log.w(
+                TAG,
+                "Synthetic cluster card navigation: "
+                        + currentCard
+                        + " -> "
+                        + nextCard
+                        + " key="
+                        + key
+                        + " previousServiceCard="
+                        + previousCard
+        );
+        dispatchServiceManagerEvent(ServiceManagerEventType.CLUSTER_CARD_CHANGED, clusterCardView);
+    }
+
+    private boolean isKnownClusterCard(int card) {
+        return indexOfClusterCard(card) >= 0;
+    }
+
+    private int indexOfClusterCard(int card) {
+        for (int i = 0; i < CLUSTER_CARD_SEQUENCE.length; i++) {
+            if (CLUSTER_CARD_SEQUENCE[i] == card) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private void handleSteeringWheelProjectionDisplayToggle(int button) {
+        long now = SystemClock.uptimeMillis();
+        boolean duplicateToggle =
+                lastProjectionDisplayToggleButton == button
+                        && now - lastProjectionDisplayToggleAtMs <= STEERING_WHEEL_PROJECTION_TOGGLE_DEDUP_WINDOW_MS;
+        if (duplicateToggle) {
+            Log.w(TAG, "Ignoring duplicate projection display toggle from steering wheel button " + button);
+            return;
+        }
+
+        lastProjectionDisplayToggleButton = button;
+        lastProjectionDisplayToggleAtMs = now;
+        DisplayAppLauncher.INSTANCE.toggleActiveProjectionDisplayFromSteeringWheel(
+                "STEERING_WHEEL_TOGGLE_PROJECTION_BUTTON_" + button
+        );
     }
 
     public void enableSteeringWheelButton1Integration() {

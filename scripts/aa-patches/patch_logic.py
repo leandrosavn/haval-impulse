@@ -25,6 +25,12 @@ Versioning scheme (x.y)
 This script applies *all* v1 patches plus *all* v2 patches; v2 strictly
 supersedes v1.
 
+Current production preference:
+    v2.5  Keep the proven v2.4 X-crop + v2.5 Display 0 bounds stack.
+          The v2.6 no-rail experiment caused a black Android Auto screen on
+          Display 0 and Display 3 in field testing and must stay disabled
+          until replaced by a safer native display-type approach.
+
 What v2.1 adds on top of v2.0:
     A. AndroidManifest.xml configChanges expanded to include screenSize,
        smallestScreenSize, screenLayout, orientation, density, navigation,
@@ -96,9 +102,15 @@ import re
 import sys
 
 BUILD_DIR = "build_v19/app"
+APP_SMALI_BASE = f"{BUILD_DIR}/smali/com/ts/androidauto/app"
 SMALI_BASE = f"{BUILD_DIR}/smali/com/ts/androidauto/app/display"
 AAP_ACTIVITY = f"{SMALI_BASE}/AapActivity.smali"
+HARDKEY_MODEL = f"{APP_SMALI_BASE}/model/hardkey/HardKeyModel.smali"
+REMOTE_UI_MANAGER_LISTENER = (
+    f"{APP_SMALI_BASE}/manager/AndroidAutoRemoteUiManager$1.smali"
+)
 MANIFEST = f"{BUILD_DIR}/AndroidManifest.xml"
+PRESERVE_AA_APP_RAIL_ON_CLUSTER = False
 
 # Extra configChanges flags to OR into the existing list. Anything that can
 # change as the app is moved between physical displays / resized in-place.
@@ -822,6 +834,159 @@ def apply_v25_diag_patch(content):
 
 
 # ---------------------------------------------------------------------------
+# v2.7 hardkey callback recovery after service reconnect
+# ---------------------------------------------------------------------------
+# Why this exists:
+#   HardKeyModel registers its steering-wheel callbacks only when the remote
+#   UI manager listener receives LINK_STATUS_ACTIVATED. After a reboot/service
+#   reconnect with Android Auto already active, the service-state listener can
+#   fire without a new onStatusChanged callback. LinkStatusModel already works
+#   around this by querying DeviceMirrorManager.getLinkStatus() on service
+#   connect; AndroidAutoRemoteUiManager$1 did not.
+#
+#   The first patch mirrors that native pattern and replays the current link
+#   status to the existing remote-ui listeners after the service connects.
+#   The second patch makes HardKeyModel's add callback methods idempotent by
+#   removing the same callback/scene before adding it. That prevents duplicate
+#   hardkey handlers if the real LINK_STATUS_ACTIVATED event arrives after
+#   the replay.
+
+V27_STATUS_REPLAY_SENTINEL = "# V27_HARDKEY_LINK_STATUS_REPLAY"
+V27_IDEMPOTENT_HARDKEY_SENTINEL = "# V27_IDEMPOTENT_HARDKEY_CALLBACK"
+V27_IDEMPOTENT_LONGPRESS_SENTINEL = "# V27_IDEMPOTENT_LONGPRESS_CALLBACK"
+
+V27_STATUS_REPLAY_CODE = f"""
+
+    {V27_STATUS_REPLAY_SENTINEL}
+    :try_start_v27_replay
+    const-string v0, "IMPULSE_AA"
+
+    const-string v1, "hardkey link status replay on service connect"
+
+    invoke-static {{v0, v1}}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
+
+    invoke-static {{}}, Lcom/ts/androidauto/sdk/DeviceMirrorManager;->getInstance()Lcom/ts/androidauto/sdk/DeviceMirrorManager;
+
+    move-result-object v1
+
+    if-eqz v1, :v27_replay_done
+
+    invoke-virtual {{v1}}, Lcom/ts/androidauto/sdk/DeviceMirrorManager;->getLinkStatus()I
+
+    move-result v1
+
+    iget-object v0, p0, Lcom/ts/androidauto/app/manager/AndroidAutoRemoteUiManager$1;->this$0:Lcom/ts/androidauto/app/manager/AndroidAutoRemoteUiManager;
+
+    new-instance v2, Lcom/ts/androidauto/app/manager/-$$Lambda$AndroidAutoRemoteUiManager$1$o5DaHELdNxkT5DR2NBWhKbibh8I;
+
+    invoke-direct {{v2, v1}}, Lcom/ts/androidauto/app/manager/-$$Lambda$AndroidAutoRemoteUiManager$1$o5DaHELdNxkT5DR2NBWhKbibh8I;-><init>(I)V
+
+    invoke-static {{v0, v2}}, Lcom/ts/androidauto/app/manager/AndroidAutoRemoteUiManager;->access$300(Lcom/ts/androidauto/app/manager/AndroidAutoRemoteUiManager;Ljava/util/function/Consumer;)V
+    :try_end_v27_replay
+    .catch Ljava/lang/Exception; {{:try_start_v27_replay .. :try_end_v27_replay}} :catch_v27_replay
+
+    goto :v27_replay_done
+
+    :catch_v27_replay
+    move-exception v0
+
+    :v27_replay_done
+"""
+
+V27_IDEMPOTENT_HARDKEY_CODE = f"""
+    {V27_IDEMPOTENT_HARDKEY_SENTINEL}
+    invoke-direct {{p0, p1}}, Lcom/ts/androidauto/app/model/hardkey/HardKeyModel;->removeKeyEventCallBack(I)V
+
+"""
+
+V27_IDEMPOTENT_LONGPRESS_CODE = f"""
+    {V27_IDEMPOTENT_LONGPRESS_SENTINEL}
+    invoke-direct {{p0, p1}}, Lcom/ts/androidauto/app/model/hardkey/HardKeyModel;->removeLongPressCallBack(I)V
+
+"""
+
+
+def apply_v27_status_replay_patch(path):
+    print("[v2.7] Android Auto hardkey status replay on service reconnect:")
+    if not os.path.exists(path):
+        print(f"  [WARN] remote UI manager listener not found at {path}")
+        return 0
+
+    content = read_file(path)
+    if V27_STATUS_REPLAY_SENTINEL in content:
+        print("  [SKIP] service reconnect link-status replay already injected")
+        return 0
+
+    target = (
+        "    invoke-static {v1, v0}, Lcom/ts/androidauto/app/manager/"
+        "AndroidAutoRemoteUiManager;->access$002(Lcom/ts/androidauto/app/"
+        "manager/AndroidAutoRemoteUiManager;I)I\n\n"
+        "    goto :goto_0\n"
+    )
+    replacement = target.replace("\n    goto :goto_0\n", V27_STATUS_REPLAY_CODE + "\n    goto :goto_0\n")
+
+    new_content, ok = patch_direct(
+        content,
+        target,
+        replacement,
+        "onServiceStateChanged: replay DeviceMirrorManager.getLinkStatus()",
+    )
+    if not ok:
+        return 0
+
+    write_file(path, new_content)
+    return 1
+
+
+def apply_v27_idempotent_hardkey_patch(path):
+    print("[v2.7] HardKeyModel: idempotent callback registration:")
+    if not os.path.exists(path):
+        print(f"  [WARN] HardKeyModel not found at {path}")
+        return 0
+
+    content = read_file(path)
+    total = 0
+
+    if V27_IDEMPOTENT_HARDKEY_SENTINEL in content:
+        print("  [SKIP] key-event callback registration already idempotent")
+    else:
+        target = (
+            "    .line 227\n"
+            "    iget-object v0, p0, Lcom/ts/androidauto/app/model/hardkey/"
+            "HardKeyModel;->mContext:Landroid/content/Context;\n"
+        )
+        replacement = "    .line 227\n" + V27_IDEMPOTENT_HARDKEY_CODE + target.removeprefix("    .line 227\n")
+        content, ok = patch_direct(
+            content,
+            target,
+            replacement,
+            "addKeyEventCallBack: remove same callback before add",
+        )
+        total += int(ok)
+
+    if V27_IDEMPOTENT_LONGPRESS_SENTINEL in content:
+        print("  [SKIP] long-press callback registration already idempotent")
+    else:
+        target = (
+            "    .line 246\n"
+            "    iget-object v0, p0, Lcom/ts/androidauto/app/model/hardkey/"
+            "HardKeyModel;->mContext:Landroid/content/Context;\n"
+        )
+        replacement = "    .line 246\n" + V27_IDEMPOTENT_LONGPRESS_CODE + target.removeprefix("    .line 246\n")
+        content, ok = patch_direct(
+            content,
+            target,
+            replacement,
+            "addLongPressCallBack: remove same callback before add",
+        )
+        total += int(ok)
+
+    if total:
+        write_file(path, content)
+    return total
+
+
+# ---------------------------------------------------------------------------
 # v2.1 onConfigurationChanged — re-trigger setDisplayParams on size change
 # ---------------------------------------------------------------------------
 
@@ -968,13 +1133,20 @@ def main():
     content, n = apply_v2_2_crop_patch(content)
     total += n
 
-    content, n = apply_v2_4_xcrop_patch(content)
-    total += n
+    if PRESERVE_AA_APP_RAIL_ON_CLUSTER:
+        print("[v2.6 DISABLED BY DEFAULT] setDisplayParams: preserving Android Auto app rail on non-main displays:")
+        print("  [SKIP] v2.4 sidebar X-crop intentionally disabled")
+    else:
+        content, n = apply_v2_4_xcrop_patch(content)
+        total += n
 
     content, n = apply_v25_diag_patch(content)
     total += n
 
     write_file(AAP_ACTIVITY, content)
+
+    total += apply_v27_status_replay_patch(REMOTE_UI_MANAGER_LISTENER)
+    total += apply_v27_idempotent_hardkey_patch(HARDKEY_MODEL)
 
     total += apply_v2_1_manifest_patch(MANIFEST)
 

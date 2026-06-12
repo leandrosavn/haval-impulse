@@ -276,6 +276,14 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
         });
     }
 
+    private void startCarPlaySystemUiIconWatchdogSafely(String reason) {
+        try {
+            DisplayAppLauncher.INSTANCE.startCarPlaySystemUiIconWatchdog();
+        } catch (Exception e) {
+            Log.e(TAG, "CarPlay SystemUI icon watchdog scheduling failed (" + reason + "): " + e.getMessage(), e);
+        }
+    }
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         var sharedPreferences = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE);
@@ -284,6 +292,7 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
         synchronized (lifecycleLock) {
             if (isServiceRunning) {
                 Log.w(TAG, "Service is already running, skipping start.");
+                startCarPlaySystemUiIconWatchdogSafely("already-running");
                 return START_STICKY; // Retorna imediatamente se o serviço já estiver rodando
             }
             isServiceRunning = true; // Marca o serviço como rodando
@@ -570,6 +579,12 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
             Log.e(TAG, "Service initialization failed, restarting...");
             restart();
             return;
+        }
+        startCarPlaySystemUiIconWatchdogSafely("post-service-init");
+        try {
+            DisplayAppLauncher.INSTANCE.startAndroidAutoSteeringMediaFocusKeepAlive();
+        } catch (Exception e) {
+            Log.e(TAG, "Android Auto steering media focus keepalive scheduling failed: " + e.getMessage(), e);
         }
 
         // Auto-mount Android Auto patches if installed but not yet mounted

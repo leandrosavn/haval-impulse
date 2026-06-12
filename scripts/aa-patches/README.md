@@ -129,6 +129,15 @@ Display 0 because the system stack is narrower than the display.
 All six layers are required for the seamless full-screen + cluster
 experience.
 
+### Rolled Back v2.6 No-Rail Experiment
+
+In 2026-06-10 field testing, a v2.6 experiment removed only the v2.4 X-crop
+block so Google's Android Auto app rail would remain visible on Display 3.
+That APK caused a black Android Auto screen on Display 0 and Display 3, so it
+was rolled back immediately to the validated v2.5 APK. Do not re-enable
+`PRESERVE_AA_APP_RAIL_ON_CLUSTER` without a new APK-level investigation and
+physical test.
+
 ### Important: Stock APK State
 
 The file `stock/AndroidAutoApp_stock.apk` is **partially pre-patched** from earlier work sessions. Specifically:

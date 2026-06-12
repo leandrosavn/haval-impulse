@@ -1,6 +1,6 @@
 # Estrategia de Patch Nativo: Android Auto x CarPlay
 
-Atualizado em: 2026-06-09 10:53 -03
+Atualizado em: 2026-06-12 01:33 -03
 
 ## Objetivo
 
@@ -232,6 +232,44 @@ Atualizacao 2026-06-09 10:53 - Botoes fisicos de midia pela rota nativa da headu
 - `ClusterService msgId=135` permanece separado do evento fisico observado e pode usar o caminho
   app-side quando necessario.
 - CarPlay continua isolado e nao foi alterado nesta correcao.
+
+Atualizacao 2026-06-11 21:52 - Toggle Android Auto sem fallback OEM:
+
+- O fallback OEM de midia Android Auto (`input keyevent 1002/1003/1004`) permanece proibido por
+  padrao, inclusive para `PLAY_PAUSE=1004`.
+- `1004` deve ser reconhecido como input/eco de `PLAY_PAUSE`, mas apenas observado/consumido pelo
+  Impulse.
+- Decisao substituida em 2026-06-12 10:59: nesta etapa, o `AccessibilityService` consumia apenas
+  repeticao curta de teclas toggle Android Auto ativo; depois passou por uma tentativa de consumir
+  o toggle inteiro. A regra atual passa `ACTION_DOWN` e consome `ACTION_UP`, mantendo
+  `next/previous` fora dessa trava.
+- Essa regra nao toca em CarPlay, Surface, foco, bounds, handoff D0/D3 ou fluxo sem Android Auto
+  ativo.
+
+Atualizacao 2026-06-12 01:33 - Pre-start CarPlay e midia Android Auto:
+
+- CarPlay:
+  - o atalho D0/D3 pode preparar a UI nativa antes de abrir/mover a Activity visual;
+  - o preparo permitido e bindar `com.ts.carplay/.CarPlayService`, chamar `getLinkStatus()` e, se
+    o retorno for `2`, chamar `requestUi(0)`;
+  - esse comportamento replica o que o fluxo nativo `CarPlayDisplayActivity`/`LinkStatusModel` faz
+    ao bindar no servico;
+  - a relevancia do icone CarPlay na barra nativa D0 passa a considerar host, servico e link vivo,
+    nao apenas a Activity visual;
+  - continua proibido usar esse sintoma para enviar `force-stop`, broadcast de foco/video,
+    `view_state foreground`, `REFRESH_RENDER`, resize parcial ou restore agressivo.
+- Android Auto:
+  - eventos fisicos de `pause/play/mute` seguem sem reenvio app-side, porque sao toggles e
+    duplicidade desfaz a acao;
+  - `next/previous` fisicos usam excecao controlada desde `2026-06-12 10:59`: rota app-side apenas
+    no `ACTION_UP`, reaproveitando o caminho do card de midia, porque a rota nativa nao estava
+    passando musica no teste fisico;
+  - o `AccessibilityService` passa `ACTION_DOWN` e consome `ACTION_UP` dos toggles Android Auto
+    ativos para permitir o primeiro evento nativo e bloquear o eco mais provavel;
+  - midia Android Auto nao deve ser limpa apenas por USB sysfs desconectado se sessao/projecao
+    continuar ativa, especialmente em wireless/hotspot;
+  - fallback de metadata/capa de Bluetooth/MediaCenter so e aceito quando a frente atual continua
+    sendo Android Auto, sem afetar CarPlay.
 
 ## Por Que CarPlay Nao Esta Mais Stock
 
