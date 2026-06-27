@@ -7209,7 +7209,7 @@ fun InformacoesTab() {
                         try {
                                 val url =
                                         URL(
-                                                "https://api.github.com/repos/bobaoapae/haval-app-tool-multimidia/releases"
+                                                "https://api.github.com/repos/leandrosavn/haval-impulse/releases"
                                         )
                                 val conn = url.openConnection() as HttpURLConnection
                                 conn.requestMethod = "GET"
