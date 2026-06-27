@@ -18,6 +18,10 @@ captures/
 *.apk
 output-metadata.json
 
+# patches de projeção (CarPlay/AA) — APKs versionados de propósito (montados via bind-mount)
+!app/src/main/assets/carplay_patches/*.apk
+!app/src/main/assets/aa_patches/*.apk
+
 # IntelliJ
 *.iml
 .idea/

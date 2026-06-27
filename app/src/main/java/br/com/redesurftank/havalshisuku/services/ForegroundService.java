@@ -28,6 +28,8 @@ import br.com.redesurftank.App;
 import br.com.redesurftank.havalshisuku.broadcastReceivers.DispatchAllDatasReceiver;
 import br.com.redesurftank.havalshisuku.broadcastReceivers.RestartReceiver;
 import br.com.redesurftank.havalshisuku.managers.ServiceManager;
+import br.com.redesurftank.havalshisuku.managers.CarPlayPatchManager;
+import br.com.redesurftank.havalshisuku.managers.AndroidAutoPatchManager;
 import br.com.redesurftank.havalshisuku.models.CommandListener;
 import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys;
 import br.com.redesurftank.havalshisuku.utils.IPTablesUtils;
@@ -230,6 +232,24 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
         }
 
         Log.w(TAG, "Shizuku initialized/bypassed, starting services...");
+
+        // Auto-mount dos patches de projeção (CarPlay/Android Auto) — precisa do Shizuku/root pronto.
+        // Os patches deixam o SurfaceView seguir o tamanho da janela (habilita encolher o vídeo p/ a
+        // barra do haval-dock). Bind-mount volátil; re-aplicado a cada boot. Off-thread (faz shell).
+        backgroundHandler.post(() -> {
+            try {
+                Log.w(TAG, "Checking CarPlay patch auto-mount...");
+                CarPlayPatchManager.INSTANCE.ensureMounted();
+            } catch (Exception e) {
+                Log.e(TAG, "CarPlay patch auto-mount failed", e);
+            }
+            try {
+                Log.w(TAG, "Checking Android Auto patch auto-mount...");
+                AndroidAutoPatchManager.INSTANCE.ensureMounted();
+            } catch (Exception e) {
+                Log.e(TAG, "Android Auto patch auto-mount failed", e);
+            }
+        });
 
         // Start SSH check and start in background with retry
         backgroundHandler.post(new Runnable() {
