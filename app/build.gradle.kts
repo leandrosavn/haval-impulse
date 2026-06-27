@@ -7,10 +7,6 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
-// Versão injetada via -PappVersionName / -PappVersionCode (CI). Sem as props, cai no default.
-val appVersionCode = providers.gradleProperty("appVersionCode").map(String::toInt).orElse(1)
-val appVersionName = providers.gradleProperty("appVersionName").orElse("0.0.1")
-
 android {
     namespace = "br.com.redesurftank.havalshisuku"
     compileSdk = 36
@@ -20,8 +16,9 @@ android {
         minSdk = 28
         //noinspection ExpiredTargetSdkVersion
         targetSdk = 28
-        versionCode = appVersionCode.get()
-        versionName = appVersionName.get()
+        // Versão sobrescrita pelo build.yml (sed) no CI a partir da tag/auto-incremento.
+        versionCode = 1
+        versionName = "0.0.1"
     }
 
     signingConfigs {
