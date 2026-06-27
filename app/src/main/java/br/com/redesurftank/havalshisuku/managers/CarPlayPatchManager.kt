@@ -286,9 +286,21 @@ object CarPlayPatchManager {
         }
     }
 
+    // Detecta a task visual do CarPlay num display lendo `am stack list` — substitui o
+    // DisplayAppLauncher.isCarPlayOnDisplay() do refactor da preview (ausente na stable-64).
+    private fun isCarPlayTaskOnDisplay(displayId: Int): Boolean {
+        val out = sh("am stack list 2>/dev/null || true")
+        var cur: Int? = null
+        for (line in out.lines()) {
+            Regex("""displayId=(\d+)""").find(line)?.let { cur = it.groupValues[1].toIntOrNull() }
+            if (cur == displayId && line.contains("com.ts.carplay.app")) return true
+        }
+        return false
+    }
+
     private fun reloadCarPlayProcessesAfterPatchMount(reason: String) {
-        val visualTaskOnDisplay0 = DisplayAppLauncher.isCarPlayOnDisplay(0)
-        val visualTaskOnDisplay3 = DisplayAppLauncher.isCarPlayOnDisplay(3)
+        val visualTaskOnDisplay0 = isCarPlayTaskOnDisplay(0)
+        val visualTaskOnDisplay3 = isCarPlayTaskOnDisplay(3)
         val visualTaskActive = visualTaskOnDisplay0 || visualTaskOnDisplay3
 
         if (visualTaskActive) {
