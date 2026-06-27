@@ -7109,6 +7109,9 @@ fun InstallAppsTab() {
 
 @Composable
 fun InformacoesTab() {
+        val stableVersionName = "1.0.0.64-preview"
+        val stableApkUrl =
+                "https://github.com/leandrosavn/haval-impulse/releases/download/v1.0.0.64-preview/app-release.apk"
         val context = LocalContext.current
         val prefs =
                 App.getDeviceProtectedContext()
@@ -7156,6 +7159,7 @@ fun InformacoesTab() {
                         ActivityResultContracts.StartActivityForResult()
                 ) { /* Permission requested */}
         var showPermissionDialog by remember { mutableStateOf(false) }
+        var showRevertDialog by remember { mutableStateOf(false) }
 
         LaunchedEffect(Unit) {
                 try {
@@ -7280,7 +7284,11 @@ fun InformacoesTab() {
                 return parts1.size.compareTo(parts2.size)
         }
 
-        fun startDownload(url: String, resetTargetVersion: String? = null) {
+        fun startDownload(
+                url: String,
+                resetTargetVersion: String? = null,
+                forceDowngrade: Boolean = false
+        ) {
                 isDownloading = true
                 downloadProgress = 0f
                 downloadJob =
@@ -7323,6 +7331,38 @@ fun InformacoesTab() {
                                                                 resetTargetVersion
                                                         )
                                                         .apply()
+                                        }
+
+                                        // Voltar para versão estável = normalmente um downgrade,
+                                        // que o instalador do sistema (Intent) NÃO permite. Usa o
+                                        // Shizuku com `pm install -d` (permite downgrade) e
+                                        // `-i com.google.android.packageinstaller` (fura o bloqueio
+                                        // de instalação da Beantechs).
+                                        if (forceDowngrade) {
+                                                val tmp =
+                                                        "/data/local/tmp/havalimpulse-stable.apk"
+                                                val cmd =
+                                                        "cp '${file.absolutePath}' $tmp && " +
+                                                                "chmod 644 $tmp && " +
+                                                                "pm install -i com.google.android.packageinstaller -r -d -g $tmp && " +
+                                                                "am start -n br.com.redesurftank.havalshisuku/.SplashActivity; " +
+                                                                "rm -f $tmp"
+                                                val out =
+                                                        ShizukuUtils.runCommandAndGetOutput(
+                                                                arrayOf("sh", "-c", cmd)
+                                                        )
+                                                if (!out.contains("Success", ignoreCase = true)) {
+                                                        withContext(Dispatchers.Main) {
+                                                                downloadError =
+                                                                        "Falha ao reinstalar a versão estável. " +
+                                                                                "Verifique se o Shizuku está ativo (Estado: Ativo). " +
+                                                                                "Saída: " +
+                                                                                out.ifBlank {
+                                                                                        "(vazia)"
+                                                                                }
+                                                        }
+                                                }
+                                                return@launch
                                         }
 
                                         withContext(Dispatchers.Main) {
@@ -7566,6 +7606,71 @@ fun InformacoesTab() {
                                                         color = Color.White
                                                 )
                                         }
+                                }
+                        }
+                }
+
+                // Seção de Versão Estável
+                Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A)),
+                        shape = RoundedCornerShape(12.dp)
+                ) {
+                        Column(
+                                modifier = Modifier.padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                                Text(
+                                        "Versão Estável",
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                )
+
+                                HorizontalDivider(color = Color(0xFF1D2430))
+
+                                Text(
+                                        "Reinstala a versão estável de referência (v$stableVersionName). " +
+                                                "Use para voltar a uma base confiável caso uma versão mais nova apresente problemas.",
+                                        fontSize = 14.sp,
+                                        color = Color(0xFFB0B8C4),
+                                        lineHeight = 20.sp
+                                )
+
+                                if (version == stableVersionName) {
+                                        Text(
+                                                "Você já está na versão estável.",
+                                                fontSize = 13.sp,
+                                                color = Color(0xFF4ADE80)
+                                        )
+                                }
+
+                                Button(
+                                        onClick = { showRevertDialog = true },
+                                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                                        colors =
+                                                ButtonDefaults.buttonColors(
+                                                        containerColor = Color(0xFFFF9800)
+                                                ),
+                                        shape =
+                                                RoundedCornerShape(
+                                                        AppDimensions.ButtonCornerRadius
+                                                )
+                                ) {
+                                        Icon(
+                                                Icons.Default.Refresh,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                                if (version == stableVersionName)
+                                                        "Reinstalar versão estável"
+                                                else
+                                                        "Voltar para versão estável (v$stableVersionName)",
+                                                fontSize = 14.sp,
+                                                color = Color.White
+                                        )
                                 }
                         }
                 }
@@ -8130,6 +8235,37 @@ fun InformacoesTab() {
                         confirmButton = {
                                 TextButton(onClick = { showUpdateCheckDialog = false }) {
                                         Text("Fechar")
+                                }
+                        }
+                )
+        }
+
+        if (showRevertDialog) {
+                AlertDialog(
+                        onDismissRequest = { showRevertDialog = false },
+                        title = { Text("Voltar para versão estável") },
+                        text = {
+                                Text(
+                                        "Será baixada e instalada a versão estável v$stableVersionName.\n\n" +
+                                                "Os dados e configurações do app serão resetados (a instalação pode ser um downgrade). " +
+                                                "Requer o Shizuku ativo. Deseja continuar?"
+                                )
+                        },
+                        confirmButton = {
+                                TextButton(
+                                        onClick = {
+                                                showRevertDialog = false
+                                                startDownload(
+                                                        url = stableApkUrl,
+                                                        resetTargetVersion = stableVersionName,
+                                                        forceDowngrade = true
+                                                )
+                                        }
+                                ) { Text("Continuar") }
+                        },
+                        dismissButton = {
+                                TextButton(onClick = { showRevertDialog = false }) {
+                                        Text("Cancelar")
                                 }
                         }
                 )
