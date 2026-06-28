@@ -397,7 +397,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     CarConstants.CAR_EV_INFO_ELECTRIC_MODE_REMAIN_ODOMETER.value -> {
                         evaluateJsIfReady(webView, "control('batteryRange', '$value')")
                     }
-                    CarConstants.CAR_EV_INFO_PHEV_AHD_VOLTAGE.value -> {
+                    CarConstants.CAR_EV_SETTING_AVAS_CONFIG.value -> {
+                        // avas_config define se é HEV (==0) -> o slot do "HEV" vira regen
                         pushBottomEv(webView)
                     }
                     CarConstants.CAR_BASIC_GEAR_STATUS.value -> {
@@ -701,21 +702,23 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     }
 
     /**
+     * Detecta HEV puro via `car.ev.setting.avas_config` == 0. O AVAS (som de alerta a pedestres)
+     * só existe em PHEV/BEV; o HEV não tem → avas_config vem 0. NÃO usar `avas_enable` (toggle do
+     * som). Substituiu `phev_ahd_voltage.isNullOrBlank()`, que quebrou quando o carro passou a
+     * reportar "0" nesse campo.
+     */
+    private fun isHev(sm: ServiceManager): Boolean =
+            sm.getData(CarConstants.CAR_EV_SETTING_AVAS_CONFIG.value)?.trim() == "0"
+
+    /**
      * Rótulo do slot "bottom-ev" do cluster.
-     * Num carro SEM tomada (HEV puro) e no modo HEV, mostra o nível de regeneração
-     * (Baixo/Normal/Alto) NO LUGAR de "HEV". Em EV/EV-Prioritário, ou num carro com tomada
-     * (PHEV/BEV), mostra o modo normal.
-     *
-     * Detecção de "sem tomada": `car.ev_info.phev_ahd_voltage` é exclusiva de PHEV (tem "phev"
-     * no nome) — vem vazia/sem suporte no HEV. (charging_gun_conn_state foi descartado: retorna
-     * 0 no HEV deste carro, igual a um PHEV desconectado.)
+     * Num HEV (ver [isHev]) e no modo HEV, mostra o nível de regeneração (Baixo/Normal/Alto) NO
+     * LUGAR de "HEV". Em EV/EV-Prioritário, ou num carro com tomada (PHEV/BEV), mostra o modo.
      */
     private fun bottomEvLabel(sm: ServiceManager): String {
         val evLabel = MainMenu.EvModeOptions.getLabel(
                 sm.getData(CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value))
-        val noChargePort =
-                sm.getData(CarConstants.CAR_EV_INFO_PHEV_AHD_VOLTAGE.value).isNullOrBlank()
-        if (noChargePort && evLabel == "HEV") {
+        if (isHev(sm) && evLabel == "HEV") {
             return RegenScreen.RegenOptions.getLabel(
                     sm.getData(CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL.value))
         }
