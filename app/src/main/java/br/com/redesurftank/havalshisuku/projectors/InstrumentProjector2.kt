@@ -398,7 +398,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         evaluateJsIfReady(webView, "control('batteryRange', '$value')")
                     }
                     CarConstants.CAR_EV_INFO_PHEV_AHD_VOLTAGE.value -> {
-                        applyHevVisibility(webView)
+                        pushBottomEv(webView)
                     }
                     CarConstants.CAR_BASIC_GEAR_STATUS.value -> {
                         val gear = getGearLabel(value.toString())
@@ -433,10 +433,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         )
                     }
                     CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value -> {
-                        evaluateJsIfReady(
-                                webView,
-                                "control('evMode', '${MainMenu.EvModeOptions.getLabel(value)}')"
-                        )
+                        pushBottomEv(webView)
                     }
                     CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.value -> {
                         val label = MainMenu.DrivingModeOptions.getLabel(value)
@@ -463,6 +460,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                 webView,
                                 "control('regenMode', '${RegenScreen.RegenOptions.getLabel(value)}')"
                         )
+                        // num HEV sem tomada, o slot do "HEV" mostra a regen -> atualiza ao mudar
+                        pushBottomEv(webView)
                     }
                     CarConstants.CAR_EV_INFO_ENERGY_OUTPUT_PERCENTAGE.value -> {
                         val floatVal = value.toString().toFloatOrNull() ?: 0.0f
@@ -657,8 +656,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         updates["engineRPM"] = sm.getData(CarConstants.CAR_BASIC_ENGINE_SPEED.value) ?: "0"
 
         // Modes and Settings
-        val evMode = sm.getData(CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value)
-        updates["evMode"] = MainMenu.EvModeOptions.getLabel(evMode)
+        updates["evMode"] = bottomEvLabel(sm)
 
         val drivingMode = sm.getData(CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.value)
         val drivingModeLabel = MainMenu.DrivingModeOptions.getLabel(drivingMode)
@@ -700,26 +698,34 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 sm.getData(CarConstants.CAR_EV_INFO_INSTANT_ENERGY_CONSUMPTION.value) ?: "0"
 
         batchEvaluateJs(webView, updates)
-        applyHevVisibility(webView)
     }
 
     /**
-     * Esconde o rótulo "HEV" do cluster SÓ quando o carro não tem tomada (HEV puro).
-     * Discriminador: `car.ev_info.phev_ahd_voltage` — propriedade EXCLUSIVA de PHEV (tem "phev"
-     * no nome). Num HEV ela não é suportada (vem vazia/null) -> sem tomada -> esconde. Num PHEV
-     * retorna tensão -> mostra. (charging_gun_conn_state foi descartado: retorna 0 no HEV deste
-     * carro, igual a um PHEV desconectado -> ambíguo.) Theme-agnóstico: injeta <style> via JS.
+     * Rótulo do slot "bottom-ev" do cluster.
+     * Num carro SEM tomada (HEV puro) e no modo HEV, mostra o nível de regeneração
+     * (Baixo/Normal/Alto) NO LUGAR de "HEV". Em EV/EV-Prioritário, ou num carro com tomada
+     * (PHEV/BEV), mostra o modo normal.
+     *
+     * Detecção de "sem tomada": `car.ev_info.phev_ahd_voltage` é exclusiva de PHEV (tem "phev"
+     * no nome) — vem vazia/sem suporte no HEV. (charging_gun_conn_state foi descartado: retorna
+     * 0 no HEV deste carro, igual a um PHEV desconectado.)
      */
-    private fun applyHevVisibility(webView: WebView?) {
-        val phevVoltage = ServiceManager.getInstance()
-                .getData(CarConstants.CAR_EV_INFO_PHEV_AHD_VOLTAGE.value)
-        val hasChargePort = !phevVoltage.isNullOrBlank()
-        val js = if (hasChargePort) {
-            "(function(){var s=document.getElementById('__hideHev');if(s)s.remove();})()"
-        } else {
-            "(function(){if(!document.getElementById('__hideHev')){var s=document.createElement('style');s.id='__hideHev';s.textContent='.bottom-ev-label[data-bottom-ev=HEV]{display:none!important}';document.head.appendChild(s);}})()"
+    private fun bottomEvLabel(sm: ServiceManager): String {
+        val evLabel = MainMenu.EvModeOptions.getLabel(
+                sm.getData(CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value))
+        val noChargePort =
+                sm.getData(CarConstants.CAR_EV_INFO_PHEV_AHD_VOLTAGE.value).isNullOrBlank()
+        if (noChargePort && evLabel == "HEV") {
+            return RegenScreen.RegenOptions.getLabel(
+                    sm.getData(CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL.value))
         }
-        evaluateJsIfReady(webView, js)
+        return evLabel
+    }
+
+    private fun pushBottomEv(webView: WebView?) {
+        evaluateJsIfReady(
+                webView,
+                "control('evMode', '${bottomEvLabel(ServiceManager.getInstance())}')")
     }
 
     private fun getClusterFuelDisplayUnit(): String {
