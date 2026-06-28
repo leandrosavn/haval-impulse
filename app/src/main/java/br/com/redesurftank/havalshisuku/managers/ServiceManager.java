@@ -126,7 +126,7 @@ public class ServiceManager {
             CarConstants.CAR_BASIC_REMAIN_FUEL_PERCENTAGE,
             CarConstants.CAR_EV_INFO_FUEL_MODE_REMAIN_ODOMETER,
             CarConstants.CAR_EV_INFO_ELECTRIC_MODE_REMAIN_ODOMETER,
-            CarConstants.CAR_EV_INFO_CHARGING_GUN_CONN_STATE,
+            CarConstants.CAR_EV_INFO_PHEV_AHD_VOLTAGE,
             CarConstants.CAR_BASIC_COOLANT_TEMP_WARNING,
             CarConstants.CAR_BASIC_ENGINE_OIL_LOW_PRESSURE_WARNING,
             CarConstants.CAR_BASIC_FATIGUE_WARNING,

@@ -397,7 +397,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     CarConstants.CAR_EV_INFO_ELECTRIC_MODE_REMAIN_ODOMETER.value -> {
                         evaluateJsIfReady(webView, "control('batteryRange', '$value')")
                     }
-                    CarConstants.CAR_EV_INFO_CHARGING_GUN_CONN_STATE.value -> {
+                    CarConstants.CAR_EV_INFO_PHEV_AHD_VOLTAGE.value -> {
                         applyHevVisibility(webView)
                     }
                     CarConstants.CAR_BASIC_GEAR_STATUS.value -> {
@@ -705,15 +705,15 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
     /**
      * Esconde o rótulo "HEV" do cluster SÓ quando o carro não tem tomada (HEV puro).
-     * Detecção defensiva: se `car.ev_info.charging_gun_conn_state` vier vazio/sem suporte,
-     * o carro não tem porta de recarga -> esconde. Qualquer valor presente (PHEV/BEV) ->
-     * mostra (default seguro, sem regressão p/ quem tem tomada). Theme-agnóstico: injeta um
-     * <style> via JS, então funciona em qualquer tema carregado no WebView.
+     * Discriminador: `car.ev_info.phev_ahd_voltage` — propriedade EXCLUSIVA de PHEV (tem "phev"
+     * no nome). Num HEV ela não é suportada (vem vazia/null) -> sem tomada -> esconde. Num PHEV
+     * retorna tensão -> mostra. (charging_gun_conn_state foi descartado: retorna 0 no HEV deste
+     * carro, igual a um PHEV desconectado -> ambíguo.) Theme-agnóstico: injeta <style> via JS.
      */
     private fun applyHevVisibility(webView: WebView?) {
-        val gun = ServiceManager.getInstance()
-                .getData(CarConstants.CAR_EV_INFO_CHARGING_GUN_CONN_STATE.value)
-        val hasChargePort = !gun.isNullOrBlank()
+        val phevVoltage = ServiceManager.getInstance()
+                .getData(CarConstants.CAR_EV_INFO_PHEV_AHD_VOLTAGE.value)
+        val hasChargePort = !phevVoltage.isNullOrBlank()
         val js = if (hasChargePort) {
             "(function(){var s=document.getElementById('__hideHev');if(s)s.remove();})()"
         } else {
