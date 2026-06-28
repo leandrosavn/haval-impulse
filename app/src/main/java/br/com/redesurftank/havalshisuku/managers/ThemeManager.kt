@@ -29,7 +29,9 @@ class ThemeManager private constructor(val context: Context) {
 
     companion object {
         private const val TAG = "ThemeManager"
-        const val THEME_REPO_URL = "https://github.com/netseek/haval-app-tool-multimidia/tree/feature/new-screen-enhancements-v6/cluster-widgets/Themes"
+        // Temas hospedados no fork do usuário (leandrosavn) — assim controlamos os temas e os
+        // ajustes chegam ao carro via re-download. (Era netseek/feature-new-screen-enhancements-v6.)
+        const val THEME_REPO_URL = "https://github.com/leandrosavn/haval-impulse/tree/master/cluster-widgets/Themes"
         
         @Volatile
         private var instance: ThemeManager? = null
@@ -283,8 +285,8 @@ class ThemeManager private constructor(val context: Context) {
                 val destDir = File(themesDir, metadata.folderName)
                 if (!destDir.exists()) destDir.mkdirs()
                 
-                // 1. Get folder contents from GitHub API
-                val apiUrl = "https://api.github.com/repos/netseek/haval-app-tool-multimidia/contents/cluster-widgets/Themes/${metadata.folderName}?ref=feature/new-screen-enhancements-v6"
+                // 1. Get folder contents from GitHub API (fork leandrosavn — ver THEME_REPO_URL)
+                val apiUrl = "https://api.github.com/repos/leandrosavn/haval-impulse/contents/cluster-widgets/Themes/${metadata.folderName}?ref=master"
                 val url = URL(apiUrl)
                 val conn = url.openConnection() as HttpURLConnection
                 conn.setRequestProperty("Accept", "application/vnd.github.v3+json")
