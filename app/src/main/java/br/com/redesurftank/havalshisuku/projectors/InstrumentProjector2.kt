@@ -397,6 +397,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     CarConstants.CAR_EV_INFO_ELECTRIC_MODE_REMAIN_ODOMETER.value -> {
                         evaluateJsIfReady(webView, "control('batteryRange', '$value')")
                     }
+                    CarConstants.CAR_EV_SETTING_AVAS_CONFIG.value -> {
+                        // avas_config define se é HEV (==0) -> o slot do "HEV" vira regen
+                        pushBottomEv(webView)
+                    }
                     CarConstants.CAR_BASIC_GEAR_STATUS.value -> {
                         val gear = getGearLabel(value.toString())
                         evaluateJsIfReady(webView, "control('gearState', '$gear')")
@@ -430,10 +434,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         )
                     }
                     CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value -> {
-                        evaluateJsIfReady(
-                                webView,
-                                "control('evMode', '${MainMenu.EvModeOptions.getLabel(value)}')"
-                        )
+                        pushBottomEv(webView)
                     }
                     CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.value -> {
                         val label = MainMenu.DrivingModeOptions.getLabel(value)
@@ -460,6 +461,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                 webView,
                                 "control('regenMode', '${RegenScreen.RegenOptions.getLabel(value)}')"
                         )
+                        // num HEV sem tomada, o slot do "HEV" mostra a regen -> atualiza ao mudar
+                        pushBottomEv(webView)
                     }
                     CarConstants.CAR_EV_INFO_ENERGY_OUTPUT_PERCENTAGE.value -> {
                         val floatVal = value.toString().toFloatOrNull() ?: 0.0f
@@ -654,8 +657,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         updates["engineRPM"] = sm.getData(CarConstants.CAR_BASIC_ENGINE_SPEED.value) ?: "0"
 
         // Modes and Settings
-        val evMode = sm.getData(CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value)
-        updates["evMode"] = MainMenu.EvModeOptions.getLabel(evMode)
+        updates["evMode"] = bottomEvLabel(sm)
 
         val drivingMode = sm.getData(CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.value)
         val drivingModeLabel = MainMenu.DrivingModeOptions.getLabel(drivingMode)
@@ -697,6 +699,36 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 sm.getData(CarConstants.CAR_EV_INFO_INSTANT_ENERGY_CONSUMPTION.value) ?: "0"
 
         batchEvaluateJs(webView, updates)
+    }
+
+    /**
+     * Detecta HEV puro via `car.ev.setting.avas_config` == 0. O AVAS (som de alerta a pedestres)
+     * só existe em PHEV/BEV; o HEV não tem → avas_config vem 0. NÃO usar `avas_enable` (toggle do
+     * som). Substituiu `phev_ahd_voltage.isNullOrBlank()`, que quebrou quando o carro passou a
+     * reportar "0" nesse campo.
+     */
+    private fun isHev(sm: ServiceManager): Boolean =
+            sm.getData(CarConstants.CAR_EV_SETTING_AVAS_CONFIG.value)?.trim() == "0"
+
+    /**
+     * Rótulo do slot "bottom-ev" do cluster.
+     * Num HEV (ver [isHev]) e no modo HEV, mostra o nível de regeneração (Baixo/Normal/Alto) NO
+     * LUGAR de "HEV". Em EV/EV-Prioritário, ou num carro com tomada (PHEV/BEV), mostra o modo.
+     */
+    private fun bottomEvLabel(sm: ServiceManager): String {
+        val evLabel = MainMenu.EvModeOptions.getLabel(
+                sm.getData(CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value))
+        if (isHev(sm) && evLabel == "HEV") {
+            return RegenScreen.RegenOptions.getLabel(
+                    sm.getData(CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL.value))
+        }
+        return evLabel
+    }
+
+    private fun pushBottomEv(webView: WebView?) {
+        evaluateJsIfReady(
+                webView,
+                "control('evMode', '${bottomEvLabel(ServiceManager.getInstance())}')")
     }
 
     private fun getClusterFuelDisplayUnit(): String {
