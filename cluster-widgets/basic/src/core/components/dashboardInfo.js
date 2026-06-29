@@ -240,11 +240,15 @@ export function createDashboardInfo() {
     const bottomEvMode = div({ className: 'dashboard-bottom-ev-mode' });
     const bottomEvLabel = span({ className: 'bottom-ev-label' });
 
+    // Num HEV o slot mostra o nível de regeneração (Baixo/Normal/Alto) no lugar de "HEV".
+    // Nesse caso, prefixa um raio amarelo (igual ao do haval-dock) antes do texto.
+    const REGEN_LABELS = ['BAIXO', 'NORMAL', 'ALTO'];
+    const REGEN_BOLT_SVG = '<svg class="bottom-ev-bolt" viewBox="0 0 24 24" width="0.85em" height="0.85em" fill="#FFD60A" style="vertical-align:-0.12em;margin-right:0.18em"><path d="M13,2L5,13h5l-1,9l9,-12h-5l1,-8z"/></svg>';
     const updateBottomEv = (val) => {
         const cleanVal = String(val).toUpperCase().replace(/'/g, "");
-        if (cleanVal === 'EV') {
-            bottomEvLabel.textContent = 'EV';
-        } else if (cleanVal === 'EVP') {
+        if (REGEN_LABELS.includes(cleanVal)) {
+            bottomEvLabel.innerHTML = REGEN_BOLT_SVG + val;
+        } else if (cleanVal === 'EV' || cleanVal === 'EVP') {
             bottomEvLabel.textContent = 'EV';
         } else if (cleanVal === 'HEV') {
             bottomEvLabel.textContent = 'HEV';

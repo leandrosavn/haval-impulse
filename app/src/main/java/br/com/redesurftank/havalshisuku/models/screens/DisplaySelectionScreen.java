@@ -19,8 +19,8 @@ public class DisplaySelectionScreen implements Screen {
         "mode_reduzido",
         "mode_clean"
     };
-    private int focusedTemplateIndex = 1; // default focus on Esportivo
-    private int focusedDisplayIndex = 1; // default selected display is Esportivo
+    private int focusedTemplateIndex = 0; // default focus on Normal (clean, sem as linhas do Esportivo)
+    private int focusedDisplayIndex = 0; // default selected display is Normal
 
     private static final String[] DISPLAYS = {"Normal", "Esportivo", "Reduzido", "Clean"};
 
