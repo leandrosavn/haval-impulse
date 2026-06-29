@@ -1096,7 +1096,9 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
     private fun normalizeClusterDisplay(display: String): String {
         return when (display) {
-            "Normal", "Esportivo", "Reduzido", "Clean" -> display
+            // O tema Basic só tem Normal/Reduzido/Clean. "Esportivo" (e desconhecidos) -> Normal,
+            // pra desencravar quem ficou preso num modo que o tema não tem.
+            "Normal", "Reduzido", "Clean" -> display
             else -> "Normal"
         }
     }
