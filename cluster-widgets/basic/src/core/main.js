@@ -113,6 +113,10 @@ function render() {
         logger.log('Rendering screen:', screen);
         let classes = appContainer.className.split(' ').filter(c => !c.startsWith('display-') && !c.startsWith('theme-') && c !== 'cluster-disabled' && c !== 'warn-is-active');
         classes.push('display-' + displayMode.toLowerCase());
+        // "Esportivo Clean" = layout do Esportivo (analógico) + sem as linhas.
+        // Aplica tambem a classe display-esportivo p/ herdar todo o layout; as linhas
+        // sao removidas em CSS por .display-esportivoclean.
+        if (displayMode.toLowerCase() === 'esportivoclean') classes.push('display-esportivo');
 
         if (get('clusterEnabled') === false) {
             classes.push('cluster-disabled');

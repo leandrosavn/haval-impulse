@@ -2170,6 +2170,18 @@ canvas.graph-chart {
   --sport-right-icon-scale: 0.8;
 }
 
+/* Esportivo Clean = layout/analógico do Esportivo, porém SEM as linhas/molduras.
+   (o modo aplica display-esportivo + display-esportivoclean; aqui só removemos a decoração) */
+.display-esportivoclean .mask-top-bar,
+.display-esportivoclean .dashboard-bottom-gauges {
+  background-image: none !important;
+}
+.display-esportivoclean .dashboard-sport-fixed-overlay {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
 /* Clean Mode */
 .display-clean {
   --display-scale: 1;
@@ -3091,7 +3103,7 @@ canvas.graph-chart {
   justify-content: center;
   pointer-events: none;
   bottom: -10px;
-  right: 220px;
+  right: 225px;
 }
 
 .dashboard-bottom-ev-mode {
@@ -3103,7 +3115,7 @@ canvas.graph-chart {
   justify-content: center;
   pointer-events: none;
   bottom: 0px;
-  right: 220px;
+  right: 225px;
   transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 

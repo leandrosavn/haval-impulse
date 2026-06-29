@@ -104,7 +104,8 @@ export function createDisplaySelectionScreen() {
             { id: 'title_mask', label: 'Modos do Tema', type: 'title' },
             { id: 'mode_normal', label: 'Normal', type: 'mode', value: 'Normal', iconSrc: getIconNormal(themeBlue) },
             { id: 'mode_reduzido', label: 'Reduzido', type: 'mode', value: 'Reduzido', iconSrc: getIconReduced(themeBlue) },
-            { id: 'mode_clean', label: 'Clean', type: 'mode', value: 'Clean', iconSrc: getIconClean(themeBlue) }
+            { id: 'mode_clean', label: 'Clean', type: 'mode', value: 'Clean', iconSrc: getIconClean(themeBlue) },
+            { id: 'mode_esportivoclean', label: 'Esportivo Clean', type: 'mode', value: 'EsportivoClean', iconSrc: getIconSport(themeBlue) }
         ];
 
         const itemElements = {};
