@@ -3,7 +3,7 @@
     {
       "name": "Basic",
       "folder": "Basic",
-      "version": "1.0.10",
+      "version": "1.0.11",
       "description": "Design clássico que mais se aproxima visualmente do painel original em modo escuro. Funciona melhor quando o carro esta configurado em modo escuro.",
       "mainFile": "index.html",
       "thumbnail": "thumbnail.png"
