@@ -67,6 +67,8 @@ const NEEDLE_SMOOTHING = 0.16;
   speedText.style.fontFamily = "'Roboto', 'Segoe UI', Arial, sans-serif";
   speedText.style.fontSize = "84px";
   speedText.style.fontWeight = "400";
+  speedText.style.transform = "scaleY(0.88)"; // achata um tico p/ o "0" ficar menos esticado/oval
+  speedText.style.transformOrigin = "center";
 
   const unit = document.createElement("div");
   unit.innerText = "km/h";
