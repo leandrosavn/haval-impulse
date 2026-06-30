@@ -59,8 +59,10 @@ const NEEDLE_SMOOTHING = 0.16;
   `;
 
   const speedText = document.createElement("div");
-  speedText.style.fontSize = "120px";
-  speedText.style.fontWeight = "300";
+  // Fonte arredondada e menor: a herdada (Khand) é condensada e o "0" fica esticado (pílula).
+  speedText.style.fontFamily = "'Roboto', 'Segoe UI', Arial, sans-serif";
+  speedText.style.fontSize = "84px";
+  speedText.style.fontWeight = "400";
 
   const unit = document.createElement("div");
   unit.innerText = "km/h";

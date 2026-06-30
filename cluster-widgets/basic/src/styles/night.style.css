@@ -2181,6 +2181,14 @@ canvas.graph-chart {
   visibility: hidden !important;
   opacity: 0 !important;
 }
+/* Esportivo Clean usa o topo do PAINEL STOCK (que aparece quando removemos a
+   imagem de fundo do esportivo). Esconde o topo do TEMA p/ não duplicar
+   relógio/marcha/modo (o de trás = stock fica; o da frente = tema sai). */
+.display-esportivoclean .dashboard-top-center {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
 
 /* Clean Mode */
 .display-clean {
