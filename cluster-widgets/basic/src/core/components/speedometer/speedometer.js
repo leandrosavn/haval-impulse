@@ -51,9 +51,13 @@ const NEEDLE_SMOOTHING = 0.16;
   const display = document.createElement("div");
   display.style.cssText = `
     position:absolute;
-    bottom:20px;
+    bottom:120px;
     left:0px;
     width:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    line-height:1;
     text-align:center;
     color:white;
   `;
@@ -66,13 +70,12 @@ const NEEDLE_SMOOTHING = 0.16;
 
   const unit = document.createElement("div");
   unit.innerText = "km/h";
-  unit.style.opacity = "0.4";
   unit.style.cssText = `
-    position:absolute;
-    bottom:30px;
     width:100%;
     text-align:center;
     opacity:0.4;
+    font-size:26px;
+    margin-top:4px;
   `;
 
   display.appendChild(speedText);
