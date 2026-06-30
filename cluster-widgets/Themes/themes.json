@@ -1,0 +1,28 @@
+{
+  "themes": [
+    {
+      "name": "Basic",
+      "folder": "Basic",
+      "version": "1.0.10",
+      "description": "Design clássico que mais se aproxima visualmente do painel original em modo escuro. Funciona melhor quando o carro esta configurado em modo escuro.",
+      "mainFile": "index.html",
+      "thumbnail": "thumbnail.png"
+    },
+    {
+      "name": "Basic Light",
+      "folder": "BasicLight",
+      "version": "1.0.3",
+      "description": "Versão clara do design clássico. Funciona melhor com o carro em modo claro.",
+      "mainFile": "app_light.html",
+      "thumbnail": "thumbnail.png"
+    },
+    {
+      "name": "Default",
+      "folder": "Default",
+      "version": "1.1.0",
+      "description": "Tema principal com o novo design Sport.",
+      "mainFile": "index.html",
+      "thumbnail": "thumbnail.png"
+    }
+  ]
+}

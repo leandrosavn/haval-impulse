@@ -32,7 +32,10 @@ class ThemeManager private constructor(val context: Context) {
         // Temas hospedados no fork do usuário (leandrosavn) — assim controlamos os temas e os
         // ajustes chegam ao carro via re-download. (Era netseek/feature-new-screen-enhancements-v6.)
         const val THEME_REPO_URL = "https://github.com/leandrosavn/haval-impulse/tree/master/cluster-widgets/Themes"
-        
+        // Busca/baixa via raw.githubusercontent (CDN, SEM o limite de 60 req/h da api.github).
+        // Lista os temas por um manifesto themes.json em vez de listar pastas pela API.
+        const val RAW_BASE = "https://raw.githubusercontent.com/leandrosavn/haval-impulse/master/cluster-widgets/Themes/"
+
         @Volatile
         private var instance: ThemeManager? = null
 
@@ -160,40 +163,41 @@ class ThemeManager private constructor(val context: Context) {
     suspend fun fetchThemesFromGithub(repoUrl: String): List<ThemeMetadata> {
         return withContext(Dispatchers.IO) {
             try {
-                val apiUrl = convertToGithubApiUrl(repoUrl)
-                Log.d(TAG, "Fetching themes from API: $apiUrl")
-                
-                val url = URL(apiUrl)
+                // Lê o manifesto themes.json via raw (CDN — SEM o limite de 60 req/h da api.github).
+                val url = URL(RAW_BASE + "themes.json")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.requestMethod = "GET"
-                conn.setRequestProperty("Accept", "application/vnd.github.v3+json")
-                
+                conn.connectTimeout = 10000
+                conn.readTimeout = 15000
+
                 if (conn.responseCode != 200) {
-                    val errorBody = conn.errorStream?.bufferedReader()?.use { it.readText() }
-                    Log.e(TAG, "Failed to fetch themes: ${conn.responseCode} - $errorBody")
+                    Log.e(TAG, "Failed to fetch themes manifest: ${conn.responseCode}")
                     return@withContext emptyList<ThemeMetadata>()
                 }
-                
+
                 val jsonString = conn.inputStream.bufferedReader().use { it.readText() }
-                val array = JSONArray(jsonString)
+                val array = org.json.JSONObject(jsonString).getJSONArray("themes")
                 val results = mutableListOf<ThemeMetadata>()
-                
+
                 for (i in 0 until array.length()) {
                     val obj = array.getJSONObject(i)
-                    if (obj.getString("type") == "dir") {
-                        val folderName = obj.getString("name")
-                        val folderUrl = obj.getString("url")
-                        
-                        // Fetch theme.xml for this folder
-                        val metadata = fetchThemeMetadataFromGithub(folderUrl, folderName)
-                        if (metadata != null) {
-                            results.add(metadata)
-                        }
-                    }
+                    val folder = obj.getString("folder")
+                    val thumb = obj.optString("thumbnail", "thumbnail.png")
+                    results.add(
+                        ThemeMetadata(
+                            name = obj.getString("name"),
+                            description = obj.optString("description", ""),
+                            version = obj.optString("version", ""),
+                            thumbnailUrl = RAW_BASE + folder + "/" + thumb,
+                            mainFile = obj.optString("mainFile", "index.html"),
+                            folderName = folder,
+                            isLocal = false
+                        )
+                    )
                 }
                 results
             } catch (e: Exception) {
-                Log.e(TAG, "Error fetching themes from GitHub", e)
+                Log.e(TAG, "Error fetching themes manifest", e)
                 emptyList<ThemeMetadata>()
             }
         }
@@ -284,31 +288,23 @@ class ThemeManager private constructor(val context: Context) {
             try {
                 val destDir = File(themesDir, metadata.folderName)
                 if (!destDir.exists()) destDir.mkdirs()
-                
-                // 1. Get folder contents from GitHub API (fork leandrosavn — ver THEME_REPO_URL)
-                val apiUrl = "https://api.github.com/repos/leandrosavn/haval-impulse/contents/cluster-widgets/Themes/${metadata.folderName}?ref=master"
-                val url = URL(apiUrl)
-                val conn = url.openConnection() as HttpURLConnection
-                conn.setRequestProperty("Accept", "application/vnd.github.v3+json")
-                
-                if (conn.responseCode != 200) return@withContext false
-                
-                val jsonString = conn.inputStream.bufferedReader().use { it.readText() }
-                val array = JSONArray(jsonString)
-                
-                for (i in 0 until array.length()) {
-                    val obj = array.getJSONObject(i)
-                    val fileName = obj.getString("name")
-                    val downloadUrl = obj.getString("download_url")
-                    
-                    // Download each file
+
+                // Baixa via raw (CDN, SEM rate limit da api.github). Arquivos padrão do tema.
+                val files = listOf(metadata.mainFile, "theme.xml", "thumbnail.png")
+                for (fileName in files) {
+                    val fileConn =
+                            URL(RAW_BASE + metadata.folderName + "/" + fileName).openConnection()
+                                    as HttpURLConnection
+                    fileConn.connectTimeout = 15000
+                    fileConn.readTimeout = 30000
+                    if (fileConn.responseCode != 200) {
+                        if (fileName == "thumbnail.png") continue // thumbnail é opcional
+                        Log.e(TAG, "Failed to download $fileName: ${fileConn.responseCode}")
+                        return@withContext false
+                    }
                     val destFile = File(destDir, fileName)
-                    val fileUrl = URL(downloadUrl)
-                    val fileConn = fileUrl.openConnection() as HttpURLConnection
                     BufferedInputStream(fileConn.inputStream).use { input ->
-                        FileOutputStream(destFile).use { output ->
-                            input.copyTo(output)
-                        }
+                        FileOutputStream(destFile).use { output -> input.copyTo(output) }
                     }
                 }
                 true
