@@ -2192,7 +2192,7 @@ canvas.graph-chart {
 /* Regen/raio: move p/ a esquerda (transform é confiável independente do container),
    centralizando entre a barra de bateria e a temperatura. */
 .display-esportivoclean .dashboard-bottom-ev-mode {
-  transform: translateX(-120px) !important;
+  transform: translateX(-60px) !important;
 }
 
 /* Clean Mode */

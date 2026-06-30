@@ -51,7 +51,7 @@ const NEEDLE_SMOOTHING = 0.16;
   const display = document.createElement("div");
   display.style.cssText = `
     position:absolute;
-    bottom:42px;
+    bottom:52px;
     left:0px;
     width:100%;
     display:flex;
