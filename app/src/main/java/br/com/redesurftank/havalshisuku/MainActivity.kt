@@ -7109,9 +7109,9 @@ fun InstallAppsTab() {
 
 @Composable
 fun InformacoesTab() {
-        val stableVersionName = "1.0.0.64-preview"
+        val stableVersionName = "2.0.0"
         val stableApkUrl =
-                "https://github.com/leandrosavn/haval-impulse/releases/download/v1.0.0.64-preview/app-release.apk"
+                "https://github.com/leandrosavn/haval-impulse/releases/download/v2.0.0/app-release.apk"
         val context = LocalContext.current
         val prefs =
                 App.getDeviceProtectedContext()

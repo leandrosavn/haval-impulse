@@ -40,35 +40,36 @@ jobs:
 
           BRANCH_NAME="${GITHUB_REF_NAME:-${GITHUB_REF##*/}}"
 
-          # Base version: usa input do workflow_dispatch ou extrai da tag mais recente
+          # Esquema de versão PRÓPRIO do fork (semver 2.x), desassociado do
+          # upstream (que usa 1.0.0.<build>). workflow_dispatch: usa o input
+          # (ex.: "2.1.0" p/ subir minor/major); senão auto-incrementa o PATCH
+          # da maior tag v2 existente.
           if [ -n "${{ github.event.inputs.version }}" ]; then
-            VERSION_BASE="${{ github.event.inputs.version }}"
+            NEW_SEMVER="${{ github.event.inputs.version }}"
           else
-            # Extrair base (major.minor.patch) da tag mais recente
-            LATEST_TAG=$(git tag --list "v*" --sort=-v:refname | head -n1)
-            if [ -n "$LATEST_TAG" ]; then
-              VERSION_BASE=$(echo "$LATEST_TAG" | grep -oP 'v\K\d+\.\d+\.\d+')
+            LATEST=$(git tag --list "v2.*" --sort=-v:refname | grep -vi -- '-preview' | head -n1)
+            if [ -z "$LATEST" ]; then
+              NEW_SEMVER="2.0.0"
             else
-              VERSION_BASE="1.0.0"
+              MAJOR_MINOR=$(echo "$LATEST" | grep -oP 'v\K\d+\.\d+')
+              PATCH=$(echo "$LATEST" | grep -oP 'v\d+\.\d+\.\K\d+')
+              NEW_SEMVER="${MAJOR_MINOR}.$((PATCH + 1))"
             fi
           fi
 
-          # Extrair o maior build number de TODAS as tags (release e preview)
-          LATEST_BUILD=$(git tag --list "v*" | grep -oP 'v\d+\.\d+\.\d+\.\K\d+' | sort -rn | head -1)
-          if [ -z "$LATEST_BUILD" ]; then LATEST_BUILD=-1; fi
-          NEW_BUILD=$((LATEST_BUILD + 1))
-
-          NEW_VERSION_BASE="${VERSION_BASE}.$NEW_BUILD"
-
           if [ "$BRANCH_NAME" = "preview" ]; then
-            NEW_VERSION="${NEW_VERSION_BASE}-preview"
+            NEW_VERSION="${NEW_SEMVER}-preview"
           else
-            NEW_VERSION="$NEW_VERSION_BASE"
+            NEW_VERSION="$NEW_SEMVER"
           fi
-
           echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
-          NEW_VERSION_CODE=$((NEW_BUILD + 1))
+          # versionCode monotônico derivado do semver: MAJOR*10000 + MINOR*100 + PATCH
+          # (2.0.0 -> 20000, bem acima do último esquema antigo = 76). Manter patch < 100.
+          MA=$(echo "$NEW_SEMVER" | cut -d. -f1)
+          MI=$(echo "$NEW_SEMVER" | cut -d. -f2)
+          PA=$(echo "$NEW_SEMVER" | cut -d. -f3)
+          NEW_VERSION_CODE=$(( MA * 10000 + MI * 100 + PA ))
           echo "new_version_code=$NEW_VERSION_CODE" >> "$GITHUB_OUTPUT"
 
       - name: Update build.gradle.kts
