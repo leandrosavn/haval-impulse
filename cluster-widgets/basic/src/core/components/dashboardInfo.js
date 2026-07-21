@@ -361,6 +361,14 @@ export function createDashboardInfo() {
         prevSpeed = speed;
     };
 
+    // HEV sem autonomia elétrica: some com o "0 km" da bateria, volta se o valor for real
+    const updateBatteryRange = (val) => {
+        const rangeSpan = batteryTop.querySelector('.battery-range');
+        if (!rangeSpan) return;
+        if (rangeSpan.childNodes[0]) rangeSpan.childNodes[0].textContent = val;
+        rangeSpan.style.display = parseInt(val, 10) > 0 ? '' : 'none';
+    };
+
     const updateFuelDisplay = () => {
         const display = formatFuelDisplay(getState('fuelPercent'), getState('fuelDisplayUnit'));
         const fuelDisplaySpan = fuelTop.querySelector('.fuel-liters');
@@ -401,10 +409,7 @@ export function createDashboardInfo() {
             const rangeSpan = fuelTop.querySelector('.fuel-range');
             if (rangeSpan && rangeSpan.childNodes[0]) rangeSpan.childNodes[0].textContent = val;
         }),
-        subscribe('batteryRange', val => {
-            const rangeSpan = batteryTop.querySelector('.battery-range');
-            if (rangeSpan && rangeSpan.childNodes[0]) rangeSpan.childNodes[0].textContent = val;
-        }),
+        subscribe('batteryRange', updateBatteryRange),
         subscribe('outside_temp', val => externalTempValue.textContent = formatTemp(val, getState('tempUnit'))),
         subscribe('inside_temp', val => internalTempValue.textContent = formatTemp(val, getState('tempUnit'))),
         subscribe('tempUnit', unit => {
@@ -423,6 +428,7 @@ export function createDashboardInfo() {
 
     updateBarSegments(fuelSegments, getState('fuelPercent'));
     updateBarSegments(batterySegments, getState('batteryPercent'));
+    updateBatteryRange(getState('batteryRange'));
     updateSpeedRotation(getState('carSpeed'));
     updateFuelDisplay();
 
