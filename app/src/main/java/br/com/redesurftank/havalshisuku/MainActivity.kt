@@ -2144,6 +2144,7 @@ fun BasicSettingsTab() {
 
 // Seletor reutilizável de ação do volante (curto/duplo/longo): dropdown de ação + campo de pacote
 // quando a ação é "abrir app" + dropdown de comando do A/C quando a ação é "comando do ar".
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SteeringActionPicker(
         prefs: SharedPreferences,
