@@ -11,6 +11,7 @@ enum class SteeringWheelCustomActionType(val key: String, val description: Strin
     TOGGLE_ESP("toggle_esp", "Alternar controle de estabilidade (ESP)."),
     TOGGLE_ONE_PEDAL_DRIVING("toggle_one_pedal_driving", "Alternar condução com um pedal."),
     OPEN_APP("open_app", "Abrir aplicativo de sua escolha."),
+    CLIMATE_COMMAND("climate_command", "Acionar comandos do ar-condicionado."),
     TOGGLE_CAMERA_AVM("toggle_avm", "Alternar o modo de desabilitar a camera com o carro parado."),
     OPEN_AVM_ONCE("open_avm_once", "Abrir a camera sem interrupções.");
 

@@ -61,6 +61,7 @@ import br.com.redesurftank.havalshisuku.models.CarInfo;
 import br.com.redesurftank.havalshisuku.models.MainUiManager;
 import br.com.redesurftank.havalshisuku.models.ServiceManagerEventType;
 import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys;
+import br.com.redesurftank.havalshisuku.models.SteeringWheelClimateCommandType;
 import br.com.redesurftank.havalshisuku.models.SteeringWheelCustomActionType;
 import br.com.redesurftank.havalshisuku.models.screens.Screen;
 import br.com.redesurftank.havalshisuku.utils.FridaUtils;
@@ -219,6 +220,18 @@ public class ServiceManager {
     private long timeInitialized;
     private CarInfo carInfo;
     private IIntelligentVehicleControlService controlService;
+    // ===== Canal de controle resiliente (portado do upstream preview, commit 218eb8b) =====
+    // Sem isto, se o processo de controle do carro morre (reinicio do app OEM / OOM do
+    // system_server), o app simplesmente PARA de falar com o carro - nada reconecta. Isto adiciona:
+    // linkToDeath -> reconexao automatica; watchdog de 10s que faz ping e recupera se morto; e
+    // recuperacao via re-registro de listener/chaves. PURAMENTE ADITIVO: o caminho normal de init
+    // nao muda. Flag pra reversao de 1 linha.
+    private static final boolean CONTROL_CHANNEL_RESILIENCE_ENABLED = true;
+    private static final long CONTROL_CHANNEL_WATCHDOG_MS = 10000L;
+    private volatile boolean recoveringControlChannel = false;
+    private volatile int controlChannelRecoveryCount = 0;
+    private IBinder.DeathRecipient controlDeathRecipient;
+    private volatile Runnable controlChannelWatchdogRunnable;
     private IVehicle vehicle;
     private IDvr dvr;
     private boolean delayNextAVM = false;
@@ -343,6 +356,7 @@ public class ServiceManager {
                 return false;
             }
             controlService = IIntelligentVehicleControlService.Stub.asInterface(controlBinder);
+            registerControlDeathRecipient();
 
             IBinder poolBinder = new ShizukuBinderWrapper(getSystemService("com.beantechs.voice.adapter.VoiceAdapterService"));
             if (!poolBinder.pingBinder()) {
@@ -403,8 +417,10 @@ public class ServiceManager {
                 public void dispatchKeyEvent(KeyEvent keyEvent) {
                     if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_STEERING_WHEEL_CUSTOM_BUTTONS.getKey(), false)) {
                         switch (keyEvent.getKeyCode()) {
-                            case 517: handleSteeringWheelCustomButton(sharedPreferences.getString(SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_1_ACTION.getKey(), SteeringWheelCustomActionType.DEFAULT.name()), 1); break;
-                            case 1031: handleSteeringWheelCustomButton(sharedPreferences.getString(SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_2_ACTION.getKey(), SteeringWheelCustomActionType.DEFAULT.name()), 2); break;
+                            case 517: onSteeringCustomShortPress(1); break;   // botao 1 curto
+                            case 1031: onSteeringCustomShortPress(2); break;  // botao 2 curto
+                            case 518: onSteeringCustomLongPress(1); break;    // botao 1 longo
+                            case 1032: onSteeringCustomLongPress(2); break;   // botao 2 longo
                         }
                     }
                     if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_CUSTOM_MENU.getKey(), false)) {
@@ -463,6 +479,7 @@ public class ServiceManager {
             ShizukuUtils.runCommandAndGetOutput(new String[]{"pm", "grant", context.getPackageName(), "android.permission.WRITE_SECURE_SETTINGS"});
             controlService.registerDataChangedListener(context.getPackageName(), listener);
             controlService.addListenerKey(App.getContext().getPackageName(), getCombinedKeys());
+            startControlChannelWatchdog();
 
             IBinder connectivityBinder = new ShizukuBinderWrapper(getSystemService(Context.CONNECTIVITY_SERVICE));
             connectivityManager = IConnectivityManager.Stub.asInterface(connectivityBinder);
@@ -514,6 +531,7 @@ public class ServiceManager {
             }
             ensureSteeringWheelButtonIntegration();
             ensureSystemApps();
+            ensureDebloatedSystemApps();
             TripConsistencyManager.Companion.getInstance().initialize();
         } catch (RemoteException e) {
             Log.e(TAG, "Error during initialization", e);
@@ -540,18 +558,19 @@ public class ServiceManager {
 
     public void ensureSteeringWheelButtonIntegration() {
         if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_STEERING_WHEEL_CUSTOM_BUTTONS.getKey(), false)) {
-            String button1Action = sharedPreferences.getString(SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_1_ACTION.getKey(), SteeringWheelCustomActionType.DEFAULT.getKey());
-            String button2Action = sharedPreferences.getString(SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_2_ACTION.getKey(), SteeringWheelCustomActionType.DEFAULT.getKey());
-            Log.w(TAG, "Ensuring steering wheel button integration. Button 1 action: " + button1Action + ", Button 2 action: " + button2Action);
-            if (button1Action.equals(SteeringWheelCustomActionType.DEFAULT.getKey())) {
-                disableNativeSteeringWheelButton1();
-            } else {
+            // habilita o botao se QUALQUER toque (curto/duplo/longo) tiver acao configurada
+            boolean button1Used = steeringActionConfigured(1, "SHORT") || steeringActionConfigured(1, "DOUBLE") || steeringActionConfigured(1, "LONG");
+            boolean button2Used = steeringActionConfigured(2, "SHORT") || steeringActionConfigured(2, "DOUBLE") || steeringActionConfigured(2, "LONG");
+            Log.w(TAG, "Ensuring steering wheel button integration. Button 1 used: " + button1Used + ", Button 2 used: " + button2Used);
+            if (button1Used) {
                 enableSteeringWheelButton1Integration();
-            }
-            if (button2Action.equals(SteeringWheelCustomActionType.DEFAULT.getKey())) {
-                disableNativeSteeringWheelButton2();
             } else {
+                disableNativeSteeringWheelButton1();
+            }
+            if (button2Used) {
                 enableSteeringWheelButton2Integration();
+            } else {
+                disableNativeSteeringWheelButton2();
             }
         } else {
             Log.w(TAG, "Steering wheel button integration disabled, restoring native functions");
@@ -561,7 +580,98 @@ public class ServiceManager {
 
     }
 
-    private void handleSteeringWheelCustomButton(String string, int button) {
+    // ===== Toques nos botoes personalizados do volante: curto / duplo / longo =====
+    // (portado do upstream preview, commit 2d9734a)
+    // Keycodes (capturados no carro): botao 1 curto=517/longo=518; botao 2 curto=1031/longo=1032;
+    // duplo = dois curtos dentro da janela.
+    private static final long STEERING_DOUBLE_WINDOW_MS = 350L;    // janela pra detectar o 2o toque
+    private static final long STEERING_PRESS_DEBOUNCE_MS = 120L;   // ignora repique do mesmo toque
+    private static final long STEERING_LONG_OPEN_DELAY_MS = 350L;  // deixa a config do OEM abrir antes da nossa acao
+    private final Runnable[] steeringPendingSingle = new Runnable[2];
+    private final long[] steeringLastPressAtMs = {0L, 0L};
+
+    private String steeringActionKey(int button, String tapType) {
+        SharedPreferencesKeys key;
+        if (button == 1) {
+            key = tapType.equals("DOUBLE") ? SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_1_ACTION_DOUBLE
+                    : tapType.equals("LONG") ? SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_1_ACTION_LONG
+                    : SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_1_ACTION;
+        } else {
+            key = tapType.equals("DOUBLE") ? SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_2_ACTION_DOUBLE
+                    : tapType.equals("LONG") ? SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_2_ACTION_LONG
+                    : SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_2_ACTION;
+        }
+        return sharedPreferences.getString(key.getKey(), SteeringWheelCustomActionType.DEFAULT.getKey());
+    }
+
+    private String steeringOpenAppPackageKey(int button, String tapType) {
+        if (button == 1) {
+            return (tapType.equals("DOUBLE") ? SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_1_DOUBLE
+                    : tapType.equals("LONG") ? SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_1_LONG
+                    : SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_1).getKey();
+        }
+        return (tapType.equals("DOUBLE") ? SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_2_DOUBLE
+                : tapType.equals("LONG") ? SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_2_LONG
+                : SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_2).getKey();
+    }
+
+    private boolean steeringActionConfigured(int button, String tapType) {
+        String k = steeringActionKey(button, tapType);
+        return k != null
+                && !k.equals(SteeringWheelCustomActionType.DEFAULT.getKey())
+                && !k.equals(SteeringWheelCustomActionType.DEFAULT.name());
+    }
+
+    // Toque curto. Se houver acao de DUPLO configurada, espera ~350ms pra ver se vem um 2o toque
+    // (senao dispara o curto na hora, sem atraso). O 2o toque dentro da janela vira DUPLO.
+    private void onSteeringCustomShortPress(int button) {
+        final int idx = button - 1;
+        long now = System.currentTimeMillis();
+        synchronized (steeringPendingSingle) {
+            if (now - steeringLastPressAtMs[idx] < STEERING_PRESS_DEBOUNCE_MS) {
+                return; // repique do mesmo toque
+            }
+            steeringLastPressAtMs[idx] = now;
+            if (steeringPendingSingle[idx] != null) {
+                backgroundHandler.removeCallbacks(steeringPendingSingle[idx]);
+                steeringPendingSingle[idx] = null;
+                handleSteeringWheelCustomButton(steeringActionKey(button, "DOUBLE"), button, "DOUBLE");
+                return;
+            }
+            if (!steeringActionConfigured(button, "DOUBLE")) {
+                handleSteeringWheelCustomButton(steeringActionKey(button, "SHORT"), button, "SHORT");
+                return;
+            }
+            Runnable r = () -> {
+                synchronized (steeringPendingSingle) {
+                    steeringPendingSingle[idx] = null;
+                }
+                handleSteeringWheelCustomButton(steeringActionKey(button, "SHORT"), button, "SHORT");
+            };
+            steeringPendingSingle[idx] = r;
+            backgroundHandler.postDelayed(r, STEERING_DOUBLE_WINDOW_MS);
+        }
+    }
+
+    // Toque longo. O OEM abre a tela de config do volante; esperamos um pouco e executamos a acao.
+    // Se for OPEN_APP, o app abre POR CIMA da config; senao mandamos BACK pra fechar a config.
+    private void onSteeringCustomLongPress(int button) {
+        if (!steeringActionConfigured(button, "LONG")) return; // sem acao de longo -> deixa a config do OEM
+        final String actionKey = steeringActionKey(button, "LONG");
+        final boolean isOpenApp =
+                SteeringWheelCustomActionType.Companion.fromKey(actionKey) == SteeringWheelCustomActionType.OPEN_APP;
+        backgroundHandler.postDelayed(() -> {
+            handleSteeringWheelCustomButton(actionKey, button, "LONG");
+            if (!isOpenApp) {
+                try {
+                    ShizukuUtils.runCommandAndGetOutput(new String[]{"input", "keyevent", "4"});
+                } catch (Exception ignored) {
+                }
+            }
+        }, STEERING_LONG_OPEN_DELAY_MS);
+    }
+
+    private void handleSteeringWheelCustomButton(String string, int button, String tapType) {
         SteeringWheelCustomActionType action = SteeringWheelCustomActionType.Companion.fromKey(string);
         if (action == null || action == SteeringWheelCustomActionType.DEFAULT) {
             return;
@@ -624,7 +734,7 @@ public class ServiceManager {
                 }
                 break;
             case OPEN_APP:
-                String packageName = sharedPreferences.getString(button == 1 ? SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_1.getKey() : SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_2.getKey(), "");
+                String packageName = sharedPreferences.getString(steeringOpenAppPackageKey(button, tapType), "");
                 if (!packageName.isEmpty()) {
                     Intent launchIntent = App.getContext().getPackageManager().getLaunchIntentForPackage(packageName);
                     if (launchIntent != null) {
@@ -635,6 +745,9 @@ public class ServiceManager {
                         Log.e(TAG, "App not found: " + packageName);
                     }
                 }
+                break;
+            case CLIMATE_COMMAND:
+                handleSteeringWheelClimateCommand(button);
                 break;
             case TOGGLE_CAMERA_AVM:
                 boolean cameraAVM = sharedPreferences.getBoolean(SharedPreferencesKeys.DISABLE_AVM_CAR_STOPPED.getKey(), false);
@@ -658,6 +771,87 @@ public class ServiceManager {
                 }
                 break;
         }
+    }
+
+    // ===== Comandos de HVAC pelo botao do volante (portado do upstream preview, commit c2b2abc) =====
+    private static final long STEERING_WHEEL_CLIMATE_COMMAND_DEDUP_WINDOW_MS = 800L;
+    private int lastClimateCommandButton = -1;
+    private long lastClimateCommandAtMs = 0L;
+
+    private void handleSteeringWheelClimateCommand(int button) {
+        long now = SystemClock.uptimeMillis();
+        boolean duplicateCommand =
+                lastClimateCommandButton == button
+                        && now - lastClimateCommandAtMs <= STEERING_WHEEL_CLIMATE_COMMAND_DEDUP_WINDOW_MS;
+        if (duplicateCommand) {
+            Log.w(TAG, "Ignoring duplicate climate command from steering wheel button " + button);
+            return;
+        }
+
+        lastClimateCommandButton = button;
+        lastClimateCommandAtMs = now;
+
+        String commandKey = sharedPreferences.getString(
+                button == 1
+                        ? SharedPreferencesKeys.STEERING_WHEEL_CLIMATE_COMMAND_BUTTON_1.getKey()
+                        : SharedPreferencesKeys.STEERING_WHEEL_CLIMATE_COMMAND_BUTTON_2.getKey(),
+                SteeringWheelClimateCommandType.TOGGLE_AC.getKey()
+        );
+        if (commandKey == null) {
+            commandKey = SteeringWheelClimateCommandType.TOGGLE_AC.getKey();
+        }
+        SteeringWheelClimateCommandType command = SteeringWheelClimateCommandType.Companion.fromKey(commandKey);
+        if (command == null) {
+            command = SteeringWheelClimateCommandType.TOGGLE_AC;
+        }
+
+        Log.w(TAG, "Executing steering wheel climate command from button " + button + ": " + command.getKey());
+        cancelMaxAcMode();
+        switch (command) {
+            case TOGGLE_AC:
+                toggleHvacBinaryValue(CarConstants.CAR_HVAC_AC_ENABLE.getValue(), "AC");
+                break;
+            case TOGGLE_AUTO:
+                toggleHvacBinaryValue(CarConstants.CAR_HVAC_AUTO_ENABLE.getValue(), "Auto AC");
+                break;
+            case TOGGLE_POWER:
+                toggleHvacBinaryValue(CarConstants.CAR_HVAC_POWER_MODE.getValue(), "HVAC power");
+                break;
+            case FRONT_DEFROST:
+                toggleFrontDefrostAirflow(button);
+                break;
+        }
+    }
+
+    private void toggleFrontDefrostAirflow(int button) {
+        String frontDefrostState = getUpdatedData(CarConstants.CAR_HVAC_FRONT_DEFROST_ENABLE.getValue());
+        String blowerMode = getUpdatedData(CarConstants.CAR_HVAC_BLOWER_MODE.getValue());
+        boolean frontDefrostActive = "1".equals(frontDefrostState) || "4".equals(blowerMode);
+
+        if (frontDefrostActive) {
+            updateData(CarConstants.CAR_HVAC_FRONT_DEFROST_ENABLE.getValue(), "0");
+            if ("4".equals(blowerMode)) {
+                updateData(CarConstants.CAR_HVAC_BLOWER_MODE.getValue(), "0");
+            }
+            Log.w(TAG, "Front defrost airflow disabled from steering wheel button " + button);
+            return;
+        }
+
+        updateData(CarConstants.CAR_HVAC_POWER_MODE.getValue(), "1");
+        updateData(CarConstants.CAR_HVAC_FRONT_DEFROST_ENABLE.getValue(), "1");
+        updateData(CarConstants.CAR_HVAC_BLOWER_MODE.getValue(), "4");
+        Log.w(TAG, "Front defrost airflow enabled from steering wheel button " + button);
+    }
+
+    private void toggleHvacBinaryValue(String key, String label) {
+        String currentState = getUpdatedData(key);
+        if (currentState == null) {
+            Log.e(TAG, "Unable to toggle " + label + ": current value is null");
+            return;
+        }
+        boolean enabled = currentState.equals("1");
+        updateData(key, enabled ? "0" : "1");
+        Log.w(TAG, label + " state changed to: " + !enabled);
     }
 
     public void enableSteeringWheelButton1Integration() {
@@ -818,6 +1012,135 @@ public class ServiceManager {
         } catch (RemoteException e) {
             Log.e(TAG, "Error sending heartbeat to cluster service", e);
         }
+    }
+
+    private boolean isControlServiceAlive() {
+        IIntelligentVehicleControlService svc = controlService;
+        if (svc == null) return false;
+        try {
+            if (!Shizuku.pingBinder()) return false;
+            IBinder binder = svc.asBinder();
+            return binder != null && binder.isBinderAlive();
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /**
+     * Liga o linkToDeath no binder do servico de controle. Se o processo do controle do carro morre
+     * (reinicio do app OEM / OOM do system_server), o binderDied dispara e agenda a recuperacao no
+     * backgroundHandler (fora da main). Remove um recipient anterior antes, pra nao empilhar.
+     */
+    private void registerControlDeathRecipient() {
+        if (!CONTROL_CHANNEL_RESILIENCE_ENABLED) return;
+        try {
+            IIntelligentVehicleControlService svc = controlService;
+            if (svc == null) return;
+            final IBinder binder = svc.asBinder();
+            if (binder == null) return;
+            if (controlDeathRecipient != null) {
+                try { binder.unlinkToDeath(controlDeathRecipient, 0); } catch (Throwable ignored) {}
+            }
+            controlDeathRecipient = new IBinder.DeathRecipient() {
+                @Override public void binderDied() {
+                    Log.w(TAG, "control channel: binder morreu, agendando recuperacao");
+                    if (backgroundHandler != null) {
+                        backgroundHandler.post(() -> recoverControlChannel("BINDER_DIED"));
+                    } else {
+                        recoverControlChannel("BINDER_DIED");
+                    }
+                }
+            };
+            binder.linkToDeath(controlDeathRecipient, 0);
+        } catch (Throwable t) {
+            Log.w(TAG, "registerControlDeathRecipient falhou: " + t.getMessage());
+        }
+    }
+
+    /**
+     * Re-adquire o binder do servico de controle do zero e re-registra listener + chaves + re-dispatch.
+     * synchronized + guarda de reentrancia (recoveringControlChannel) pra nao rodar duas recuperacoes
+     * ao mesmo tempo (watchdog + binderDied podem coincidir). Desregistra o listener antigo antes de
+     * registrar o novo, pra nao duplicar.
+     */
+    public synchronized void recoverControlChannel(String reason) {
+        if (!CONTROL_CHANNEL_RESILIENCE_ENABLED) return;
+        if (recoveringControlChannel) return;
+        recoveringControlChannel = true;
+        long t0 = SystemClock.uptimeMillis();
+        try {
+            Log.w(TAG, "control channel: recuperando (reason=" + reason + ", attempt=" + (controlChannelRecoveryCount + 1) + ")");
+
+            if (!Shizuku.pingBinder()) {
+                throw new IllegalStateException("Shizuku indisponivel durante recuperacao do canal de controle");
+            }
+            Context context = App.getContext();
+
+            // desregistra o listener antigo se o binder velho ainda responde (evita listener duplicado)
+            IIntelligentVehicleControlService old = controlService;
+            if (old != null && listener != null) {
+                try {
+                    IBinder oldBinder = old.asBinder();
+                    if (oldBinder != null && oldBinder.isBinderAlive()) {
+                        old.unRegisterDataChangedListener(context.getPackageName(), listener);
+                    }
+                } catch (Throwable ignored) {}
+            }
+
+            IBinder rawControlBinder = getSystemService("com.beantechs.intelligentvehiclecontrol");
+            if (rawControlBinder == null) throw new IllegalStateException("binder de controle indisponivel");
+            IBinder controlBinder = new ShizukuBinderWrapper(rawControlBinder);
+            if (!controlBinder.pingBinder()) throw new IllegalStateException("binder de controle morto");
+            controlService = IIntelligentVehicleControlService.Stub.asInterface(controlBinder);
+
+            registerControlDeathRecipient();
+
+            if (listener == null) {
+                listener = new IListener.Stub() {
+                    @Override public void onDataChanged(String key, String value) { OnDataChanged(key, value); }
+                };
+            }
+            controlService.registerDataChangedListener(context.getPackageName(), listener);
+            controlService.addListenerKey(context.getPackageName(), getCombinedKeys());
+            dispatchAllData();
+
+            controlChannelRecoveryCount++;
+            Log.w(TAG, "control channel: recuperado (reason=" + reason + ", totalRecoveries=" + controlChannelRecoveryCount
+                    + ", elapsedMs=" + (SystemClock.uptimeMillis() - t0) + ")");
+        } catch (Throwable e) {
+            Log.e(TAG, "control channel: recuperacao FALHOU (reason=" + reason + "): " + e.getMessage());
+        } finally {
+            recoveringControlChannel = false;
+        }
+    }
+
+    /**
+     * Watchdog: a cada 10s faz ping no binder do controle; se estiver morto (e nenhuma recuperacao em
+     * curso), dispara recoverControlChannel. Idempotente - cancela o runnable anterior antes de reagendar,
+     * e so se reagenda enquanto ainda for o runnable ativo (evita duplicar o loop em re-init).
+     */
+    private void startControlChannelWatchdog() {
+        if (!CONTROL_CHANNEL_RESILIENCE_ENABLED) return;
+        if (backgroundHandler == null) return;
+        if (controlChannelWatchdogRunnable != null) {
+            backgroundHandler.removeCallbacks(controlChannelWatchdogRunnable);
+        }
+        controlChannelWatchdogRunnable = new Runnable() {
+            @Override public void run() {
+                try {
+                    if (!recoveringControlChannel && !isControlServiceAlive()) {
+                        Log.w(TAG, "control channel: watchdog detectou binder morto");
+                        recoverControlChannel("WATCHDOG");
+                    }
+                } catch (Throwable ignored) {
+                } finally {
+                    if (backgroundHandler != null && controlChannelWatchdogRunnable == this) {
+                        backgroundHandler.postDelayed(this, CONTROL_CHANNEL_WATCHDOG_MS);
+                    }
+                }
+            }
+        };
+        backgroundHandler.postDelayed(controlChannelWatchdogRunnable, CONTROL_CHANNEL_WATCHDOG_MS);
     }
 
     public void dispatchAllData() {
@@ -1735,6 +2058,72 @@ public class ServiceManager {
             disableSystemApp("com.beantechs.multidisplay");
         } else {
             enableSystemApp("com.beantechs.multidisplay");
+        }
+    }
+
+    // Debloat opt-in (portado do upstream preview, commit b6c9da9): desativa apps do sistema (OEM)
+    // que ficam rodando e consomem RAM/CPU da multimídia, cada um atrás do seu toggle (default OFF).
+    // Reaplicado no boot para sobreviver a updates/OTA que reabilitem os pacotes. Para "desligar mais
+    // coisas" basta acrescentar outra chamada a applyDebloatToggle (NÃO incluir operatorcenter/OTA
+    // nem drivinganalysis/TBOX).
+    public void ensureDebloatedSystemApps() {
+        try {
+            // 1) Lê o estado REAL do sistema na primeira vez (pref ainda não definida): se o pacote já
+            //    está desativado por fora (ex.: pm disable-user / pm uninstall --user 0), o toggle nasce marcado ON.
+            //    Depois disso a pref é a dona do estado — quem manda é o usuário pela UI.
+            reconcileDebloatPref(SharedPreferencesKeys.DISABLE_NATIVE_NAVIGATION.getKey(),
+                    "com.neusoft.na.navigation");
+            reconcileDebloatPref(SharedPreferencesKeys.DISABLE_NATIVE_VOICE.getKey(),
+                    "com.iflytek.cutefly.speechclient.hmi");
+            reconcileDebloatPref(SharedPreferencesKeys.DISABLE_NATIVE_WEATHER.getKey(),
+                    "com.beantechs.weatherservice");
+            // 2) Aplica cada toggle (idempotente; reaplica no boot).
+            applyDebloatToggle(SharedPreferencesKeys.DISABLE_NATIVE_NAVIGATION.getKey(),
+                    "com.neusoft.na.navigation");
+            applyDebloatToggle(SharedPreferencesKeys.DISABLE_NATIVE_VOICE.getKey(),
+                    "com.iflytek.cutefly.speechclient.hmi", "com.beantechs.voiceclient");
+            applyDebloatToggle(SharedPreferencesKeys.DISABLE_NATIVE_WEATHER.getKey(),
+                    "com.beantechs.weatherservice");
+        } catch (Exception e) {
+            Log.e(TAG, "Error ensuring debloated system apps", e);
+        }
+    }
+
+    // Semeia a pref de debloat a partir do estado real do pacote — SÓ enquanto a pref nunca foi
+    // definida (nem pelo usuário, nem por um boot anterior). Assim, um pacote já desativado por fora
+    // (pm disable-user / uninstall --user 0) faz o toggle aparecer ON ao instalar; a partir daí a pref é a fonte da verdade.
+    private void reconcileDebloatPref(String prefKey, String representativePackage) {
+        if (sharedPreferences.contains(prefKey)) return;
+        boolean currentlyDisabled = !isPackageEnabledForUser(representativePackage);
+        sharedPreferences.edit().putBoolean(prefKey, currentlyDisabled).apply();
+    }
+
+    // true se o pacote está instalado E habilitado para o user 0. Cobre os dois jeitos de desativar:
+    // "pm disable-user" (some do -e) e "pm uninstall --user 0" (some do -e). Em erro, assume ENABLED
+    // (conservador: não marca o toggle ON à toa).
+    private boolean isPackageEnabledForUser(String pkg) {
+        try {
+            String out = ShizukuUtils.runCommandAndGetOutput(new String[]{"pm", "list", "packages", "-e", pkg});
+            if (out == null) return true;
+            for (String line : out.split("\\n")) {
+                if (line.trim().equals("package:" + pkg)) return true;
+            }
+            return false;
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
+    // Aplica um toggle de debloat a um ou mais pacotes: ON => desabilita (pm uninstall --user 0 + pkill),
+    // OFF => reabilita (pm install-existing). Reversível e idempotente.
+    private void applyDebloatToggle(String prefKey, String... packages) {
+        boolean disable = sharedPreferences.getBoolean(prefKey, false);
+        for (String pkg : packages) {
+            if (disable) {
+                disableSystemApp(pkg);
+            } else {
+                enableSystemApp(pkg);
+            }
         }
     }
 
