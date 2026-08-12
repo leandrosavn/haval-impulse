@@ -462,6 +462,21 @@ fun BasicSettingsTab() {
                         )
                 )
         }
+        var disableNativeNavigation by remember {
+                mutableStateOf(
+                        prefs.getBoolean(SharedPreferencesKeys.DISABLE_NATIVE_NAVIGATION.key, false)
+                )
+        }
+        var disableNativeVoice by remember {
+                mutableStateOf(
+                        prefs.getBoolean(SharedPreferencesKeys.DISABLE_NATIVE_VOICE.key, false)
+                )
+        }
+        var disableNativeWeather by remember {
+                mutableStateOf(
+                        prefs.getBoolean(SharedPreferencesKeys.DISABLE_NATIVE_WEATHER.key, false)
+                )
+        }
         var enablePersistentBottomBar by remember {
                 mutableStateOf(
                         prefs.getBoolean(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR.key, false)
@@ -547,6 +562,70 @@ fun BasicSettingsTab() {
 
         settingsList.addAll(
                 listOfNotNull(
+                        SettingItem(
+                                title = "Desativar navegador GPS nativo",
+                                description =
+                                        "Desativa o navegador Neusoft (OEM) que roda em segundo plano e consome RAM/CPU. Reversível.",
+                                checked = disableNativeNavigation,
+                                onCheckedChange = {
+                                        disableNativeNavigation = it
+                                        prefs.edit {
+                                                putBoolean(
+                                                        SharedPreferencesKeys
+                                                                .DISABLE_NATIVE_NAVIGATION
+                                                                .key,
+                                                        it
+                                                )
+                                        }
+                                        Thread {
+                                                        ServiceManager.getInstance()
+                                                                .ensureDebloatedSystemApps()
+                                                }
+                                                .start()
+                                }
+                        ),
+                        SettingItem(
+                                title = "Desativar assistente de voz nativo",
+                                description =
+                                        "Desativa o assistente de voz iFlyTek (OEM) que roda em segundo plano e consome RAM/CPU. Reversível.",
+                                checked = disableNativeVoice,
+                                onCheckedChange = {
+                                        disableNativeVoice = it
+                                        prefs.edit {
+                                                putBoolean(
+                                                        SharedPreferencesKeys.DISABLE_NATIVE_VOICE
+                                                                .key,
+                                                        it
+                                                )
+                                        }
+                                        Thread {
+                                                        ServiceManager.getInstance()
+                                                                .ensureDebloatedSystemApps()
+                                                }
+                                                .start()
+                                }
+                        ),
+                        SettingItem(
+                                title = "Desativar previsão do tempo nativa",
+                                description =
+                                        "Desativa o serviço de previsão do tempo (OEM) que roda em segundo plano. Reversível.",
+                                checked = disableNativeWeather,
+                                onCheckedChange = {
+                                        disableNativeWeather = it
+                                        prefs.edit {
+                                                putBoolean(
+                                                        SharedPreferencesKeys.DISABLE_NATIVE_WEATHER
+                                                                .key,
+                                                        it
+                                                )
+                                        }
+                                        Thread {
+                                                        ServiceManager.getInstance()
+                                                                .ensureDebloatedSystemApps()
+                                                }
+                                                .start()
+                                }
+                        ),
                         SettingItem(
                                 title = "Fechar janela ao desligar o veículo",
                                 description =
@@ -1582,65 +1661,6 @@ fun BasicSettingsTab() {
                                 customContent =
                                         if (enableCustomSteeringWheelButtons) {
                                                 {
-                                                        var action1 by remember {
-                                                                mutableStateOf(
-                                                                        prefs.getString(
-                                                                                SharedPreferencesKeys
-                                                                                        .STEERING_WHEEL_CUSTOM_BUTON_1_ACTION
-                                                                                        .key,
-                                                                                SteeringWheelCustomActionType
-                                                                                        .DEFAULT
-                                                                                        .key
-                                                                        )
-                                                                                ?: SteeringWheelCustomActionType
-                                                                                        .DEFAULT
-                                                                                        .key
-                                                                )
-                                                        }
-                                                        var action2 by remember {
-                                                                mutableStateOf(
-                                                                        prefs.getString(
-                                                                                SharedPreferencesKeys
-                                                                                        .STEERING_WHEEL_CUSTOM_BUTON_2_ACTION
-                                                                                        .key,
-                                                                                SteeringWheelCustomActionType
-                                                                                        .DEFAULT
-                                                                                        .key
-                                                                        )
-                                                                                ?: SteeringWheelCustomActionType
-                                                                                        .DEFAULT
-                                                                                        .key
-                                                                )
-                                                        }
-                                                        var package1 by remember {
-                                                                mutableStateOf(
-                                                                        prefs.getString(
-                                                                                SharedPreferencesKeys
-                                                                                        .STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_1
-                                                                                        .key,
-                                                                                ""
-                                                                        )
-                                                                                ?: ""
-                                                                )
-                                                        }
-                                                        var package2 by remember {
-                                                                mutableStateOf(
-                                                                        prefs.getString(
-                                                                                SharedPreferencesKeys
-                                                                                        .STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_2
-                                                                                        .key,
-                                                                                ""
-                                                                        )
-                                                                                ?: ""
-                                                                )
-                                                        }
-                                                        var expanded1 by remember {
-                                                                mutableStateOf(false)
-                                                        }
-                                                        var expanded2 by remember {
-                                                                mutableStateOf(false)
-                                                        }
-
                                                         Column(
                                                                 verticalArrangement =
                                                                         Arrangement.spacedBy(12.dp)
@@ -1655,140 +1675,27 @@ fun BasicSettingsTab() {
                                                                         color = Color.White,
                                                                         fontSize = 16.sp
                                                                 )
-                                                                ExposedDropdownMenuBox(
-                                                                        expanded = expanded1,
-                                                                        onExpandedChange = {
-                                                                                expanded1 =
-                                                                                        !expanded1
-                                                                        }
-                                                                ) {
-                                                                        TextField(
-                                                                                value =
-                                                                                        SteeringWheelCustomActionType
-                                                                                                .entries
-                                                                                                .find {
-                                                                                                        it.key ==
-                                                                                                                action1
-                                                                                                }
-                                                                                                ?.description
-                                                                                                ?: "",
-                                                                                onValueChange = {},
-                                                                                readOnly = true,
-                                                                                label = {
-                                                                                        Text(
-                                                                                                "Tipo de Ação"
-                                                                                        )
-                                                                                },
-                                                                                trailingIcon = {
-                                                                                        ExposedDropdownMenuDefaults
-                                                                                                .TrailingIcon(
-                                                                                                        expanded =
-                                                                                                                expanded1
-                                                                                                )
-                                                                                },
-                                                                                colors =
-                                                                                        ExposedDropdownMenuDefaults
-                                                                                                .textFieldColors(),
-                                                                                modifier =
-                                                                                        Modifier.menuAnchor(
-                                                                                                MenuAnchorType
-                                                                                                        .PrimaryNotEditable
-                                                                                        )
-                                                                        )
-                                                                        ExposedDropdownMenu(
-                                                                                expanded =
-                                                                                        expanded1,
-                                                                                onDismissRequest = {
-                                                                                        expanded1 =
-                                                                                                false
-                                                                                }
-                                                                        ) {
-                                                                                SteeringWheelCustomActionType
-                                                                                        .entries
-                                                                                        .forEach {
-                                                                                                type
-                                                                                                ->
-                                                                                                DropdownMenuItem(
-                                                                                                        text = {
-                                                                                                                Text(
-                                                                                                                        type.description
-                                                                                                                )
-                                                                                                        },
-                                                                                                        onClick = {
-                                                                                                                action1 =
-                                                                                                                        type.key
-                                                                                                                prefs
-                                                                                                                        .edit {
-                                                                                                                                putString(
-                                                                                                                                        SharedPreferencesKeys
-                                                                                                                                                .STEERING_WHEEL_CUSTOM_BUTON_1_ACTION
-                                                                                                                                                .key,
-                                                                                                                                        type.key
-                                                                                                                                )
-                                                                                                                        }
-                                                                                                                expanded1 =
-                                                                                                                        false
-                                                                                                                ServiceManager
-                                                                                                                        .getInstance()
-                                                                                                                        .ensureSteeringWheelButtonIntegration()
-                                                                                                        }
-                                                                                                )
-                                                                                        }
-                                                                        }
-                                                                }
-                                                                if (action1 ==
-                                                                                SteeringWheelCustomActionType
-                                                                                        .OPEN_APP
-                                                                                        .key
-                                                                ) {
-                                                                        TextField(
-                                                                                value = package1,
-                                                                                onValueChange = {
-                                                                                        newPkg ->
-                                                                                        package1 =
-                                                                                                newPkg
-                                                                                        prefs.edit {
-                                                                                                putString(
-                                                                                                        SharedPreferencesKeys
-                                                                                                                .STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_1
-                                                                                                                .key,
-                                                                                                        newPkg
-                                                                                                )
-                                                                                        }
-                                                                                },
-                                                                                label = {
-                                                                                        Text(
-                                                                                                "Pacote do App"
-                                                                                        )
-                                                                                },
-                                                                                colors =
-                                                                                        TextFieldDefaults
-                                                                                                .colors(
-                                                                                                        focusedContainerColor =
-                                                                                                                Color(
-                                                                                                                        0xFF2A2F37
-                                                                                                                ),
-                                                                                                        unfocusedContainerColor =
-                                                                                                                Color(
-                                                                                                                        0xFF2A2F37
-                                                                                                                ),
-                                                                                                        focusedTextColor =
-                                                                                                                Color.White,
-                                                                                                        unfocusedTextColor =
-                                                                                                                Color(
-                                                                                                                        0xFFB0B8C4
-                                                                                                                ),
-                                                                                                        focusedIndicatorColor =
-                                                                                                                Color(
-                                                                                                                        0xFF4A9EFF
-                                                                                                                ),
-                                                                                                        unfocusedIndicatorColor =
-                                                                                                                Color(
-                                                                                                                        0xFF3A3F47
-                                                                                                                )
-                                                                                                )
-                                                                        )
-                                                                }
+                                                                SteeringActionPicker(
+                                                                        prefs = prefs,
+                                                                        label = "Toque curto",
+                                                                        actionPref = SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_1_ACTION,
+                                                                        packagePref = SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_1,
+                                                                        climatePref = SharedPreferencesKeys.STEERING_WHEEL_CLIMATE_COMMAND_BUTTON_1
+                                                                )
+                                                                SteeringActionPicker(
+                                                                        prefs = prefs,
+                                                                        label = "Toque duplo",
+                                                                        actionPref = SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_1_ACTION_DOUBLE,
+                                                                        packagePref = SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_1_DOUBLE,
+                                                                        climatePref = SharedPreferencesKeys.STEERING_WHEEL_CLIMATE_COMMAND_BUTTON_1
+                                                                )
+                                                                SteeringActionPicker(
+                                                                        prefs = prefs,
+                                                                        label = "Toque longo",
+                                                                        actionPref = SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_1_ACTION_LONG,
+                                                                        packagePref = SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_1_LONG,
+                                                                        climatePref = SharedPreferencesKeys.STEERING_WHEEL_CLIMATE_COMMAND_BUTTON_1
+                                                                )
 
                                                                 HorizontalDivider(
                                                                         color = Color(0xFF3A3F47),
@@ -1800,140 +1707,27 @@ fun BasicSettingsTab() {
                                                                         color = Color.White,
                                                                         fontSize = 16.sp
                                                                 )
-                                                                ExposedDropdownMenuBox(
-                                                                        expanded = expanded2,
-                                                                        onExpandedChange = {
-                                                                                expanded2 =
-                                                                                        !expanded2
-                                                                        }
-                                                                ) {
-                                                                        TextField(
-                                                                                value =
-                                                                                        SteeringWheelCustomActionType
-                                                                                                .entries
-                                                                                                .find {
-                                                                                                        it.key ==
-                                                                                                                action2
-                                                                                                }
-                                                                                                ?.description
-                                                                                                ?: "",
-                                                                                onValueChange = {},
-                                                                                readOnly = true,
-                                                                                label = {
-                                                                                        Text(
-                                                                                                "Tipo de Ação"
-                                                                                        )
-                                                                                },
-                                                                                trailingIcon = {
-                                                                                        ExposedDropdownMenuDefaults
-                                                                                                .TrailingIcon(
-                                                                                                        expanded =
-                                                                                                                expanded2
-                                                                                                )
-                                                                                },
-                                                                                colors =
-                                                                                        ExposedDropdownMenuDefaults
-                                                                                                .textFieldColors(),
-                                                                                modifier =
-                                                                                        Modifier.menuAnchor(
-                                                                                                MenuAnchorType
-                                                                                                        .PrimaryNotEditable
-                                                                                        )
-                                                                        )
-                                                                        ExposedDropdownMenu(
-                                                                                expanded =
-                                                                                        expanded2,
-                                                                                onDismissRequest = {
-                                                                                        expanded2 =
-                                                                                                false
-                                                                                }
-                                                                        ) {
-                                                                                SteeringWheelCustomActionType
-                                                                                        .entries
-                                                                                        .forEach {
-                                                                                                type
-                                                                                                ->
-                                                                                                DropdownMenuItem(
-                                                                                                        text = {
-                                                                                                                Text(
-                                                                                                                        type.description
-                                                                                                                )
-                                                                                                        },
-                                                                                                        onClick = {
-                                                                                                                action2 =
-                                                                                                                        type.key
-                                                                                                                prefs
-                                                                                                                        .edit {
-                                                                                                                                putString(
-                                                                                                                                        SharedPreferencesKeys
-                                                                                                                                                .STEERING_WHEEL_CUSTOM_BUTON_2_ACTION
-                                                                                                                                                .key,
-                                                                                                                                        type.key
-                                                                                                                                )
-                                                                                                                        }
-                                                                                                                expanded2 =
-                                                                                                                        false
-                                                                                                                ServiceManager
-                                                                                                                        .getInstance()
-                                                                                                                        .ensureSteeringWheelButtonIntegration()
-                                                                                                        }
-                                                                                                )
-                                                                                        }
-                                                                        }
-                                                                }
-                                                                if (action2 ==
-                                                                                SteeringWheelCustomActionType
-                                                                                        .OPEN_APP
-                                                                                        .key
-                                                                ) {
-                                                                        TextField(
-                                                                                value = package2,
-                                                                                onValueChange = {
-                                                                                        newPkg ->
-                                                                                        package2 =
-                                                                                                newPkg
-                                                                                        prefs.edit {
-                                                                                                putString(
-                                                                                                        SharedPreferencesKeys
-                                                                                                                .STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_2
-                                                                                                                .key,
-                                                                                                        newPkg
-                                                                                                )
-                                                                                        }
-                                                                                },
-                                                                                label = {
-                                                                                        Text(
-                                                                                                "Pacote do App"
-                                                                                        )
-                                                                                },
-                                                                                colors =
-                                                                                        TextFieldDefaults
-                                                                                                .colors(
-                                                                                                        focusedContainerColor =
-                                                                                                                Color(
-                                                                                                                        0xFF2A2F37
-                                                                                                                ),
-                                                                                                        unfocusedContainerColor =
-                                                                                                                Color(
-                                                                                                                        0xFF2A2F37
-                                                                                                                ),
-                                                                                                        focusedTextColor =
-                                                                                                                Color.White,
-                                                                                                        unfocusedTextColor =
-                                                                                                                Color(
-                                                                                                                        0xFFB0B8C4
-                                                                                                                ),
-                                                                                                        focusedIndicatorColor =
-                                                                                                                Color(
-                                                                                                                        0xFF4A9EFF
-                                                                                                                ),
-                                                                                                        unfocusedIndicatorColor =
-                                                                                                                Color(
-                                                                                                                        0xFF3A3F47
-                                                                                                                )
-                                                                                                )
-                                                                        )
-                                                                }
+                                                                SteeringActionPicker(
+                                                                        prefs = prefs,
+                                                                        label = "Toque curto",
+                                                                        actionPref = SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_2_ACTION,
+                                                                        packagePref = SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_2,
+                                                                        climatePref = SharedPreferencesKeys.STEERING_WHEEL_CLIMATE_COMMAND_BUTTON_2
+                                                                )
+                                                                SteeringActionPicker(
+                                                                        prefs = prefs,
+                                                                        label = "Toque duplo",
+                                                                        actionPref = SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_2_ACTION_DOUBLE,
+                                                                        packagePref = SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_2_DOUBLE,
+                                                                        climatePref = SharedPreferencesKeys.STEERING_WHEEL_CLIMATE_COMMAND_BUTTON_2
+                                                                )
+                                                                SteeringActionPicker(
+                                                                        prefs = prefs,
+                                                                        label = "Toque longo",
+                                                                        actionPref = SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_2_ACTION_LONG,
+                                                                        packagePref = SharedPreferencesKeys.STEERING_WHEEL_OPEN_APP_PACKAGE_BUTTON_2_LONG,
+                                                                        climatePref = SharedPreferencesKeys.STEERING_WHEEL_CLIMATE_COMMAND_BUTTON_2
+                                                                )
                                                         }
                                                 }
                                         } else null
@@ -2347,6 +2141,129 @@ fun BasicSettingsTab() {
         }
 
         }
+
+// Seletor reutilizável de ação do volante (curto/duplo/longo): dropdown de ação + campo de pacote
+// quando a ação é "abrir app" + dropdown de comando do A/C quando a ação é "comando do ar".
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SteeringActionPicker(
+        prefs: SharedPreferences,
+        label: String,
+        actionPref: SharedPreferencesKeys,
+        packagePref: SharedPreferencesKeys,
+        climatePref: SharedPreferencesKeys
+) {
+        var action by remember {
+                mutableStateOf(
+                        prefs.getString(actionPref.key, SteeringWheelCustomActionType.DEFAULT.key)
+                                ?: SteeringWheelCustomActionType.DEFAULT.key
+                )
+        }
+        var appPackage by remember { mutableStateOf(prefs.getString(packagePref.key, "") ?: "") }
+        var climate by remember {
+                mutableStateOf(
+                        prefs.getString(
+                                climatePref.key,
+                                SteeringWheelClimateCommandType.TOGGLE_AC.key
+                        )
+                                ?: SteeringWheelClimateCommandType.TOGGLE_AC.key
+                )
+        }
+        var expanded by remember { mutableStateOf(false) }
+        var climateExpanded by remember { mutableStateOf(false) }
+
+        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+                TextField(
+                        value =
+                                SteeringWheelCustomActionType.entries
+                                        .find { it.key == action }
+                                        ?.description
+                                        ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(label) },
+                        trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                        },
+                        colors = ExposedDropdownMenuDefaults.textFieldColors(),
+                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                )
+                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        SteeringWheelCustomActionType.entries.forEach { type ->
+                                DropdownMenuItem(
+                                        text = { Text(type.description) },
+                                        onClick = {
+                                                action = type.key
+                                                prefs.edit { putString(actionPref.key, type.key) }
+                                                expanded = false
+                                                ServiceManager.getInstance()
+                                                        .ensureSteeringWheelButtonIntegration()
+                                        }
+                                )
+                        }
+                }
+        }
+        if (action == SteeringWheelCustomActionType.OPEN_APP.key) {
+                TextField(
+                        value = appPackage,
+                        onValueChange = { newPkg ->
+                                appPackage = newPkg
+                                prefs.edit { putString(packagePref.key, newPkg) }
+                        },
+                        label = { Text("Pacote do App") },
+                        colors =
+                                TextFieldDefaults.colors(
+                                        focusedContainerColor = Color(0xFF2A2F37),
+                                        unfocusedContainerColor = Color(0xFF2A2F37),
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color(0xFFB0B8C4),
+                                        focusedIndicatorColor = Color(0xFF4A9EFF),
+                                        unfocusedIndicatorColor = Color(0xFF3A3F47)
+                                )
+                )
+        }
+        if (action == SteeringWheelCustomActionType.CLIMATE_COMMAND.key) {
+                ExposedDropdownMenuBox(
+                        expanded = climateExpanded,
+                        onExpandedChange = { climateExpanded = !climateExpanded }
+                ) {
+                        TextField(
+                                value =
+                                        SteeringWheelClimateCommandType.entries
+                                                .find { it.key == climate }
+                                                ?.description
+                                                ?: "",
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Comando do ar-condicionado") },
+                                trailingIcon = {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(
+                                                expanded = climateExpanded
+                                        )
+                                },
+                                colors = ExposedDropdownMenuDefaults.textFieldColors(),
+                                modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        )
+                        ExposedDropdownMenu(
+                                expanded = climateExpanded,
+                                onDismissRequest = { climateExpanded = false }
+                        ) {
+                                SteeringWheelClimateCommandType.entries.forEach { type ->
+                                        DropdownMenuItem(
+                                                text = { Text(type.description) },
+                                                onClick = {
+                                                        climate = type.key
+                                                        prefs.edit {
+                                                                putString(climatePref.key, type.key)
+                                                        }
+                                                        climateExpanded = false
+                                                }
+                                        )
+                                }
+                        }
+                }
+        }
+}
 
 @Composable
 fun FridaHooksTab() {
