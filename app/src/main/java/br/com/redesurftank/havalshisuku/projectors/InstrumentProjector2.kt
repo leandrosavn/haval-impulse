@@ -400,6 +400,13 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     CarConstants.CAR_EV_SETTING_AVAS_CONFIG.value -> {
                         // avas_config define se é HEV (==0) -> o slot do "HEV" vira regen
                         pushBottomEv(webView)
+                        evaluateJsIfReady(
+                                webView,
+                                "control('isHev', ${isHev(ServiceManager.getInstance())})")
+                    }
+                    CarConstants.CAR_MAP_TSR_NAV_SPEED_LIMIT.value,
+                    CarConstants.CAR_MAP_TSR_NAV_SPEED_LIMIT_SIGN_STATUS.value -> {
+                        pushSpeedLimit(webView)
                     }
                     CarConstants.CAR_BASIC_GEAR_STATUS.value -> {
                         val gear = getGearLabel(value.toString())
@@ -659,6 +666,11 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         // Modes and Settings
         updates["evMode"] = bottomEvLabel(sm)
 
+        // Tipo de trem de força e placa de TSR — temas que sabem se o carro é HEV escondem o
+        // rótulo e a autonomia elétrica, que num HEV não dizem nada.
+        updates["isHev"] = isHev(sm).toString()
+        updates["speedLimit"] = speedLimitValue(sm)
+
         val drivingMode = sm.getData(CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.value)
         val drivingModeLabel = MainMenu.DrivingModeOptions.getLabel(drivingMode)
         updates["drivingMode"] = drivingModeLabel
@@ -709,6 +721,32 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
      */
     private fun isHev(sm: ServiceManager): Boolean =
             sm.getData(CarConstants.CAR_EV_SETTING_AVAS_CONFIG.value)?.trim() == "0"
+
+    /**
+     * Valor da placa de limite de velocidade (TSR) para o cluster customizado. Devolve "0" quando
+     * não há placa reconhecida — os temas escondem o sinal nesse caso.
+     *
+     * ⚠️ A codificação dessas chaves ainda NÃO foi confirmada ao vivo; o que se conhece é o nome
+     * (`car.map.tsr.*`). Por isso a leitura é defensiva: só um inteiro dentro de uma faixa
+     * plausível de placa é aceito. `nav_speed_limit_sign_status` só é levado em conta quando vem
+     * preenchido — se o carro não publicar essa chave, o limite sozinho decide.
+     */
+    private fun speedLimitValue(sm: ServiceManager): String {
+        val status = sm.getData(CarConstants.CAR_MAP_TSR_NAV_SPEED_LIMIT_SIGN_STATUS.value)?.trim()
+        if (!status.isNullOrEmpty() && (status == "0" || status == "-1")) return "0"
+
+        val limit =
+                sm.getData(CarConstants.CAR_MAP_TSR_NAV_SPEED_LIMIT.value)?.trim()?.toIntOrNull()
+                        ?: return "0"
+        // 255 e -1 são os "sem informação" usuais nesse barramento; acima de 200 não é placa.
+        return if (limit in 5..200) limit.toString() else "0"
+    }
+
+    private fun pushSpeedLimit(webView: WebView?) {
+        evaluateJsIfReady(
+                webView,
+                "control('speedLimit', ${speedLimitValue(ServiceManager.getInstance())})")
+    }
 
     /**
      * Rótulo do slot "bottom-ev" do cluster.
