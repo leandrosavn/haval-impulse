@@ -23,6 +23,14 @@
       "description": "Tema principal com o novo design Sport.",
       "mainFile": "index.html",
       "thumbnail": "thumbnail.png"
+    },
+    {
+      "name": "GT",
+      "folder": "GT",
+      "version": "1.0.0",
+      "description": "Dois mostradores redondos com aro metálico: velocidade à esquerda, RPM e potência elétrica à direita. Layout GT e GT Compacto.",
+      "mainFile": "index.html",
+      "thumbnail": "thumbnail.png"
     }
   ]
 }
