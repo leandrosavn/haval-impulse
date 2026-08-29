@@ -149,7 +149,10 @@ public class ServiceManager {
             CarConstants.CAR_IPK_LIGHT_TPMS_WARNING,
             CarConstants.CAR_BASIC_ENGINE_SPEED,
             CarConstants.CAR_EV_INFO_INSTANT_ENERGY_CONSUMPTION,
-            CarConstants.CAR_IPK_LIGHT_FUEL_LOW
+            CarConstants.CAR_IPK_LIGHT_FUEL_LOW,
+            // TSR (placa de limite de velocidade) — usado pelo cluster customizado
+            CarConstants.CAR_MAP_TSR_NAV_SPEED_LIMIT,
+            CarConstants.CAR_MAP_TSR_NAV_SPEED_LIMIT_SIGN_STATUS
     };
 
     private static final CarConstants[] KEYS_TO_SAVE = {

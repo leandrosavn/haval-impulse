@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GT</title>
+<link rel="stylesheet" href="./src/fonts/fonts.css" />
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:1920px; height:720px; background:#000; overflow:hidden; }
+  #app {
+    position:relative; width:1920px; height:720px;
+    font-family:'Khand', Roboto, Arial, sans-serif; color:#fff; background:#000;
+    -webkit-font-smoothing:antialiased;
+  }
+  #app.hidden { visibility:hidden; }
+
+  .vignette {
+    position:absolute; inset:0;
+    background:
+      radial-gradient(680px 250px at 20% -8%, rgba(150,25,38,.45), rgba(0,0,0,0) 70%),
+      radial-gradient(680px 250px at 80% -8%, rgba(150,25,38,.45), rgba(0,0,0,0) 70%),
+      radial-gradient(1000px 330px at 50% -8%, rgba(70,8,16,.5), rgba(0,0,0,0) 75%);
+  }
+  canvas { position:absolute; top:0; left:0; }
+
+  .txt { position:absolute; text-align:center; white-space:nowrap; transform:translateX(-50%); }
+  .roboto { font-family:Roboto, Arial, sans-serif; }
+
+  .clock { position:absolute; left:0; width:1920px; text-align:center; color:#f4f4f4;
+           font-weight:400; top:12px; font-size:44px; }
+  .clock-rule { position:absolute; height:1px; top:38px; width:236px;
+    background:linear-gradient(90deg, rgba(190,140,80,0) 0%, rgba(190,140,80,.85) 100%); }
+  .clock-rule.r { background:linear-gradient(90deg, rgba(190,140,80,.85) 0%, rgba(190,140,80,0) 100%); }
+
+  .tsr { position:absolute; left:34px; top:14px; width:96px; height:96px; border-radius:50%;
+         background:#f5f5f5; border:9px solid #e01b24;
+         display:flex; flex-direction:column; align-items:center; justify-content:center;
+         box-shadow:0 0 20px rgba(224,27,36,.30); }
+  .tsr .v { font-family:Roboto, Arial, sans-serif; font-weight:700; color:#111; line-height:.9; font-size:42px; }
+  .tsr .u { font-weight:600; color:#111; letter-spacing:.5px; font-size:17px; }
+
+  .powertrain { position:absolute; right:52px; top:38px; text-align:right; font-size:26px;
+                font-family:Roboto, Arial, sans-serif; font-style:italic; font-weight:500;
+                letter-spacing:1px; color:#eaeaea; }
+  .powertrain .bar { margin-top:6px; height:3px; width:78px; background:#2f7fe0; margin-left:auto; }
+
+  .bottom { position:absolute; left:0; bottom:0; width:1920px; height:88px; }
+  .bottom .bg { position:absolute; inset:0; background:linear-gradient(180deg,#0a0d11 0%, #05070a 100%); }
+  .bottom svg.swoosh { position:absolute; left:0; top:-40px; }
+  .b-item { position:absolute; font-family:Roboto, Arial, sans-serif; }
+  .temp { font-size:30px; font-weight:400; color:#f0f0f0; top:30px; }
+  .temp span { font-family:'Khand'; font-size:18px; color:#9aa0a6; letter-spacing:1px; margin-left:5px; }
+  .gauge { position:absolute; top:32px; width:225px; }
+  .gauge .pct { position:absolute; top:-30px; font-size:21px; font-weight:700; color:#fff; white-space:nowrap; }
+  .gauge .rng { position:absolute; top:16px; font-size:24px; font-weight:500; white-space:nowrap; }
+  .gauge .ticks { position:absolute; top:-25px; width:100%; height:16px; }
+  .gauge .ticks i { position:absolute; font-style:normal; font-family:'Khand'; font-size:17px;
+                    color:#c9ccd0; transform:translateX(-50%); }
+  .bar { position:absolute; top:0; display:flex; gap:3px; }
+  .bar u { display:block; width:15px; height:14px; }
+  .odo { position:absolute; left:0; bottom:6px; width:1920px; text-align:center; }
+  .odo b { font-family:'Khand'; font-size:17px; color:#8a8f95; letter-spacing:2px; font-weight:400; vertical-align:3px; }
+  .odo em { font-family:Roboto, Arial, sans-serif; font-style:normal; font-size:32px; font-weight:500;
+            color:#f2f2f2; margin-left:7px; }
+  .odo i { font-family:'Khand'; font-style:normal; font-size:21px; color:#cfd2d6; margin-left:5px; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="vignette"></div>
+  <canvas id="cvStatic" width="1920" height="720"></canvas>
+  <canvas id="cvDyn" width="1920" height="720"></canvas>
+  <div id="ui"></div>
+</div>
+
+<script>
+/* ==================================================================
+   TEMA "GT" — mostradores redondos duplos, layouts GT e GT Compacto.
+
+   Contrato com o app (InstrumentProjector2):
+     window.control(key, value)   dados do veiculo
+     window.updateWarning(k, v)   alertas criticos -> sai da frente do stock
+     window.Android.heartbeat()   avisa o watchdog que a WebView esta viva
+     window.cleanup()             chamado antes de trocar de tela
+
+   Canvas estatico (aro/marcas/numeros) desenhado uma vez por layout;
+   canvas dinamico (ponteiros e arcos) redesenhado so quando o dado muda.
+================================================================== */
+
+var S = {
+  isHev: true,          // avas_config == 0 -> HEV: sem rotulo e sem autonomia eletrica
+  display: 'GT',        // 'GT' | 'GT Compacto'
+  speed: 0,             // carSpeed
+  rpm: 0,               // engineRPM (x1000)
+  kw: 0,                // evPowerKw
+  avgFuel: 0,           // gasConsumption (km/l)
+  fuelPercent: 0, fuelRange: 0,
+  batteryPercent: 0, batteryRange: 0,
+  odometer: 0,
+  tempOut: '--', tempIn: '--',
+  gear: 'P',            // gearState
+  driveMode: 'NORMAL',  // drivingMode
+  powerSrc: 'ELÉTRICO + TÉRMICO',
+  clock: '--:--',       // clockTime
+  speedLimit: 0         // car.map.tsr.nav_speed_limit (precisa de 1 linha no Kotlin)
+};
+
+var LAYOUTS = {
+  'GT':          { cxL:358, cxR:1560, cy:320, R:252 },
+  'GT Compacto': { cxL:360, cxR:1560, cy:358, R:222 }
+};
+
+var AMBER='#c8944f', AMBER_SOFT='#7d5930', CYAN='#4fb6ef', GREEN='#4cc46a',
+    RED='#e0402c', WHITE='#eef1f4';
+
+var VMAX=220, SPEED_A0=-132, SPEED_A1=132;
+var RMAX=8,   RPM_A0=131,   RPM_A1=8;
+var KMIN=-50, KMAX=140, KW_A0=-131, KW_A1=-8;
+var GAS_MAX=30, GAS_A0=236, GAS_A1=124;
+
+function rad(d){ return (d-90)*Math.PI/180; }
+function pt(cx,cy,r,d){ var a=rad(d); return [cx+r*Math.cos(a), cy+r*Math.sin(a)]; }
+function speedDeg(v){ return SPEED_A0+(clamp(v,0,VMAX)/VMAX)*(SPEED_A1-SPEED_A0); }
+function rpmDeg(v){ return RPM_A0+(clamp(v,0,RMAX)/RMAX)*(RPM_A1-RPM_A0); }
+function kwDeg(v){ return KW_A0+((clamp(v,KMIN,KMAX)-KMIN)/(KMAX-KMIN))*(KW_A1-KW_A0); }
+function gasDeg(v){ return GAS_A0+(clamp(v,0,GAS_MAX)/GAS_MAX)*(GAS_A1-GAS_A0); }
+function clamp(v,a,b){ v=Number(v)||0; return v<a?a:(v>b?b:v); }
+
+var stat = document.getElementById('cvStatic').getContext('2d');
+var dyn  = document.getElementById('cvDyn').getContext('2d');
+var ui   = document.getElementById('ui');
+var node = {};                                   // referencias dos elementos de texto
+var L, K;                                        // layout ativo e fator de escala
+
+/* ---- gradiente conico manual (WebView do carro pode nao ter createConicGradient) ---- */
+function mix(c1, c2, t) {
+  var a=parseInt(c1.slice(1),16), b=parseInt(c2.slice(1),16);
+  var r=Math.round((a>>16)+(((b>>16)-(a>>16))*t));
+  var g=Math.round(((a>>8)&255)+((((b>>8)&255)-((a>>8)&255))*t));
+  var bl=Math.round((a&255)+(((b&255)-(a&255))*t));
+  return 'rgb('+r+','+g+','+bl+')';
+}
+var BEZEL_STOPS = [
+  [0,'#7a828a'],[35,'#3c4249'],[80,'#20242a'],[130,'#171a1e'],
+  [175,'#6e757d'],[205,'#b8bfc6'],[240,'#8f959d'],[280,'#c9d0d7'],
+  [320,'#8b929a'],[350,'#5a6068']
+];
+function chromeRing(cx, cy, rOut, rIn) {
+  var N=240, step=360/N;
+  for (var i=0;i<N;i++) {
+    var d=i*step, j=0;
+    while (j<BEZEL_STOPS.length-1 && BEZEL_STOPS[j+1][0]<=d) j++;
+    var s0=BEZEL_STOPS[j], s1=BEZEL_STOPS[(j+1)%BEZEL_STOPS.length];
+    var a0=s0[0], a1=(s1[0]<=a0 ? s1[0]+360 : s1[0]);
+    stat.beginPath();
+    stat.arc(cx,cy,rOut, rad(d-0.6), rad(d+step+0.6));
+    stat.arc(cx,cy,rIn,  rad(d+step+0.6), rad(d-0.6), true);
+    stat.closePath();
+    stat.fillStyle=mix(s0[1], s1[1], (d-a0)/(a1-a0));
+    stat.fill();
+  }
+}
+
+function radii(R) {
+  var k=R/252;
+  return { k:k, tickOut:R-24*k, tickMajor:22*k, tickMinor:12*k, num:R-64*k, hub:165*k };
+}
+
+function dialBase(cx, cy, R) {
+  var k=R/252, bez=16*k;
+  stat.save();
+  stat.shadowColor='rgba(120,130,145,.34)'; stat.shadowBlur=46*k;
+  stat.beginPath(); stat.arc(cx,cy,R-3,0,Math.PI*2);
+  stat.strokeStyle='rgba(90,98,110,.45)'; stat.lineWidth=8*k; stat.stroke();
+  stat.restore();
+
+  chromeRing(cx, cy, R, R-bez);
+
+  stat.beginPath(); stat.arc(cx,cy,R-bez+1,0,Math.PI*2);
+  stat.strokeStyle='rgba(0,0,0,.75)'; stat.lineWidth=3*k; stat.stroke();
+
+  var face=stat.createRadialGradient(cx,cy-R*0.3,R*0.08,cx,cy,R);
+  face.addColorStop(0,'#161a20'); face.addColorStop(.62,'#0c0f13'); face.addColorStop(1,'#05070a');
+  stat.beginPath(); stat.arc(cx,cy,R-bez,0,Math.PI*2); stat.fillStyle=face; stat.fill();
+
+  stat.beginPath(); stat.arc(cx,cy,R-bez-6*k, rad(-150), rad(150));
+  stat.strokeStyle=AMBER; stat.lineWidth=2.4*k; stat.stroke();
+}
+
+function dialHub(cx, cy, r) {
+  var g=stat.createRadialGradient(cx,cy-r*0.45,r*0.1,cx,cy,r);
+  g.addColorStop(0,'#181c23'); g.addColorStop(1,'#0a0d11');
+  stat.beginPath(); stat.arc(cx,cy,r,0,Math.PI*2); stat.fillStyle=g; stat.fill();
+  stat.strokeStyle='rgba(200,148,79,.5)'; stat.lineWidth=1.6; stat.stroke();
+}
+
+function needle(cx, cy, deg, r0, r1, color, w) {
+  var a=pt(cx,cy,r0,deg), b=pt(cx,cy,r1,deg);
+  dyn.save(); dyn.shadowColor=color; dyn.shadowBlur=9;
+  dyn.beginPath(); dyn.moveTo(a[0],a[1]); dyn.lineTo(b[0],b[1]);
+  dyn.strokeStyle=color; dyn.lineWidth=w; dyn.lineCap='round'; dyn.stroke();
+  dyn.restore();
+}
+
+/* ================= camada estatica ================= */
+function drawStaticSpeed(cx, cy, R) {
+  var g=radii(R), k=g.k;
+  dialBase(cx, cy, R);
+  for (var v=0; v<=VMAX; v+=5) {
+    var major=(v%20===0), d=speedDeg(v);
+    var a=pt(cx,cy,g.tickOut,d), b=pt(cx,cy,g.tickOut-(major?g.tickMajor:g.tickMinor),d);
+    stat.beginPath(); stat.moveTo(a[0],a[1]); stat.lineTo(b[0],b[1]);
+    stat.strokeStyle=major?WHITE:'rgba(226,230,235,.5)';
+    stat.lineWidth=major?3.4*k:1.6*k; stat.stroke();
+  }
+  stat.fillStyle=WHITE; stat.textAlign='center'; stat.textBaseline='middle';
+  stat.font=(33*k).toFixed(0)+"px 'Khand', Roboto, Arial";
+  for (var n=0; n<=VMAX; n+=20) {
+    var p=pt(cx,cy,g.num,speedDeg(n));
+    stat.fillText(String(n), p[0], p[1]);
+  }
+  dialHub(cx, cy, g.hub);
+
+  // trilho do arco MEDIA GAS + rotulos
+  var r=122*k, segs=13, gap=2.2, step=(GAS_A1-GAS_A0)/segs;
+  for (var i=0;i<segs;i++) {
+    var d0=GAS_A0+i*step-gap/2, d1=GAS_A0+(i+1)*step+gap/2;
+    stat.beginPath(); stat.arc(cx,cy,r,rad(Math.min(d0,d1)),rad(Math.max(d0,d1)));
+    stat.strokeStyle='#20242a'; stat.lineWidth=9*k; stat.lineCap='butt'; stat.stroke();
+  }
+  stat.fillStyle='#8f959b'; stat.font=(16*k).toFixed(0)+"px 'Khand', Arial";
+  var p0=pt(cx,cy,r-16*k,gasDeg(0)), p1=pt(cx,cy,r-16*k,gasDeg(GAS_MAX));
+  stat.fillText('0',p0[0],p0[1]); stat.fillText(String(GAS_MAX),p1[0],p1[1]);
+  var pa=pt(cx,cy,r+19*k,gasDeg(8)), pb=pt(cx,cy,r+19*k,gasDeg(22));
+  stat.fillText('10',pa[0],pa[1]); stat.fillText('20',pb[0],pb[1]);
+  stat.fillStyle='#b9bec4'; stat.font=(15*k).toFixed(0)+"px 'Khand', Arial";
+  stat.fillText('MÉDIA GAS', cx, cy+r+19*k);
+}
+
+function drawStaticPower(cx, cy, R) {
+  var g=radii(R), k=g.k;
+  dialBase(cx, cy, R);
+
+  for (var v=0; v<=RMAX; v+=0.25) {
+    var major=(Math.abs(v%2)<0.01), half=(Math.abs(v%1)<0.01), d=rpmDeg(v);
+    var a=pt(cx,cy,g.tickOut,d),
+        b=pt(cx,cy,g.tickOut-(major?g.tickMajor:half?g.tickMinor*1.4:g.tickMinor),d);
+    stat.beginPath(); stat.moveTo(a[0],a[1]); stat.lineTo(b[0],b[1]);
+    stat.strokeStyle=v>=6.5?RED:(major?WHITE:'rgba(226,230,235,.5)');
+    stat.lineWidth=major?3.4*k:1.6*k; stat.stroke();
+  }
+  stat.beginPath(); stat.arc(cx,cy,g.tickOut+8*k, rad(rpmDeg(6.5)), rad(rpmDeg(RMAX)), true);
+  stat.strokeStyle=RED; stat.lineWidth=9*k; stat.lineCap='butt'; stat.stroke();
+
+  stat.textAlign='center'; stat.textBaseline='middle';
+  stat.font=(33*k).toFixed(0)+"px 'Khand', Roboto, Arial";
+  for (var n=0; n<=RMAX; n+=2) {
+    var p=pt(cx,cy,g.num,rpmDeg(n));
+    stat.fillStyle=n>=RMAX?RED:WHITE;
+    stat.fillText(String(n),p[0],p[1]);
+  }
+
+  for (var kw=KMIN; kw<=KMAX; kw+=5) {
+    var majorK=(kw%50===0), dk=kwDeg(kw);
+    var a2=pt(cx,cy,g.tickOut,dk), b2=pt(cx,cy,g.tickOut-(majorK?g.tickMajor:g.tickMinor),dk);
+    stat.beginPath(); stat.moveTo(a2[0],a2[1]); stat.lineTo(b2[0],b2[1]);
+    stat.strokeStyle=kw<0?'rgba(76,196,106,.8)':(majorK?'#d7ecfb':'rgba(180,214,236,.45)');
+    stat.lineWidth=majorK?3.2*k:1.5*k; stat.stroke();
+  }
+  stat.beginPath(); stat.arc(cx,cy,g.tickOut+8*k, rad(kwDeg(KMIN)), rad(kwDeg(0)));
+  stat.strokeStyle=GREEN; stat.lineWidth=9*k; stat.stroke();
+
+  stat.font=(31*k).toFixed(0)+"px 'Khand', Roboto, Arial"; stat.fillStyle=CYAN;
+  var labels=[[-50,'-50'],[0,'0'],[50,'50'],[100,'100'],[140,'140']];
+  for (var i=0;i<labels.length;i++) {
+    var p=pt(cx,cy,g.num,kwDeg(labels[i][0]));
+    stat.fillText(labels[i][1],p[0],p[1]);
+  }
+  stat.font=(18*k).toFixed(0)+"px 'Khand', Arial"; stat.fillStyle='#7fb6d8';
+  var pk=pt(cx,cy,g.num,kwDeg(100));
+  stat.fillText('kW', pk[0], pk[1]+25*k);
+
+  dialHub(cx, cy, g.hub);
+}
+
+/* ================= camada dinamica ================= */
+function drawDynamic() {
+  var g=radii(L.R), k=g.k;
+  dyn.clearRect(0,0,1920,720);
+
+  // preenchimento do arco MEDIA GAS
+  var r=122*k, segs=13, gap=2.2, step=(GAS_A1-GAS_A0)/segs;
+  var filled=Math.round((clamp(S.avgFuel,0,GAS_MAX)/GAS_MAX)*segs);
+  for (var i=0;i<segs;i++) {
+    if (i>=filled+4) break;
+    var d0=GAS_A0+i*step-gap/2, d1=GAS_A0+(i+1)*step+gap/2;
+    dyn.beginPath(); dyn.arc(L.cxL,L.cy,r,rad(Math.min(d0,d1)),rad(Math.max(d0,d1)));
+    dyn.strokeStyle=i<filled?AMBER:CYAN;
+    dyn.lineWidth=9*k; dyn.lineCap='butt'; dyn.stroke();
+  }
+
+  needle(L.cxL, L.cy, speedDeg(S.speed), g.hub+10*k, g.tickOut-6*k, AMBER, 3*k);
+  needle(L.cxL, L.cy, speedDeg(S.speed)+180, g.hub+10*k, g.hub+56*k, AMBER_SOFT, 2*k);
+  needle(L.cxR, L.cy, rpmDeg(S.rpm), g.hub+10*k, g.tickOut-6*k, AMBER, 3*k);
+  needle(L.cxR, L.cy, kwDeg(S.kw), g.hub+10*k, g.tickOut-6*k, S.kw<0?GREEN:CYAN, 3*k);
+}
+
+/* ================= textos (DOM) ================= */
+function el(id, cls, css, html) {
+  var d=document.createElement('div');
+  d.className='txt '+(cls||''); d.innerHTML=html||'';
+  for (var p in css) d.style[p]=css[p];
+  ui.appendChild(d); node[id]=d; return d;
+}
+
+function buildUi() {
+  ui.innerHTML=''; node={};
+  var k=K, cy=L.cy;
+
+  // --- topo ---
+  var c=document.createElement('div'); c.className='clock'; ui.appendChild(c); node.clock=c;
+  var r1=document.createElement('div'); r1.className='clock-rule';   r1.style.left='636px';  ui.appendChild(r1);
+  var r2=document.createElement('div'); r2.className='clock-rule r'; r2.style.left='1048px'; ui.appendChild(r2);
+
+  var t=document.createElement('div'); t.className='tsr';
+  t.innerHTML='<div class="v"></div><div class="u">km/h</div>';
+  ui.appendChild(t); node.tsr=t; node.tsrValue=t.querySelector('.v');
+
+  var p=document.createElement('div'); p.className='powertrain';
+  p.innerHTML='<span></span><div class="bar"></div>';
+  ui.appendChild(p); node.powertrain=p; node.powertrainLabel=p.querySelector('span');
+
+  // --- mostrador esquerdo ---
+  el('speed','roboto',{ left:L.cxL+'px', top:(cy-100*k)+'px', fontSize:(112*k)+'px',
+      fontWeight:300, lineHeight:1, letterSpacing:'-3px' });
+  el('speedUnit','',{ left:L.cxL+'px', top:(cy+14*k)+'px', fontSize:(27*k)+'px',
+      letterSpacing:'4px', color:'#e8e8e8' }, 'KM/H');
+  el('avgFuel','',{ left:L.cxL+'px', top:(cy+43*k)+'px', fontSize:(27*k)+'px', color:CYAN });
+  el('driveMode','roboto',{ left:L.cxL+'px', top:(cy+178*k)+'px', fontSize:(26*k)+'px',
+      fontWeight:600, letterSpacing:'5px' });
+
+  // --- mostrador direito ---
+  el('rpm','roboto',{ left:L.cxR+'px', top:(cy-78*k)+'px', fontSize:(54*k)+'px', fontWeight:400 });
+  el('kw','roboto',{ left:L.cxR+'px', top:(cy+4*k)+'px', fontSize:(54*k)+'px',
+      fontWeight:300, color:CYAN });
+  el('powerSrc','',{ left:L.cxR+'px', top:(cy+90*k)+'px', fontSize:(17*k)+'px',
+      color:'#9aa0a6', letterSpacing:'2px' });
+  el('regenLbl','',{ left:(L.cxR-106*k)+'px', top:(cy+188*k)+'px', fontSize:(22*k)+'px',
+      color:GREEN, letterSpacing:'2px' }, 'REGEN');
+  el('rpmLbl','',{ left:(L.cxR+112*k)+'px', top:(cy+188*k)+'px', fontSize:(22*k)+'px',
+      color:'#b9bcc0', letterSpacing:'2px' }, 'RPM');
+  el('gear','roboto',{ left:L.cxR+'px', top:(cy+166*k)+'px', fontSize:(66*k)+'px',
+      fontWeight:500, color:'#d99a4e' });
+
+  // --- barra inferior ---
+  var b=document.createElement('div'); b.className='bottom';
+  b.innerHTML =
+    '<div class="bg"></div>' +
+    '<svg class="swoosh" width="1920" height="134" viewBox="0 0 1920 134" fill="none">' +
+      '<path d="M0 44 H700 C762 44 758 76 820 76 H1100 C1162 76 1158 44 1220 44 H1920" ' +
+      'stroke="#b8823f" stroke-width="2" fill="none" opacity=".95"/></svg>' +
+    '<div class="b-item temp" id="tOut" style="left:96px"></div>' +
+    '<div class="b-item temp" id="tIn" style="left:1762px"></div>' +
+    '<div class="gauge" style="left:334px">' +
+      '<div class="pct" id="fuelPct" style="left:-56px"></div>' +
+      '<div class="ticks"><i style="left:25%">1/4</i><i style="left:50%">1/2</i><i style="left:75%">3/4</i></div>' +
+      '<div class="bar" id="fuelBar"></div>' +
+      '<div class="rng" id="fuelRng" style="left:-68px;color:#d99a4e"></div></div>' +
+    '<svg style="position:absolute;left:572px;top:32px" width="32" height="32" viewBox="0 0 24 24" ' +
+      'fill="none" stroke="#d99a4e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M3 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16"/><path d="M2 21h12"/>' +
+      '<path d="M5 7h6v4H5z"/><path d="M16 8l3 2v7a1.5 1.5 0 0 0 3 0V11l-3-3"/></svg>' +
+    '<svg style="position:absolute;left:1330px;top:34px" width="29" height="29" viewBox="0 0 24 24" ' +
+      'fill="none" stroke="#3fbf5f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+      '<rect x="4" y="6" width="14" height="12" rx="2"/><path d="M20 10v4"/>' +
+      '<path d="M11 8.5l-2 3.5h2.6l-1.2 3.5"/></svg>' +
+    '<div class="gauge" style="left:1372px">' +
+      '<div class="ticks"><i style="left:25%">1/4</i><i style="left:50%">1/2</i><i style="left:75%">3/4</i></div>' +
+      '<div class="bar" id="battBar"></div>' +
+      '<div class="pct" id="battPct" style="left:238px"></div>' +
+      '<div class="rng" id="battRng" style="left:238px;color:#4cc46a"></div></div>' +
+    '<div class="odo"><b>ODO</b><em id="odo"></em><i>km</i></div>';
+  ui.appendChild(b);
+
+  ['tOut','tIn','fuelPct','fuelRng','fuelBar','battPct','battRng','battBar','odo']
+    .forEach(function(id){ node[id]=document.getElementById(id); });
+}
+
+function segBar(el, pct, color) {
+  var n=12, on=Math.round(clamp(pct,0,100)/100*n), html='';
+  for (var i=0;i<n;i++) html+='<u style="background:'+(i<on?color:'#23262b')+'"></u>';
+  el.innerHTML=html;
+}
+
+function paintUi() {
+  node.clock.textContent = S.clock;
+  node.speed.textContent = Math.round(S.speed);
+  node.avgFuel.textContent = Number(S.avgFuel).toFixed(1)+' km/l';
+  node.driveMode.textContent = String(S.driveMode).toUpperCase();
+
+  var k=K;
+  node.rpm.innerHTML = Number(S.rpm).toFixed(1) +
+    ' <span style="font-size:'+(28*k)+'px;font-weight:300">RPM</span>' +
+    '<div style="font-size:'+(15*k)+'px;color:#cfcfcf;margin-top:'+(-12*k)+'px;letter-spacing:1px">x1000</div>';
+  node.kw.innerHTML = Math.round(S.kw) + ' <span style="font-size:'+(28*k)+'px">kW</span>';
+  node.powerSrc.textContent = S.powerSrc;
+  node.gear.textContent = S.gear;
+
+  node.tOut.innerHTML = S.tempOut+'°C<span>EXT</span>';
+  node.tIn.innerHTML  = S.tempIn+'°C<span>INT</span>';
+  node.fuelPct.textContent = Math.round(S.fuelPercent)+'%';
+  node.fuelRng.textContent = Math.round(S.fuelRange)+' km';
+  node.battPct.textContent = Math.round(S.batteryPercent)+'%';
+  node.odo.textContent = S.odometer;
+  segBar(node.fuelBar, S.fuelPercent, '#d99a4e');
+  segBar(node.battBar, S.batteryPercent, '#3fbf5f');
+
+  // TSR: so aparece quando o carro reconhece uma placa
+  node.tsrValue.textContent = S.speedLimit || '';
+  node.tsr.className = 'tsr' + (S.speedLimit > 0 ? '' : ' hidden');
+
+  // HEV: o rotulo nao informa nada e nao existe autonomia eletrica
+  node.powertrain.className = 'powertrain' + (S.isHev ? ' hidden' : '');
+  node.powertrainLabel.textContent = 'PHEV';
+  node.battRng.className = 'rng' + (S.isHev ? ' hidden' : '');
+  node.battRng.textContent = Math.round(S.batteryRange)+' km';
+}
+
+/* ================= ciclo de render ================= */
+var pending=false, needStatic=true;
+function schedule(full) {
+  if (full) needStatic=true;
+  if (pending) return;
+  pending=true;
+  requestAnimationFrame(function(){
+    pending=false;
+    if (needStatic) { needStatic=false; render(); }
+    else { drawDynamic(); paintUi(); }
+  });
+}
+function render() {
+  L = LAYOUTS[S.display] || LAYOUTS['GT'];
+  K = L.R/252;
+  stat.clearRect(0,0,1920,720);
+  drawStaticSpeed(L.cxL, L.cy, L.R);
+  drawStaticPower(L.cxR, L.cy, L.R);
+  buildUi();
+  drawDynamic();
+  paintUi();
+}
+
+/* ================= bridge com o app ================= */
+var MAP = {
+  carSpeed:'speed', engineRPM:'rpm', evPowerKw:'kw', gasConsumption:'avgFuel',
+  fuelPercent:'fuelPercent', fuelRange:'fuelRange',
+  batteryPercent:'batteryPercent', batteryRange:'batteryRange',
+  odometer:'odometer', outside_temp:'tempOut', inside_temp:'tempIn',
+  gearState:'gear', drivingMode:'driveMode', clockTime:'clock',
+  speedLimit:'speedLimit', isHev:'isHev', display:'display'
+};
+var GEARS = { '2':'D', '3':'P', '4':'R' };
+
+window.control = function (key, value) {
+  try {
+    var field = MAP[key];
+    if (!field) return;
+    var v = value;
+    if (typeof v === 'string' && v.trim() !== '' && !isNaN(v)) v = Number(v);
+
+    if (field === 'rpm' && v > 20) v = v/1000;              // vem em RPM absoluto
+    if (field === 'gear') v = GEARS[String(value)] || String(value);
+    if (field === 'isHev') v = (v === true || v === 1 || v === 'true' || v === '1');
+
+    if (S[field] === v) return;
+    S[field] = v;
+    schedule(field === 'display');
+  } catch (e) {
+    console.error('[GT] control falhou em ' + key + ':', e);
+  }
+};
+
+/* alerta critico: sai da frente para o painel original aparecer */
+var VISUAL_ONLY = [
+  'car.ipk_info.bsd_lca_warning_reqleft',
+  'car.ipk_info.bsd_lca_warning_reqright',
+  'car.ipk_info.warning_tts_notify'
+];
+var warnings = {};
+window.updateWarning = function (key, value) {
+  try {
+    warnings[key] = value;
+    var critical = false;
+    for (var k in warnings) {
+      var v = warnings[k];
+      var active = (v !== '0' && v !== '{0,0,0,0}' && v !== '{0,0,0,0,0}' && v !== '' && v !== 'false');
+      if (active && VISUAL_ONLY.indexOf(k) === -1) critical = true;
+    }
+    document.getElementById('app').className = critical ? 'hidden' : '';
+    if (window.Android && window.Android.setWarningActive) window.Android.setWarningActive(critical);
+  } catch (e) {
+    console.error('[GT] updateWarning falhou:', e);
+  }
+};
+
+window.focus = function () {};      // o GT nao tem menu proprio (ainda)
+window.cleanup = function () {};
+
+/* o watchdog do projector recarrega a WebView se ficar 15s sem sinal de vida */
+setInterval(function () {
+  if (window.Android && window.Android.heartbeat) window.Android.heartbeat();
+}, 5000);
+
+render();
+</script>
+</body>
+</html>
