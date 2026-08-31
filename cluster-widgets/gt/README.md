@@ -8,7 +8,20 @@ elétrica à direita — em dois layouts:
 | `GT` | R=252, centro y=320 | mostradores grandes |
 | `GT Compacto` | R=222, centro y=358 | libera a área central para o mapa projetado |
 
-O layout é trocado por `control('display', 'GT Compacto')`.
+**GT Compacto é o padrão.**
+
+O app não conhece os nomes dos nossos layouts: o `normalizeClusterDisplay()` do
+`InstrumentProjector2` só deixa passar `Normal`/`Reduzido`/`Clean`/`EsportivoClean` e
+converte qualquer outra coisa em `Normal`. Por isso o tema traduz (`DISPLAY_MAP`):
+
+| O app manda | O GT usa |
+| :-- | :-- |
+| `Normal` (padrão da preferência), `Reduzido` | **GT Compacto** |
+| `Clean`, `EsportivoClean` | GT (mostradores grandes) |
+
+Enquanto o GT não tem menu próprio, para usar os mostradores grandes: trocar
+temporariamente para o tema Basic, escolher **Clean** no menu Display do cluster e voltar
+para o GT — a preferência é do app, não do tema.
 
 ## Build
 

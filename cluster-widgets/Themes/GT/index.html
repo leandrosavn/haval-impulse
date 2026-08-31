@@ -145,7 +145,7 @@
 
 var S = {
   isHev: true,          // avas_config == 0 -> HEV: sem rotulo e sem autonomia eletrica
-  display: 'GT',        // 'GT' | 'GT Compacto'
+  display: 'GT Compacto', // layout padrao (ver DISPLAY_MAP)
 
   // --- controle de espaco: quando sair da frente do painel original ---
   cardId: 1,            // 0 = card do painel ORIGINAL (Viagem A/B, odometro) ocupa a direita
@@ -172,6 +172,26 @@ var S = {
 var LAYOUTS = {
   'GT':          { cxL:358, cxR:1560, cy:320, R:252 },
   'GT Compacto': { cxL:360, cxR:1560, cy:358, R:222 }
+};
+
+/*
+ * O app NAO conhece os nomes dos nossos layouts: normalizeClusterDisplay() no
+ * InstrumentProjector2 so deixa passar Normal/Reduzido/Clean/EsportivoClean e converte
+ * qualquer outra coisa em "Normal". Sem esta traducao o GT recebia sempre "Normal",
+ * caia no fallback e o Compacto era inalcancavel no carro.
+ *
+ * "Normal" (o padrao da preferencia) cai no COMPACTO de proposito.
+ * Para usar os mostradores grandes enquanto o GT nao tem menu proprio: trocar
+ * temporariamente para o tema Basic, escolher "Clean" no menu Display do cluster e voltar
+ * para o GT -- a preferencia e do app, nao do tema.
+ */
+var DISPLAY_MAP = {
+  'GT': 'GT',
+  'GT Compacto': 'GT Compacto',
+  'Normal': 'GT Compacto',
+  'Reduzido': 'GT Compacto',
+  'Clean': 'GT',
+  'EsportivoClean': 'GT'
 };
 
 var AMBER='#c8944f', AMBER_SOFT='#7d5930', CYAN='#4fb6ef', GREEN='#4cc46a',
@@ -573,6 +593,9 @@ window.control = function (key, value) {
     if (field === 'gear') v = GEARS[String(value)] || String(value);
     if (field === 'isHev' || field === 'clusterEnabled') {
       v = (v === true || v === 1 || v === 'true' || v === '1');
+    }
+    if (field === 'display') {
+      v = DISPLAY_MAP[String(value)] || 'GT Compacto';   // modos do app -> nossos layouts
     }
     if (field === 'appInDash') {
       // chega como false | true | 'left' | 'right'
