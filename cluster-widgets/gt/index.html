@@ -92,6 +92,14 @@
 var S = {
   isHev: true,          // avas_config == 0 -> HEV: sem rotulo e sem autonomia eletrica
   display: 'GT',        // 'GT' | 'GT Compacto'
+
+  // --- controle de espaco: quando sair da frente do painel original ---
+  cardId: 1,            // 0 = card do painel ORIGINAL (Viagem A/B, odometro) ocupa a direita
+  appInDash: false,     // false | 'left' | 'right' | true  (app projetado ocupando o cluster)
+  clusterEnabled: true, // desligar o cluster virtual pelas configuracoes do app
+  screen: 'dashboard',  // tela pedida pelo Impulse (menu chega na 1.0.2)
+  focusedItem: null,    // item destacado pelo volante
+
   speed: 0,             // carSpeed
   rpm: 0,               // engineRPM (x1000)
   kw: 0,                // evPowerKw
@@ -132,6 +140,7 @@ var stat = document.getElementById('cvStatic').getContext('2d');
 var dyn  = document.getElementById('cvDyn').getContext('2d');
 var ui   = document.getElementById('ui');
 var node = {};                                   // referencias dos elementos de texto
+var sides = { left: [], right: [] };             // textos de cada mostrador, para esconder por lado
 var L, K;                                        // layout ativo e fator de escala
 
 /* ---- gradiente conico manual (WebView do carro pode nao ter createConicGradient) ---- */
@@ -289,6 +298,13 @@ function drawStaticPower(cx, cy, R) {
 function drawDynamic() {
   var g=radii(L.R), k=g.k;
   dyn.clearRect(0,0,1920,720);
+  var showL=sideVisible('left'), showR=sideVisible('right');
+
+  if (showR) {
+    needle(L.cxR, L.cy, rpmDeg(S.rpm), g.hub+10*k, g.tickOut-6*k, AMBER, 3*k);
+    needle(L.cxR, L.cy, kwDeg(S.kw), g.hub+10*k, g.tickOut-6*k, S.kw<0?GREEN:CYAN, 3*k);
+  }
+  if (!showL) return;
 
   // preenchimento do arco MEDIA GAS
   var r=122*k, segs=13, gap=2.2, step=(GAS_A1-GAS_A0)/segs;
@@ -303,16 +319,30 @@ function drawDynamic() {
 
   needle(L.cxL, L.cy, speedDeg(S.speed), g.hub+10*k, g.tickOut-6*k, AMBER, 3*k);
   needle(L.cxL, L.cy, speedDeg(S.speed)+180, g.hub+10*k, g.hub+56*k, AMBER_SOFT, 2*k);
-  needle(L.cxR, L.cy, rpmDeg(S.rpm), g.hub+10*k, g.tickOut-6*k, AMBER, 3*k);
-  needle(L.cxR, L.cy, kwDeg(S.kw), g.hub+10*k, g.tickOut-6*k, S.kw<0?GREEN:CYAN, 3*k);
 }
 
 /* ================= textos (DOM) ================= */
-function el(id, cls, css, html) {
+function el(id, cls, css, html, side) {
   var d=document.createElement('div');
   d.className='txt '+(cls||''); d.innerHTML=html||'';
   for (var p in css) d.style[p]=css[p];
-  ui.appendChild(d); node[id]=d; return d;
+  ui.appendChild(d); node[id]=d;
+  if (side) sides[side].push(d);
+  return d;
+}
+
+/**
+ * Quando o tema tem de sair da frente:
+ *  - cardId 0: a direita pertence ao card do painel original (Viagem A/B, odometro)
+ *  - appInDash: um app projetado ocupa aquele lado do cluster
+ */
+function sideVisible(side) {
+  if (S.clusterEnabled === false) return false;
+  if (S.appInDash === true) return false;
+  if (S.appInDash === 'left' && side === 'left') return false;
+  if (S.appInDash === 'right' && side === 'right') return false;
+  if (side === 'right' && Number(S.cardId) === 0) return false;
+  return true;
 }
 
 function buildUi() {
@@ -334,25 +364,27 @@ function buildUi() {
 
   // --- mostrador esquerdo ---
   el('speed','roboto',{ left:L.cxL+'px', top:(cy-100*k)+'px', fontSize:(112*k)+'px',
-      fontWeight:300, lineHeight:1, letterSpacing:'-3px' });
+      fontWeight:300, lineHeight:1, letterSpacing:'-3px' }, '', 'left');
   el('speedUnit','',{ left:L.cxL+'px', top:(cy+14*k)+'px', fontSize:(27*k)+'px',
-      letterSpacing:'4px', color:'#e8e8e8' }, 'KM/H');
-  el('avgFuel','',{ left:L.cxL+'px', top:(cy+43*k)+'px', fontSize:(27*k)+'px', color:CYAN });
+      letterSpacing:'4px', color:'#e8e8e8' }, 'KM/H', 'left');
+  el('avgFuel','',{ left:L.cxL+'px', top:(cy+43*k)+'px', fontSize:(27*k)+'px', color:CYAN },
+      '', 'left');
   el('driveMode','roboto',{ left:L.cxL+'px', top:(cy+178*k)+'px', fontSize:(26*k)+'px',
-      fontWeight:600, letterSpacing:'5px' });
+      fontWeight:600, letterSpacing:'5px' }, '', 'left');
 
   // --- mostrador direito ---
-  el('rpm','roboto',{ left:L.cxR+'px', top:(cy-78*k)+'px', fontSize:(54*k)+'px', fontWeight:400 });
+  el('rpm','roboto',{ left:L.cxR+'px', top:(cy-78*k)+'px', fontSize:(54*k)+'px', fontWeight:400 },
+      '', 'right');
   el('kw','roboto',{ left:L.cxR+'px', top:(cy+4*k)+'px', fontSize:(54*k)+'px',
-      fontWeight:300, color:CYAN });
+      fontWeight:300, color:CYAN }, '', 'right');
   el('powerSrc','',{ left:L.cxR+'px', top:(cy+90*k)+'px', fontSize:(17*k)+'px',
-      color:'#9aa0a6', letterSpacing:'2px' });
+      color:'#9aa0a6', letterSpacing:'2px' }, '', 'right');
   el('regenLbl','',{ left:(L.cxR-106*k)+'px', top:(cy+188*k)+'px', fontSize:(22*k)+'px',
-      color:GREEN, letterSpacing:'2px' }, 'REGEN');
+      color:GREEN, letterSpacing:'2px' }, 'REGEN', 'right');
   el('rpmLbl','',{ left:(L.cxR+112*k)+'px', top:(cy+188*k)+'px', fontSize:(22*k)+'px',
-      color:'#b9bcc0', letterSpacing:'2px' }, 'RPM');
+      color:'#b9bcc0', letterSpacing:'2px' }, 'RPM', 'right');
   el('gear','roboto',{ left:L.cxR+'px', top:(cy+166*k)+'px', fontSize:(66*k)+'px',
-      fontWeight:500, color:'#d99a4e' });
+      fontWeight:500, color:'#d99a4e' }, '', 'right');
 
   // --- barra inferior ---
   var b=document.createElement('div'); b.className='bottom';
@@ -443,10 +475,21 @@ function schedule(full) {
 function render() {
   L = LAYOUTS[S.display] || LAYOUTS['GT'];
   K = L.R/252;
+  var showL = sideVisible('left'), showR = sideVisible('right');
+
   stat.clearRect(0,0,1920,720);
-  drawStaticSpeed(L.cxL, L.cy, L.R);
-  drawStaticPower(L.cxR, L.cy, L.R);
+  if (showL) drawStaticSpeed(L.cxL, L.cy, L.R);
+  if (showR) drawStaticPower(L.cxR, L.cy, L.R);
   buildUi();
+
+  // esconde os textos do lado que cedeu espaco ao painel original / ao app projetado
+  sides.left.forEach(function(n){ n.style.display = showL ? '' : 'none'; });
+  sides.right.forEach(function(n){ n.style.display = showR ? '' : 'none'; });
+
+  // cluster desligado ou app ocupando tudo: o tema some por inteiro
+  document.getElementById('app').style.visibility =
+      (S.clusterEnabled === false || S.appInDash === true) ? 'hidden' : 'visible';
+
   drawDynamic();
   paintUi();
 }
@@ -458,8 +501,11 @@ var MAP = {
   batteryPercent:'batteryPercent', batteryRange:'batteryRange',
   odometer:'odometer', outside_temp:'tempOut', inside_temp:'tempIn',
   gearState:'gear', drivingMode:'driveMode', clockTime:'clock',
-  speedLimit:'speedLimit', isHev:'isHev', display:'display'
+  speedLimit:'speedLimit', isHev:'isHev', display:'display',
+  cardId:'cardId', appInDash:'appInDash', clusterEnabled:'clusterEnabled'
 };
+/* mudancas que exigem redesenhar a camada estatica (layout ou visibilidade) */
+var FULL_REDRAW = { display:1, cardId:1, appInDash:1, clusterEnabled:1 };
 var GEARS = { '2':'D', '3':'P', '4':'R' };
 
 window.control = function (key, value) {
@@ -471,11 +517,24 @@ window.control = function (key, value) {
 
     if (field === 'rpm' && v > 20) v = v/1000;              // vem em RPM absoluto
     if (field === 'gear') v = GEARS[String(value)] || String(value);
-    if (field === 'isHev') v = (v === true || v === 1 || v === 'true' || v === '1');
+    if (field === 'isHev' || field === 'clusterEnabled') {
+      v = (v === true || v === 1 || v === 'true' || v === '1');
+    }
+    if (field === 'appInDash') {
+      // chega como false | true | 'left' | 'right'
+      if (v === 'false') v = false;
+      else if (v === 'true') v = true;
+    }
 
     if (S[field] === v) return;
     S[field] = v;
-    schedule(field === 'display');
+
+    // o app precisa saber do card para redimensionar os apps projetados
+    if (field === 'cardId' && window.Android && window.Android.setCardId) {
+      window.Android.setCardId(Number(v));
+    }
+
+    schedule(!!FULL_REDRAW[field]);
   } catch (e) {
     console.error('[GT] control falhou em ' + key + ':', e);
   }
@@ -504,7 +563,19 @@ window.updateWarning = function (key, value) {
   }
 };
 
-window.focus = function () {};      // o GT nao tem menu proprio (ainda)
+/*
+ * Telas e navegacao do menu do Impulse.
+ * O menu em si ainda nao e desenhado pelo GT (chega na 1.0.2) — por enquanto o tema so
+ * registra o estado e nao quebra: sem estas funcoes o app chama showScreen() e toma
+ * TypeError a cada abertura de menu.
+ */
+window.showScreen = function (screenName) {
+  try { S.screen = String(screenName); } catch (e) { console.error('[GT] showScreen:', e); }
+};
+window.focus = function (item) {
+  try { S.focusedItem = item == null ? null : String(item); }
+  catch (e) { console.error('[GT] focus:', e); }
+};
 window.cleanup = function () {};
 
 /* o watchdog do projector recarrega a WebView se ficar 15s sem sinal de vida */

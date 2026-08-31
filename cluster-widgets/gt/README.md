@@ -45,7 +45,18 @@ Vem do `InstrumentProjector2`:
 | `control(key, value)` | dados do veículo (ver `MAP` no fonte) |
 | `updateWarning(key, value)` | alerta crítico → o tema se esconde e devolve a tela ao painel original |
 | `Android.heartbeat()` | chamado a cada 5s; sem isso o watchdog recarrega a WebView a cada 15s |
-| `cleanup()` / `focus()` | no-op (o GT ainda não tem menu próprio) |
+| `Android.setCardId(n)` | o tema devolve o `cardId` recebido; o app precisa dele para redimensionar os apps projetados |
+| `showScreen(nome)` / `focus(item)` | registram o estado; o menu em si chega na 1.0.2 |
+| `cleanup()` | no-op |
+
+### Quando o tema sai da frente (`sideVisible`)
+
+| Situação | Efeito |
+| :-- | :-- |
+| `cardId == 0` | o mostrador **direito** some — aquele espaço é do card do painel original (Viagem A/B, odômetro) |
+| `appInDash == 'left'` / `'right'` | o mostrador daquele lado some, liberando o app projetado |
+| `appInDash == true` | o tema inteiro se esconde |
+| `clusterEnabled == false` | o tema inteiro se esconde |
 
 ### Chaves que o projector já empurra e o tema consome
 
