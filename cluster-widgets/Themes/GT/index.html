@@ -61,10 +61,10 @@
 </style>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  html, body { width:1920px; height:720px; background:#000; overflow:hidden; }
+  html, body { width:1920px; height:720px; background:transparent; overflow:hidden; }
   #app {
     position:relative; width:1920px; height:720px;
-    font-family:'Khand', Roboto, Arial, sans-serif; color:#fff; background:#000;
+    font-family:'Khand', Roboto, Arial, sans-serif; color:#fff; background:transparent;
     -webkit-font-smoothing:antialiased;
   }
   #app.hidden { visibility:hidden; }
@@ -133,7 +133,6 @@
 </head>
 <body>
 <div id="app">
-  <div class="vignette"></div>
   <canvas id="cvStatic" width="1920" height="720"></canvas>
   <canvas id="cvDyn" width="1920" height="720"></canvas>
   <div id="ui"></div>
@@ -266,6 +265,36 @@ function chromeRing(cx, cy, rOut, rIn) {
 function radii(R) {
   var k=R/252;
   return { k:k, tickOut:R-24*k, tickMajor:22*k, tickMinor:12*k, num:R-64*k, hub:165*k };
+}
+
+/*
+ * Mascaras — a pagina e TRANSPARENTE (a WebView e Color.TRANSPARENT): o que nao pintamos
+ * mostra o painel original por baixo. Entao cada peca do stock que queremos substituir
+ * precisa de uma forma opaca por cima, como o tema Basic faz com as .mask-circle.
+ *
+ * Geometria dos mostradores do painel original, tirada do Basic (--mask-*):
+ * centros (290,430) e (1630,430), raio 228. Os nossos ficam mais acima e menores, entao
+ * SEM esta mascara o mostrador do stock aparece por baixo/em volta do nosso.
+ */
+var STOCK = { cxL:290, cxR:1630, cy:430, r:240 };
+
+function stockMask(cx, cy, r) {
+  var g=stat.createRadialGradient(cx,cy,r*0.7,cx,cy,r);
+  g.addColorStop(0,'#05070a'); g.addColorStop(0.88,'#05070a'); g.addColorStop(1,'rgba(5,7,10,0)');
+  stat.beginPath(); stat.arc(cx,cy,r,0,Math.PI*2); stat.fillStyle=g; stat.fill();
+}
+
+/* capsula opaca atras do relogio, para nao duplicar com o relogio do painel original */
+function clockMask() {
+  var x0=690, x1=1230, y0=2, y1=70, r=34;
+  stat.beginPath();
+  stat.moveTo(x0+r, y0);
+  stat.lineTo(x1-r, y0);
+  stat.arc(x1-r, y0+r, r, -Math.PI/2, Math.PI/2);
+  stat.lineTo(x0+r, y1);
+  stat.arc(x0+r, y0+r, r, Math.PI/2, -Math.PI/2);
+  stat.closePath();
+  stat.fillStyle='#05070a'; stat.fill();
 }
 
 function dialBase(cx, cy, R) {
@@ -658,6 +687,10 @@ function render() {
   var showL = sideVisible('left'), showR = sideVisible('right');
 
   stat.clearRect(0,0,1920,720);
+  // primeiro as mascaras (cobrem o painel original), depois os nossos mostradores por cima
+  if (showL) stockMask(STOCK.cxL, STOCK.cy, STOCK.r);
+  if (showR) stockMask(STOCK.cxR, STOCK.cy, STOCK.r);
+  clockMask();
   if (showL) drawStaticSpeed(L.cxL, L.cy, L.R);
   if (showR) drawStaticPower(L.cxR, L.cy, L.R);
   buildUi();
