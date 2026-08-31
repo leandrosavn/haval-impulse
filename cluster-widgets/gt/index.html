@@ -49,19 +49,19 @@
   .bottom .bg { position:absolute; inset:0; background:linear-gradient(180deg,#0a0d11 0%, #05070a 100%); }
   .bottom svg.swoosh { position:absolute; left:0; top:-40px; }
   .b-item { position:absolute; font-family:Roboto, Arial, sans-serif; }
-  .temp { font-size:30px; font-weight:400; color:#f0f0f0; top:30px; }
+  .temp { font-size:28px; font-weight:400; color:#f0f0f0; top:44px; }
   .temp span { font-family:'Khand'; font-size:18px; color:#9aa0a6; letter-spacing:1px; margin-left:5px; }
-  .gauge { position:absolute; top:32px; width:225px; }
-  .gauge .pct { position:absolute; top:-30px; font-size:21px; font-weight:700; color:#fff; white-space:nowrap; }
-  .gauge .rng { position:absolute; top:16px; font-size:24px; font-weight:500; white-space:nowrap; }
-  .gauge .ticks { position:absolute; top:-25px; width:100%; height:16px; }
-  .gauge .ticks i { position:absolute; font-style:normal; font-family:'Khand'; font-size:17px;
+  .gauge { position:absolute; top:46px; width:225px; }
+  .gauge .pct { position:absolute; top:-26px; font-size:19px; font-weight:700; color:#fff; white-space:nowrap; }
+  .gauge .rng { position:absolute; top:13px; font-size:22px; font-weight:500; white-space:nowrap; }
+  .gauge .ticks { position:absolute; top:-22px; width:100%; height:16px; }
+  .gauge .ticks i { position:absolute; font-style:normal; font-family:'Khand'; font-size:16px;
                     color:#c9ccd0; transform:translateX(-50%); }
   .bar { position:absolute; top:0; display:flex; gap:3px; }
   .bar u { display:block; width:15px; height:14px; }
-  .odo { position:absolute; left:0; bottom:6px; width:1920px; text-align:center; }
+  .odo { position:absolute; left:0; bottom:2px; width:1920px; text-align:center; }
   .odo b { font-family:'Khand'; font-size:17px; color:#8a8f95; letter-spacing:2px; font-weight:400; vertical-align:3px; }
-  .odo em { font-family:Roboto, Arial, sans-serif; font-style:normal; font-size:32px; font-weight:500;
+  .odo em { font-family:Roboto, Arial, sans-serif; font-style:normal; font-size:29px; font-weight:500;
             color:#f2f2f2; margin-left:7px; }
   .odo i { font-family:'Khand'; font-style:normal; font-size:21px; color:#cfd2d6; margin-left:5px; }
   .hidden { display:none !important; }
@@ -524,7 +524,7 @@ function buildUi() {
   b.innerHTML =
     '<div class="bg"></div>' +
     '<svg class="swoosh" width="1920" height="134" viewBox="0 0 1920 134" fill="none">' +
-      '<path d="M0 44 H700 C762 44 758 76 820 76 H1100 C1162 76 1158 44 1220 44 H1920" ' +
+      '<path d="M0 50 H700 C762 50 758 82 820 82 H1100 C1162 82 1158 50 1220 50 H1920" ' +
       'stroke="#b8823f" stroke-width="2" fill="none" opacity=".95"/></svg>' +
     '<div class="b-item temp" id="tOut" style="left:96px"></div>' +
     '<div class="b-item temp" id="tIn" style="left:1762px"></div>' +
