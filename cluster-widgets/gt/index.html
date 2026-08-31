@@ -131,9 +131,17 @@ var S = {
   speedLimit: 0         // car.map.tsr.nav_speed_limit (precisa de 1 linha no Kotlin)
 };
 
+/*
+ * Centros alinhados aos mostradores do PAINEL ORIGINAL (290/1630), para o tema cair em
+ * cima do card do carro em vez de flutuar deslocado -- assim a mascara tambem fica
+ * concentrica com o nosso mostrador, sem a silhueta em "amendoim".
+ *
+ * O y e o raio sao o maximo que cabe acima da barra inferior (que comeca em 632):
+ * cy + R <= 624. O Compacto acaba praticamente sobre a geometria do stock (cy 430).
+ */
 var LAYOUTS = {
-  'GT':          { cxL:358, cxR:1560, cy:320, R:252 },
-  'GT Compacto': { cxL:360, cxR:1560, cy:358, R:222 }
+  'GT':          { cxL:290, cxR:1630, cy:396, R:228 },
+  'GT Compacto': { cxL:290, cxR:1630, cy:424, R:200 }
 };
 
 /*

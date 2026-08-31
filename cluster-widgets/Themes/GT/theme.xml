@@ -1,7 +1,7 @@
 <theme>
     <name>GT</name>
     <description>Dois mostradores redondos com aro metálico: velocidade à esquerda, RPM e potência elétrica à direita. Layout GT (mostradores grandes) e GT Compacto (libera a área central para o mapa projetado).</description>
-    <version>1.1.1</version>
+    <version>1.2.0</version>
     <thumbnail>thumbnail.png</thumbnail>
     <mainFile>index.html</mainFile>
 </theme>
