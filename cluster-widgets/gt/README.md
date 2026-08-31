@@ -59,8 +59,22 @@ Vem do `InstrumentProjector2`:
 | `updateWarning(key, value)` | alerta crítico → o tema se esconde e devolve a tela ao painel original |
 | `Android.heartbeat()` | chamado a cada 5s; sem isso o watchdog recarrega a WebView a cada 15s |
 | `Android.setCardId(n)` | o tema devolve o `cardId` recebido; o app precisa dele para redimensionar os apps projetados |
-| `showScreen(nome)` / `focus(item)` | registram o estado; o menu em si chega na 1.0.2 |
+| `showScreen(nome)` / `focus(item)` | trocam a tela e movem a seleção do menu |
 | `cleanup()` | no-op |
+
+### Menu do Impulse
+
+O núcleo do mostrador **direito** vira o menu quando o app seleciona o card dele —
+`cardId == 1` abre o menu principal e `cardId == 3` o ar, mesma regra do tema Basic. Nos
+demais cards o mostrador volta a ser conta-giros; em `cardId == 0` ele some (card do
+painel original).
+
+Telas desenhadas: `main_menu`, `display_selection`, `regen`, `aircon`, `graph`. A seleção
+vem de `focus(item)` e é destacada num carrossel (o item focado grande no centro, vizinhos
+esmaecidos).
+
+⚠️ **A lógica é toda do lado Java** (`MainMenu`, `RegenScreen`, `DisplaySelectionScreen`…):
+o tema apenas desenha o estado que recebe. Não há ação disparada pelo tema.
 
 ### Quando o tema sai da frente (`sideVisible`)
 

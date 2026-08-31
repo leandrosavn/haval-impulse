@@ -27,7 +27,7 @@
     {
       "name": "GT",
       "folder": "GT",
-      "version": "1.0.2",
+      "version": "1.1.0",
       "description": "Dois mostradores redondos com aro metálico: velocidade à esquerda, RPM e potência elétrica à direita. Layout GT e GT Compacto.",
       "mainFile": "index.html",
       "thumbnail": "thumbnail.png"
